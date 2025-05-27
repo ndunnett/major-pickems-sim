@@ -39,58 +39,58 @@ options:
 RESULTS FROM 1,000,000 TOURNAMENT SIMULATIONS
 
 Most likely to 3-0:
-1.  FaZe             38.4%
-2.  Spirit           31.4%
-3.  Vitality         31.4%
-4.  MOUZ             25.6%
-5.  Virtus.pro       18.4%
-6.  Natus Vincere    15.7%
-7.  G2               14.2%
-8.  Complexity        6.5%
-9.  Cloud9            4.6%
-10. HEROIC            3.7%
-11. Eternal Fire      3.5%
-12. FURIA             2.5%
-13. The MongolZ       1.3%
-14. Imperial          1.0%
-15. ECSTATIC          0.9%
-16. paiN              0.8%
+1.  HEROIC              50.8%
+2.  Complexity          22.5%
+3.  FlyQuest            16.9%
+4.  Wildcard            16.8%
+5.  Nemiga              12.3%
+6.  NRG                 11.8%
+7.  B8                  10.6%
+8.  Imperial            10.3%
+9.  BetBoom             10.3%
+10. Fluxo                8.1%
+11. Legacy               7.6%
+12. Metizport            7.4%
+13. Lynn Vision          4.8%
+14. OG                   4.4%
+15. TYLOO                4.0%
+16. Chinggis Warriors    1.4%
 
 Most likely to 3-1 or 3-2:
-1.  G2               58.7%
-2.  MOUZ             58.1%
-3.  Natus Vincere    58.0%
-4.  Vitality         57.5%
-5.  Virtus.pro       57.0%
-6.  Spirit           56.4%
-7.  FaZe             53.1%
-8.  Complexity       38.9%
-9.  Cloud9           36.4%
-10. HEROIC           31.6%
-11. Eternal Fire     30.8%
-12. FURIA            21.4%
-13. The MongolZ      12.9%
-14. Imperial         10.1%
-15. ECSTATIC          9.9%
-16. paiN              9.1%
+1.  Complexity          51.2%
+2.  FlyQuest            51.0%
+3.  Wildcard            49.9%
+4.  Nemiga              45.5%
+5.  HEROIC              44.2%
+6.  NRG                 44.0%
+7.  Imperial            40.9%
+8.  B8                  40.6%
+9.  BetBoom             40.1%
+10. Fluxo               39.7%
+11. Metizport           37.6%
+12. Legacy              35.3%
+13. Lynn Vision         24.6%
+14. OG                  23.5%
+15. TYLOO               21.5%
+16. Chinggis Warriors   10.5%
 
 Most likely to 0-3:
-1.  Imperial         31.8%
-2.  ECSTATIC         31.5%
-3.  paiN             31.0%
-4.  The MongolZ      29.1%
-5.  FURIA            21.3%
-6.  Eternal Fire     13.2%
-7.  HEROIC           12.4%
-8.  Cloud9           10.2%
-9.  Complexity        7.2%
-10. G2                2.7%
-11. Virtus.pro        2.6%
-12. Natus Vincere     2.5%
-13. MOUZ              1.4%
-14. Spirit            1.2%
-15. Vitality          1.0%
-16. FaZe              0.8%
+1.  Chinggis Warriors   37.8%
+2.  TYLOO               22.4%
+3.  OG                  21.2%
+4.  Lynn Vision         19.4%
+5.  Metizport           12.1%
+6.  Legacy              11.6%
+7.  Fluxo               11.4%
+8.  BetBoom             11.1%
+9.  B8                  10.7%
+10. Imperial            10.1%
+11. Nemiga               8.0%
+12. NRG                  7.8%
+13. Wildcard             5.9%
+14. FlyQuest             5.6%
+15. Complexity           4.4%
+16. HEROIC               0.6%
 
-Run time: 17.70 seconds
+Run time: 13.26 seconds
 ```
