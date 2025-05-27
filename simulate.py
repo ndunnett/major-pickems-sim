@@ -205,7 +205,7 @@ def format_results(results: dict[Team, dict[str, int]], n: int, run_time: float)
             sorted(results.items(), key=lambda tup: tup[1][stat], reverse=True),
         ):
             out.append(
-                f"{str(i + 1) + '.':<3} {team.name:<15} {round(result[stat] / n * 100, 1):>5}%",
+                f"{str(i + 1) + '.':<3} {team.name:<18} {round(result[stat] / n * 100, 1):>5}%",
             )
 
     out.append(f"\nRun time: {run_time:.2f} seconds")
