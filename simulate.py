@@ -4,15 +4,16 @@ import json
 from argparse import ArgumentParser
 from dataclasses import dataclass
 from functools import cache, reduce
+from itertools import groupby
 from multiprocessing import Pool
 from os import cpu_count
 from random import random
 from statistics import median
 from time import perf_counter_ns
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
+    from collections.abc import Generator, Iterable, Iterator
     from pathlib import Path
 
 
@@ -28,6 +29,27 @@ class Team:
 
     def __hash__(self) -> int:
         return self.id
+
+
+@dataclass(frozen=True)
+class TeamIndex[T]:
+    teams: list[Team]
+    data: list[T]
+
+    @staticmethod
+    def new(teams: Iterable[Team], factory: Callable[[], T]) -> TeamIndex[T]:
+        teams = list(teams)
+        data = [factory() for _ in range(len(teams))]
+        return TeamIndex(teams, data)
+
+    def __getitem__(self, team: Team) -> T:
+        return self.data[team.id]
+
+    def __setitem__(self, team: Team, value: T) -> None:
+        self.data[team.id] = value
+
+    def items(self) -> Iterator[tuple[Team, T]]:
+        return ((self.teams[i], self.data[i]) for i in range(len(self.teams)))
 
 
 @dataclass
@@ -77,8 +99,9 @@ def win_probability(a: Team, b: Team, sigma: tuple[int, ...]) -> float:
 @dataclass
 class SwissSystem:
     sigma: tuple[int, ...]
-    records: dict[Team, Record]
+    records: TeamIndex[Record]
     remaining: set[Team]
+    first_round: bool
 
     def seeding(self, team: Team) -> tuple[int, int, int]:
         """Calculate seeding based on win-loss, Buchholz difficulty, and initial seed."""
@@ -124,28 +147,24 @@ class SwissSystem:
 
     def simulate_round(self) -> None:
         """Simulate round of matches."""
-        even_teams, pos_teams, neg_teams = [], [], []
-
-        # group teams with the same record together and sort by mid-round seeding
-        for team in sorted(self.remaining, key=self.seeding):
-            if self.records[team].diff > 0:
-                pos_teams.append(team)
-            elif self.records[team].diff < 0:
-                neg_teams.append(team)
-            else:
-                even_teams.append(team)
-
         # first round is seeded differently (1-9, 2-10, 3-11 etc.)
-        if len(even_teams) == len(self.records):
-            for a, b in zip(even_teams, even_teams[len(even_teams) // 2 :]):
+        if self.first_round:
+            group = sorted(self.remaining, key=lambda team: team.seed)
+
+            for a, b in zip(group, group[len(group) // 2 :]):
                 self.simulate_match(a, b)
 
-        # run matches for each group, highest seed vs lowest seed
-        else:
-            for group in [pos_teams, even_teams, neg_teams]:
-                second_half = reversed(group[len(group) // 2 :])
+            self.first_round = False
 
-                for a, b in zip(group, second_half):
+        # group teams by record and run matches for each group, highest seed vs lowest seed
+        else:
+            groups = groupby(
+                sorted(self.remaining, key=self.seeding),
+                lambda team: self.records[team].wins,
+            )
+
+            for group in (list(group_iter) for _, group_iter in groups):
+                for a, b in zip(group, reversed(group[len(group) // 2 :])):
                     self.simulate_match(a, b)
 
     def simulate_tournament(self) -> None:
@@ -185,15 +204,16 @@ class Simulation:
             for team_k, team_v in data["teams"].items()
         }
 
-    def batch(self, n: int) -> dict[Team, Result]:
+    def batch(self, n: int) -> TeamIndex[Result]:
         """Run batch of 'n' simulation iterations for given data and return results."""
-        results = {team: Result.new() for team in self.teams}
+        results = TeamIndex.new(self.teams, Result.new)
 
         for _ in range(n):
             ss = SwissSystem(
                 sigma=self.sigma,
-                records={team: Record.new() for team in self.teams},
+                records=TeamIndex.new(self.teams, Record.new),
                 remaining=set(self.teams),
+                first_round=True,
             )
 
             ss.simulate_tournament()
@@ -209,13 +229,13 @@ class Simulation:
 
         return results
 
-    def run(self, n: int, k: int) -> dict[Team, Result]:
+    def run(self, n: int, k: int) -> TeamIndex[Result]:
         """Run 'n' simulation iterations across 'k' processes and return results."""
         with Pool(k) as pool:
             futures = [pool.apply_async(self.batch, [n // k]) for _ in range(k)]
             results = [future.get() for future in futures]
 
-        def _f(acc: dict[Team, Result], results: dict[Team, Result]) -> dict[Team, Result]:
+        def _f(acc: TeamIndex[Result], results: TeamIndex[Result]) -> TeamIndex[Result]:
             for team, result in results.items():
                 acc[team] += result
 
@@ -224,7 +244,7 @@ class Simulation:
         return reduce(_f, results)
 
 
-def format_results(results: dict[Team, Result], n: int, run_time: float) -> list[str]:
+def format_results(results: TeamIndex[Result], n: int, run_time: float) -> list[str]:
     """Formats simulation results and run time parameters into readable strings."""
     fields = (
         ("three_zero", "3-0"),
