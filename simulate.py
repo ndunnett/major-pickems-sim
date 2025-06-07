@@ -86,10 +86,7 @@ class Result:
 
 @cache
 def win_probability(a: Team, b: Team, sigma: int) -> float:
-    """Calculate the probability of team 'a' beating team 'b' for given sigma values."""
-    # calculate the win probability for given team ratings and value of sigma (std deviation of
-    # ratings) for each rating system (assumed to be elo based and normally distributed) and
-    # take the median
+    """Calculate the probability of team 'a' beating team 'b' for given sigma value."""
     return 1 / (1 + 10 ** ((b.rating - a.rating) / sigma))
 
 
