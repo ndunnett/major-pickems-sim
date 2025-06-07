@@ -1,74 +1,66 @@
 {
-  "systems": {
-    "valve": "lambda x: x"
+  "Complexity": {
+    "seed": 1,
+    "rating": 1355
   },
-  "sigma": {
-    "valve": 600
+  "HEROIC": {
+    "seed": 2,
+    "rating": 1705
   },
-  "teams": {
-    "Complexity": {
-      "seed": 1,
-      "valve": 1355
-    },
-    "HEROIC": {
-      "seed": 2,
-      "valve": 1705
-    },
-    "B8": {
-      "seed": 3,
-      "valve": 1171
-    },
-    "BetBoom": {
-      "seed": 4,
-      "valve": 1168
-    },
-    "TYLOO": {
-      "seed": 5,
-      "valve": 924
-    },
-    "Lynn Vision": {
-      "seed": 6,
-      "valve": 949
-    },
-    "Wildcard": {
-      "seed": 7,
-      "valve": 1303
-    },
-    "FlyQuest": {
-      "seed": 8,
-      "valve": 1325
-    },
-    "OG": {
-      "seed": 9,
-      "valve": 981
-    },
-    "Chinggis Warriors": {
-      "seed": 10,
-      "valve": 814
-    },
-    "Imperial": {
-      "seed": 11,
-      "valve": 1167
-    },
-    "Nemiga": {
-      "seed": 12,
-      "valve": 1231
-    },
-    "NRG": {
-      "seed": 13,
-      "valve": 1183
-    },
-    "Legacy": {
-      "seed": 14,
-      "valve": 1079
-    },
-    "Metizport": {
-      "seed": 15,
-      "valve": 1163
-    },
-    "Fluxo": {
-      "seed": 16,
-      "valve": 1200
-    }
+  "B8": {
+    "seed": 3,
+    "rating": 1171
+  },
+  "BetBoom": {
+    "seed": 4,
+    "rating": 1168
+  },
+  "TYLOO": {
+    "seed": 5,
+    "rating": 924
+  },
+  "Lynn Vision": {
+    "seed": 6,
+    "rating": 949
+  },
+  "Wildcard": {
+    "seed": 7,
+    "rating": 1303
+  },
+  "FlyQuest": {
+    "seed": 8,
+    "rating": 1325
+  },
+  "OG": {
+    "seed": 9,
+    "rating": 981
+  },
+  "Chinggis Warriors": {
+    "seed": 10,
+    "rating": 814
+  },
+  "Imperial": {
+    "seed": 11,
+    "rating": 1167
+  },
+  "Nemiga": {
+    "seed": 12,
+    "rating": 1231
+  },
+  "NRG": {
+    "seed": 13,
+    "rating": 1183
+  },
+  "Legacy": {
+    "seed": 14,
+    "rating": 1079
+  },
+  "Metizport": {
+    "seed": 15,
+    "rating": 1163
+  },
+  "Fluxo": {
+    "seed": 16,
+    "rating": 1200
   }
 }

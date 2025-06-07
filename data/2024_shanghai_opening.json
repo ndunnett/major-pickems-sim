@@ -1,74 +1,66 @@
 {
-  "systems": {
-    "valve": "lambda x: x"
+  "FURIA": {
+    "seed": 1,
+    "rating": 1559
   },
-  "sigma": {
-    "valve": 600
+  "Virtus.pro": {
+    "seed": 2,
+    "rating": 1466
   },
-  "teams": {
-    "FURIA": {
-      "seed": 1,
-      "valve": 1559
-    },
-    "Virtus.pro": {
-      "seed": 2,
-      "valve": 1466
-    },
-    "Liquid": {
-      "seed": 3,
-      "valve": 1548
-    },
-    "Complexity": {
-      "seed": 4,
-      "valve": 1485
-    },
-    "BIG": {
-      "seed": 5,
-      "valve": 1408
-    },
-    "Fnatic": {
-      "seed": 6,
-      "valve": 1317
-    },
-    "The MongolZ": {
-      "seed": 7,
-      "valve": 1748
-    },
-    "paiN": {
-      "seed": 8,
-      "valve": 1445
-    },
-    "GamerLegion": {
-      "seed": 9,
-      "valve": 1255
-    },
-    "MIBR": {
-      "seed": 10,
-      "valve": 1294
-    },
-    "Cloud9": {
-      "seed": 11,
-      "valve": 1208
-    },
-    "FlyQuest": {
-      "seed": 12,
-      "valve": 1358
-    },
-    "Passion UA": {
-      "seed": 13,
-      "valve": 1156
-    },
-    "Wildcard": {
-      "seed": 14,
-      "valve": 1236
-    },
-    "Rare Atom": {
-      "seed": 15,
-      "valve": 929
-    },
-    "Imperial": {
-      "seed": 16,
-      "valve": 1228
-    }
+  "Liquid": {
+    "seed": 3,
+    "rating": 1548
+  },
+  "Complexity": {
+    "seed": 4,
+    "rating": 1485
+  },
+  "BIG": {
+    "seed": 5,
+    "rating": 1408
+  },
+  "Fnatic": {
+    "seed": 6,
+    "rating": 1317
+  },
+  "The MongolZ": {
+    "seed": 7,
+    "rating": 1748
+  },
+  "paiN": {
+    "seed": 8,
+    "rating": 1445
+  },
+  "GamerLegion": {
+    "seed": 9,
+    "rating": 1255
+  },
+  "MIBR": {
+    "seed": 10,
+    "rating": 1294
+  },
+  "Cloud9": {
+    "seed": 11,
+    "rating": 1208
+  },
+  "FlyQuest": {
+    "seed": 12,
+    "rating": 1358
+  },
+  "Passion UA": {
+    "seed": 13,
+    "rating": 1156
+  },
+  "Wildcard": {
+    "seed": 14,
+    "rating": 1236
+  },
+  "Rare Atom": {
+    "seed": 15,
+    "rating": 929
+  },
+  "Imperial": {
+    "seed": 16,
+    "rating": 1228
   }
 }

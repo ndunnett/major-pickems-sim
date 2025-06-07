@@ -8,7 +8,6 @@ from itertools import groupby
 from multiprocessing import Pool
 from os import cpu_count
 from random import random
-from statistics import median
 from time import perf_counter_ns
 from typing import TYPE_CHECKING, Callable
 
@@ -22,7 +21,7 @@ class Team:
     id: int
     name: str
     seed: int
-    rating: tuple[int, ...]
+    rating: int
 
     def __str__(self) -> str:
         return str(self.name)
@@ -86,19 +85,17 @@ class Result:
 
 
 @cache
-def win_probability(a: Team, b: Team, sigma: tuple[int, ...]) -> float:
+def win_probability(a: Team, b: Team, sigma: int) -> float:
     """Calculate the probability of team 'a' beating team 'b' for given sigma values."""
     # calculate the win probability for given team ratings and value of sigma (std deviation of
     # ratings) for each rating system (assumed to be elo based and normally distributed) and
     # take the median
-    return median(
-        1 / (1 + 10 ** ((b.rating[i] - a.rating[i]) / (2 * sigma[i]))) for i in range(len(sigma))
-    )
+    return 1 / (1 + 10 ** ((b.rating - a.rating) / sigma))
 
 
 @dataclass
 class SwissSystem:
-    sigma: tuple[int, ...]
+    sigma: int
     records: TeamIndex[Record]
     remaining: set[Team]
     first_round: bool
@@ -174,10 +171,10 @@ class SwissSystem:
 
 
 class Simulation:
-    sigma: tuple[int, ...]
+    sigma: int
     teams: set[Team]
 
-    def __init__(self, filepath: Path) -> None:
+    def __init__(self, filepath: Path, sigma: int) -> None:
         """Parse data loaded in from .json file."""
         with open(filepath) as file:
             data = json.load(file)
@@ -190,18 +187,15 @@ class Simulation:
                 i += 1
 
         auto_id = id_generator()
-        self.sigma = (*data["sigma"].values(),)
+        self.sigma = sigma
         self.teams = {
             Team(
                 id=next(auto_id),
                 name=team_k,
                 seed=team_v["seed"],
-                rating=tuple(
-                    (eval(sys_v))(team_v[sys_k])  # noqa: S307
-                    for sys_k, sys_v in data["systems"].items()
-                ),
+                rating=team_v["rating"],
             )
-            for team_k, team_v in data["teams"].items()
+            for team_k, team_v in data.items()
         }
 
     def batch(self, n: int) -> TeamIndex[Result]:
@@ -278,10 +272,11 @@ if __name__ == "__main__":
     parser.add_argument("-f", type=str, help="path to input data (.json)", required=True)
     parser.add_argument("-n", type=int, default=1_000_000, help="number of iterations to run")
     parser.add_argument("-k", type=int, default=cpu_count(), help="number of cores to use")
+    parser.add_argument("-s", type=int, default=800, help="sigma value to use for win probability")
     args = parser.parse_args()
 
     # run simulations and print formatted results
     start = perf_counter_ns()
-    results = Simulation(args.f).run(args.n, args.k)
+    results = Simulation(args.f, args.s).run(args.n, args.k)
     run_time = (perf_counter_ns() - start) / 1_000_000_000
     print("\n".join(format_results(results, args.n, run_time)))

@@ -1,110 +1,66 @@
 {
-    "systems": {
-        "valve": "lambda x: x",
-        "hltv": "lambda x: (x ** 0.5) * 10",
-        "gosu": "lambda x: x"
-    },
-    "sigma": {
-        "valve": 600,
-        "hltv": 135,
-        "gosu": 300
-    },
-    "teams": {
-        "Cloud9": {
-            "seed": 9,
-            "valve": 1520,
-            "hltv": 298,
-            "gosu": 1280
-        },
-        "Eternal Fire": {
-            "seed": 10,
-            "valve": 1508,
-            "hltv": 229,
-            "gosu": 1252
-        },
-        "ENCE": {
-            "seed": 11,
-            "valve": 1454,
-            "hltv": 305,
-            "gosu": 1327
-        },
-        "Apeks": {
-            "seed": 12,
-            "valve": 1436,
-            "hltv": 218,
-            "gosu": 1231
-        },
-        "HEROIC": {
-            "seed": 13,
-            "valve": 1433,
-            "hltv": 226,
-            "gosu": 1345
-        },
-        "9Pandas": {
-            "seed": 14,
-            "valve": 1173,
-            "hltv": 103,
-            "gosu": 1103
-        },
-        "SAW": {
-            "seed": 15,
-            "valve": 1140,
-            "hltv": 134,
-            "gosu": 1193
-        },
-        "FURIA": {
-            "seed": 16,
-            "valve": 1391,
-            "hltv": 184,
-            "gosu": 1230
-        },
-        "ECSTATIC": {
-            "seed": 17,
-            "valve": 1127,
-            "hltv": 65,
-            "gosu": 1145
-        },
-        "The MongolZ": {
-            "seed": 18,
-            "valve": 1433,
-            "hltv": 83,
-            "gosu": 1144
-        },
-        "Imperial": {
-            "seed": 19,
-            "valve": 1152,
-            "hltv": 62,
-            "gosu": 1152
-        },
-        "paiN": {
-            "seed": 20,
-            "valve": 1048,
-            "hltv": 45,
-            "gosu": 1202
-        },
-        "Lynn Vision": {
-            "seed": 21,
-            "valve": 1152,
-            "hltv": 39,
-            "gosu": 1174
-        },
-        "AMKAL": {
-            "seed": 22,
-            "valve": 1083,
-            "hltv": 75,
-            "gosu": 1035
-        },
-        "KOI": {
-            "seed": 23,
-            "valve": 1046,
-            "hltv": 74,
-            "gosu": 1041
-        },
-        "Legacy": {
-            "seed": 24,
-            "valve": 1009,
-            "hltv": 55,
-            "gosu": 1027
-        }
-    }
+  "Cloud9": {
+    "seed": 9,
+    "rating": 1520
+  },
+  "Eternal Fire": {
+    "seed": 10,
+    "rating": 1508
+  },
+  "ENCE": {
+    "seed": 11,
+    "rating": 1454
+  },
+  "Apeks": {
+    "seed": 12,
+    "rating": 1436
+  },
+  "HEROIC": {
+    "seed": 13,
+    "rating": 1433
+  },
+  "9Pandas": {
+    "seed": 14,
+    "rating": 1173
+  },
+  "SAW": {
+    "seed": 15,
+    "rating": 1140
+  },
+  "FURIA": {
+    "seed": 16,
+    "rating": 1391
+  },
+  "ECSTATIC": {
+    "seed": 17,
+    "rating": 1127
+  },
+  "The MongolZ": {
+    "seed": 18,
+    "rating": 1433
+  },
+  "Imperial": {
+    "seed": 19,
+    "rating": 1152
+  },
+  "paiN": {
+    "seed": 20,
+    "rating": 1048
+  },
+  "Lynn Vision": {
+    "seed": 21,
+    "rating": 1152
+  },
+  "AMKAL": {
+    "seed": 22,
+    "rating": 1083
+  },
+  "KOI": {
+    "seed": 23,
+    "rating": 1046
+  },
+  "Legacy": {
+    "seed": 24,
+    "rating": 1009
+  }
 }
