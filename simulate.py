@@ -7,13 +7,13 @@ from functools import cache, reduce
 from itertools import groupby
 from multiprocessing import Pool
 from os import cpu_count
+from pathlib import Path
 from random import random
 from time import perf_counter_ns
 from typing import TYPE_CHECKING, Callable
 
 if TYPE_CHECKING:
     from collections.abc import Generator, Iterable, Iterator
-    from pathlib import Path
 
 
 @dataclass(frozen=True)
@@ -37,6 +37,7 @@ class TeamIndex[T]:
 
     @staticmethod
     def new(teams: Iterable[Team], factory: Callable[[], T]) -> TeamIndex[T]:
+        """Create a new index from teams, with default values created by calling `factory`."""
         teams = list(teams)
         data = [factory() for _ in range(len(teams))]
         return TeamIndex(teams, data)
@@ -48,6 +49,7 @@ class TeamIndex[T]:
         self.data[team.id] = value
 
     def items(self) -> Iterator[tuple[Team, T]]:
+        """Returns an iterator of key, value pairs."""
         return ((self.teams[i], self.data[i]) for i in range(len(self.teams)))
 
 
@@ -59,6 +61,7 @@ class Record:
 
     @staticmethod
     def new() -> Record:
+        """Create a new empty record."""
         return Record(wins=0, losses=0, teams_faced=set())
 
     @property
@@ -74,6 +77,7 @@ class Result:
 
     @staticmethod
     def new() -> Result:
+        """Create a new empty result."""
         return Result(three_zero=0, advanced=0, zero_three=0)
 
     def __add__(self, other: Result) -> Result:
@@ -97,6 +101,16 @@ class SwissSystem:
     remaining: set[Team]
     first_round: bool
 
+    @staticmethod
+    def new(teams: Iterable[Team], sigma: int) -> SwissSystem:
+        """Create a new swiss system from teams and sigma value."""
+        return SwissSystem(
+            sigma=sigma,
+            records=TeamIndex.new(teams, Record.new),
+            remaining=set(teams),
+            first_round=True,
+        )
+
     def seeding(self, team: Team) -> tuple[int, int, int]:
         """Calculate seeding based on win-loss, Buchholz difficulty, and initial seed."""
         return (
@@ -106,7 +120,7 @@ class SwissSystem:
         )
 
     def simulate_match(self, team_a: Team, team_b: Team) -> None:
-        """Simulate singular match."""
+        """Simulate a singular match."""
         # BO3 if match is for advancement/elimination
         is_bo3 = self.records[team_a].wins == 2 or self.records[team_a].losses == 2
 
@@ -140,7 +154,7 @@ class SwissSystem:
                     self.remaining.remove(team)
 
     def simulate_round(self) -> None:
-        """Simulate round of matches."""
+        """Simulate a round of matches."""
         # first round is seeded differently (1-9, 2-10, 3-11 etc.)
         if self.first_round:
             group = sorted(self.remaining, key=lambda team: team.seed)
@@ -162,17 +176,19 @@ class SwissSystem:
                     self.simulate_match(a, b)
 
     def simulate_tournament(self) -> None:
-        """Simulate entire tournament stage."""
+        """Simulate an entire tournament stage."""
         while self.remaining:
             self.simulate_round()
 
 
+@dataclass(frozen=True)
 class Simulation:
     sigma: int
     teams: set[Team]
 
-    def __init__(self, filepath: Path, sigma: int) -> None:
-        """Parse data loaded in from .json file."""
+    @staticmethod
+    def from_file(filepath: Path, sigma: int) -> Simulation:
+        """Create a new simulation by parsing data from a .json file."""
         with open(filepath) as file:
             data = json.load(file)
 
@@ -184,8 +200,8 @@ class Simulation:
                 i += 1
 
         auto_id = id_generator()
-        self.sigma = sigma
-        self.teams = {
+
+        teams = {
             Team(
                 id=next(auto_id),
                 name=team_k,
@@ -195,28 +211,24 @@ class Simulation:
             for team_k, team_v in data.items()
         }
 
+        return Simulation(sigma, teams)
+
     def batch(self, n: int) -> TeamIndex[Result]:
-        """Run batch of 'n' simulation iterations for given data and return results."""
+        """Run a batch of 'n' simulation iterations for given data and return results."""
         results = TeamIndex.new(self.teams, Result.new)
 
         for _ in range(n):
-            ss = SwissSystem(
-                sigma=self.sigma,
-                records=TeamIndex.new(self.teams, Record.new),
-                remaining=set(self.teams),
-                first_round=True,
-            )
-
+            ss = SwissSystem.new(self.teams, self.sigma)
             ss.simulate_tournament()
 
             for team, record in ss.records.items():
-                if record.wins == 3:
-                    if record.losses == 0:
+                match (record.wins, record.losses):
+                    case (3, 0):
                         results[team].three_zero += 1
-                    else:
+                    case (3, 1 | 2):
                         results[team].advanced += 1
-                elif record.wins == 0:
-                    results[team].zero_three += 1
+                    case (0, 3):
+                        results[team].zero_three += 1
 
         return results
 
@@ -235,38 +247,39 @@ class Simulation:
         return reduce(_f, results)
 
 
-def format_results(results: TeamIndex[Result], n: int, run_time: float) -> list[str]:
-    """Formats simulation results and run time parameters into readable strings."""
+def format_results(results: TeamIndex[Result], iterations: int, run_time: float) -> str:
+    """Format simulation results into a readable string."""
+    out = [f"RESULTS FROM {iterations:,} TOURNAMENT SIMULATIONS"]
+
     fields = (
         ("three_zero", "3-0"),
         ("advanced", "3-1 or 3-2"),
         ("zero_three", "0-3"),
     )
 
-    out = [f"RESULTS FROM {n:,} TOURNAMENT SIMULATIONS"]
+    for attr, title in fields:
+        out.append(f"\nMost likely to {title}:")
 
-    for attr, stat in fields:
-        out.append(f"\nMost likely to {stat}:")
+        def result_key(tup: tuple[Team, Result]) -> int:
+            return getattr(tup[1], attr)
 
-        sorted_results = enumerate(
-            sorted(results.items(), key=lambda tup: getattr(tup[1], attr), reverse=True),
-        )
+        sorted_results = enumerate(sorted(results.items(), key=result_key, reverse=True))
 
         for i, (team, result) in sorted_results:
             out.append(
-                f"{str(i + 1) + '.':<3} "
-                f"{team.name:<18} "
-                f"{round(getattr(result, attr) / n * 100, 1):>5}%",
+                f"{str(i + 1) + '.':<4}"
+                f"{team.name:<20}"
+                f"{round(getattr(result, attr) / iterations * 100, 1):>6}%",
             )
 
     out.append(f"\nRun time: {run_time:.2f} seconds")
-    return out
+    return "\n".join(out)
 
 
 if __name__ == "__main__":
     # parse args from CLI
     parser = ArgumentParser()
-    parser.add_argument("-f", type=str, help="path to input data (.json)", required=True)
+    parser.add_argument("-f", type=Path, help="path to input data (.json)", required=True)
     parser.add_argument("-n", type=int, default=1_000_000, help="number of iterations to run")
     parser.add_argument("-k", type=int, default=cpu_count(), help="number of cores to use")
     parser.add_argument("-s", type=int, default=800, help="sigma value to use for win probability")
@@ -274,6 +287,6 @@ if __name__ == "__main__":
 
     # run simulations and print formatted results
     start = perf_counter_ns()
-    results = Simulation(args.f, args.s).run(args.n, args.k)
+    results = Simulation.from_file(args.f, args.s).run(args.n, args.k)
     run_time = (perf_counter_ns() - start) / 1_000_000_000
-    print("\n".join(format_results(results, args.n, run_time)))
+    print(format_results(results, args.n, run_time))
