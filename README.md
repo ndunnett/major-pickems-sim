@@ -28,64 +28,64 @@ options:
 }
 ```
 
-### Latest Output: BLAST.tv Austin Major 2025 - Stage 2
+### Latest Output: BLAST.tv Austin Major 2025 - Stage 3
 
 ```text
 RESULTS FROM 1,000,000 TOURNAMENT SIMULATIONS
 
 Most likely to 3-0:
-1.  Falcons             63.4%
-2.  3DMAX               32.5%
-3.  FaZe                27.3%
-4.  Virtus.pro          18.0%
-5.  HEROIC              15.8%
-6.  FURIA               14.0%
-7.  MIBR                 9.0%
-8.  TYLOO                5.9%
-9.  paiN                 5.0%
-10. B8                   2.4%
-11. Lynn Vision          2.2%
-12. OG                   1.1%
-13. BetBoom              1.1%
-14. Nemiga               0.9%
-15. M80                  0.7%
-16. Legacy               0.7%
+1.  Vitality              69.6%
+2.  MOUZ                  36.6%
+3.  Spirit                33.7%
+4.  The MongolZ           18.2%
+5.  Aurora                11.0%
+6.  Natus Vincere          9.2%
+7.  G2                     7.2%
+8.  Liquid                 4.7%
+9.  3DMAX                  3.7%
+10. FaZe                   3.1%
+11. Virtus.pro             1.3%
+12. FURIA                  1.1%
+13. paiN                   0.2%
+14. Lynn Vision            0.2%
+15. Nemiga                 0.0%
+16. Legacy                 0.0%
 
 Most likely to 3-1 or 3-2:
-1.  HEROIC              64.0%
-2.  Virtus.pro          60.3%
-3.  FURIA               60.3%
-4.  FaZe                60.1%
-5.  3DMAX               58.0%
-6.  MIBR                53.7%
-7.  TYLOO               48.4%
-8.  paiN                38.7%
-9.  Falcons             35.6%
-10. B8                  32.8%
-11. Lynn Vision         25.5%
-12. OG                  15.3%
-13. BetBoom             14.2%
-14. Nemiga              12.7%
-15. M80                 11.6%
-16. Legacy               9.0%
+1.  The MongolZ           67.0%
+2.  Aurora                65.9%
+3.  Spirit                60.6%
+4.  Natus Vincere         59.2%
+5.  MOUZ                  58.1%
+6.  G2                    56.7%
+7.  Liquid                48.0%
+8.  FaZe                  45.5%
+9.  3DMAX                 45.2%
+10. Vitality              29.8%
+11. Virtus.pro            25.9%
+12. FURIA                 23.4%
+13. Lynn Vision            5.9%
+14. paiN                   5.8%
+15. Nemiga                 1.5%
+16. Legacy                 1.5%
 
 Most likely to 0-3:
-1.  Legacy              35.3%
-2.  M80                 28.3%
-3.  Nemiga              27.4%
-4.  BetBoom             27.2%
-5.  OG                  24.5%
-6.  Lynn Vision         16.8%
-7.  B8                  14.1%
-8.  paiN                 7.8%
-9.  TYLOO                6.0%
-10. MIBR                 3.9%
-11. FURIA                2.5%
-12. HEROIC               2.2%
-13. Virtus.pro           2.0%
-14. FaZe                 1.2%
-15. 3DMAX                0.7%
-16. Falcons              0.1%
+1.  Legacy                48.2%
+2.  Nemiga                46.4%
+3.  paiN                  34.2%
+4.  Lynn Vision           29.3%
+5.  FURIA                 12.1%
+6.  Virtus.pro            11.3%
+7.  FaZe                   4.7%
+8.  3DMAX                  4.3%
+9.  Liquid                 3.3%
+10. G2                     2.4%
+11. Natus Vincere          1.5%
+12. Aurora                 1.2%
+13. The MongolZ            0.7%
+14. MOUZ                   0.2%
+15. Spirit                 0.2%
+16. Vitality               0.0%
 
 Run time: 10.52 seconds
 ```
