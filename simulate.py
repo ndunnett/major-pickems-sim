@@ -245,7 +245,9 @@ class Simulation:
     def run(self, n: int, k: int) -> TeamIndex[Result]:
         """Run 'n' simulation iterations across 'k' processes and return results."""
         with Pool(k) as pool:
-            futures = [pool.apply_async(self.batch, [n // k]) for _ in range(k)]
+            m = n // k
+            r = n % k
+            futures = [pool.apply_async(self.batch, [m + 1 if i < r else m]) for i in range(k)]
             results = [future.get() for future in futures]
 
         def _f(acc: TeamIndex[Result], results: TeamIndex[Result]) -> TeamIndex[Result]:
