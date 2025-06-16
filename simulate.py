@@ -111,6 +111,15 @@ class SwissSystem:
             first_round=True,
         )
 
+    def clear(self) -> None:
+        self.first_round = True
+        self.remaining = set(self.records.teams)
+
+        for record in self.records.data:
+            record.teams_faced.clear()
+            record.wins = 0
+            record.losses = 0
+
     def seeding(self, team: Team) -> tuple[int, int, int]:
         """Calculate seeding based on win-loss, Buchholz difficulty, and initial seed."""
         return (
@@ -216,9 +225,10 @@ class Simulation:
     def batch(self, n: int) -> TeamIndex[Result]:
         """Run a batch of 'n' simulation iterations for given data and return results."""
         results = TeamIndex.new(self.teams, Result.new)
+        ss = SwissSystem.new(self.teams, self.sigma)
 
         for _ in range(n):
-            ss = SwissSystem.new(self.teams, self.sigma)
+            ss.clear()
             ss.simulate_tournament()
 
             for team, record in ss.records.items():
