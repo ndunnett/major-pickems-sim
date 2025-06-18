@@ -4,6 +4,14 @@ This is a basic program to simulate tournament stage outcomes for Counter-Strike
 
 Each team's [regional standings](https://github.com/ValveSoftware/counter-strike_regional_standings) global ranking points are used to approximate a win probability for each head to head match up. This is by no means an exhaustive or accurate analysis but may give insight to some teams which have higher probability of facing weaker teams to get their 3 wins, or vice versa.
 
+### Installation
+
+Download the binary from the latest [release](https://github.com/ndunnett/major-pickems-sim/releases), or install from source using cargo:
+
+```shell
+cargo install major-pickems-sim
+```
+
 ### Command line interface
 
 ```text
@@ -19,7 +27,7 @@ Options:
 
 ### JSON data format
 
-```json
+```text
 {
   <team name>: {
     "seed": <initial seeding>,
