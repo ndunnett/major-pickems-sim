@@ -409,7 +409,7 @@ dependencies = [
 
 [[package]]
 name = "major-pickems-sim"
-version = "0.2.0-wip"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "clap",
