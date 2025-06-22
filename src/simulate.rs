@@ -1,5 +1,4 @@
 use std::{
-    collections::HashSet,
     fmt::Debug,
     ops::{Add, Index, IndexMut},
     path::PathBuf,
@@ -35,39 +34,37 @@ const MATCHUP_PRIORITY: [[(usize, usize); 3]; 15] = [
     [(0, 1), (2, 3), (4, 5)], // last priority
 ];
 
-/// Calculate the probability of team 'a' beating team 'b' for given sigma value.
-fn win_probability(a: &Team, b: &Team, sigma: f64) -> f64 {
-    1.0 / (1.0 + 10_f64.powf((b.rating - a.rating) as f64 / sigma))
-}
-
 /// Store data indexed per team.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct TeamIndex<T: Debug + Clone> {
-    teams: Vec<Team>,
-    data: Vec<T>,
+    data: [T; 16],
 }
 
 impl<T: Debug + Clone> TeamIndex<T> {
-    /// Create a new index from an iterator of teams, with default values created by calling `factory`.
-    pub fn new<I: IntoIterator<Item = Team>, F: FnOnce() -> T>(teams: I, factory: F) -> Self {
-        let teams = Vec::from_iter(teams);
-        let data = vec![factory(); teams.len()];
-        Self { teams, data }
+    /// Create a new index with default values created by calling `factory`.
+    pub fn new<F: Fn() -> T>(factory: F) -> Self {
+        Self {
+            data: std::array::from_fn(|_| factory()),
+        }
     }
 
-    /// Returns an iterator of each key (team).
-    pub fn keys(&self) -> impl Iterator<Item = &Team> {
-        self.teams.iter()
+    /// Create a new index from an iterator of values. May panic if there aren't 16 values.
+    pub fn from_iter<I: Iterator<Item = T>>(values: I) -> Self {
+        let mut iter = values.into_iter();
+
+        Self {
+            data: std::array::from_fn(|_| iter.next().unwrap()),
+        }
     }
 
     /// Returns an iterator of each value.
-    pub fn values(&self) -> impl Iterator<Item = &T> {
+    pub fn iter(&self) -> impl Iterator<Item = &T> {
         self.data.iter()
     }
 
-    /// Returns an iterator of (key, value) tuples.
-    pub fn items(&self) -> impl Iterator<Item = (&Team, &T)> + '_ {
-        self.keys().zip(self.values())
+    /// Returns an iterator of (key, value) tuples given an array of teams.
+    pub fn items<'a>(&'a self, teams: &'a [Team; 16]) -> impl Iterator<Item = (&'a Team, &'a T)> {
+        teams.iter().zip(self.iter())
     }
 }
 
@@ -85,31 +82,97 @@ impl<T: Debug + Clone> IndexMut<&Team> for TeamIndex<T> {
     }
 }
 
+/// High performance set, specifically for teams.
+#[derive(Debug, Clone, Copy)]
+struct TeamSet {
+    data: u16,
+}
+
+impl TeamSet {
+    pub const fn new() -> Self {
+        Self { data: 0 }
+    }
+
+    /// Select which bit represents the given team.
+    const fn select_bit(team: &Team) -> u16 {
+        1_u16 << team.index()
+    }
+
+    /// Create a set from an iterator of teams.
+    pub fn from_iter<'a>(teams: impl Iterator<Item = &'a Team>) -> Self {
+        Self {
+            data: teams.map(Self::select_bit).sum(),
+        }
+    }
+
+    /// Insert team into the set.
+    pub const fn insert(&mut self, team: &Team) -> bool {
+        let n = Self::select_bit(team);
+
+        if self.data & n == 0 {
+            self.data |= n;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Remove team from the set.
+    pub const fn remove(&mut self, team: &Team) -> bool {
+        let n = Self::select_bit(team);
+
+        if self.data & n == 0 {
+            false
+        } else {
+            self.data &= u16::MAX ^ n;
+            true
+        }
+    }
+
+    /// Test if the set contains team.
+    pub const fn contains(&self, team: &Team) -> bool {
+        self.data & Self::select_bit(team) != 0
+    }
+
+    /// Test if the set is empty.
+    pub const fn is_empty(&self) -> bool {
+        self.data == 0
+    }
+
+    /// Returns an iterator of teams contained within the set, given an iterator of teams.
+    pub fn iter<'a, I: Iterator<Item = &'a Team>>(
+        &self,
+        teams: I,
+    ) -> impl Iterator<Item = &'a Team> {
+        teams.filter(|team| self.contains(team))
+    }
+}
+
 /// Struct to keep record of wins, losses, and opponents faced for a team.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 struct TeamRecord {
     wins: i8,
     losses: i8,
-    pub teams_faced: HashSet<Team>,
+    pub teams_faced: TeamSet,
 }
 
 impl TeamRecord {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             wins: 0,
             losses: 0,
-            teams_faced: HashSet::new(),
+            teams_faced: TeamSet::new(),
         }
     }
 
     /// Win-loss record.
-    pub fn diff(&self) -> i8 {
+    pub const fn diff(&self) -> i8 {
         self.wins - self.losses
     }
 }
 
 /// Struct to tally up tournament results for a team.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct TeamResult {
     pub three_zero: u64,
     pub advanced: u64,
@@ -117,7 +180,7 @@ pub struct TeamResult {
 }
 
 impl TeamResult {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             three_zero: 0,
             advanced: 0,
@@ -126,102 +189,58 @@ impl TeamResult {
     }
 }
 
-impl Add for TeamResult {
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        Self {
-            three_zero: self.three_zero + rhs.three_zero,
-            advanced: self.advanced + rhs.advanced,
-            zero_three: self.zero_three + rhs.zero_three,
-        }
-    }
-}
-
 impl Add for TeamIndex<TeamResult> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
-        let mut new = self.clone();
+        let values = self.iter().zip(rhs.iter()).map(|(a, b)| TeamResult {
+            three_zero: a.three_zero + b.three_zero,
+            advanced: a.advanced + b.advanced,
+            zero_three: a.zero_three + b.zero_three,
+        });
 
-        for (key, value) in self.items() {
-            new[key] = value.clone() + rhs[key].clone();
-        }
-
-        new
+        Self::from_iter(values)
     }
 }
 
 /// Instance of a single swiss system iteration.
 #[derive(Debug, Clone)]
 pub struct SwissSystem {
-    sigma: f64,
+    teams: [Team; 16],
     records: TeamIndex<TeamRecord>,
-    remaining: HashSet<Team>,
+    probabilities: TeamIndex<TeamIndex<f64>>,
+    remaining: TeamSet,
     first_round: bool,
 }
 
 impl SwissSystem {
-    pub fn new<I: IntoIterator<Item = Team>>(teams: I, sigma: f64) -> Self {
-        let records = TeamIndex::new(teams, TeamRecord::new);
-        let remaining = HashSet::from_iter(records.keys().cloned());
+    pub fn new(teams: [Team; 16], sigma: f64) -> Self {
+        let records = TeamIndex::new(TeamRecord::new);
+
+        // Precalculate win probabilities for all possible matchups.
+        let probabilities = TeamIndex::from_iter(teams.iter().map(|a| {
+            TeamIndex::from_iter(
+                teams
+                    .iter()
+                    .map(|b| 1.0 / (1.0 + 10_f64.powf((b.rating - a.rating) as f64 / sigma))),
+            )
+        }));
+
+        let remaining = TeamSet::from_iter(teams.iter());
         let first_round = true;
 
         Self {
-            sigma,
+            teams,
             records,
+            probabilities,
             remaining,
             first_round,
         }
     }
 
-    fn simulate_match(&mut self, team_a: &Team, team_b: &Team) {
-        // BO3 if match is for advancement/elimination
-        let is_bo3 = self.records[team_a].wins == 2 || self.records[team_a].losses == 2;
-
-        // Calculate single map win probability
-        let p = win_probability(team_a, team_b, self.sigma);
-
-        // Simulate match outcome
-        let mut rng = rand::rng();
-        let team_a_win = if is_bo3 {
-            let first_map = p > rng.random();
-            let second_map = p > rng.random();
-
-            if first_map != second_map {
-                p > rng.random()
-            } else {
-                first_map
-            }
-        } else {
-            p > rng.random()
-        };
-
-        // Update team records
-        if team_a_win {
-            self.records[team_a].wins += 1;
-            self.records[team_b].losses += 1;
-        } else {
-            self.records[team_a].losses += 1;
-            self.records[team_b].wins += 1;
-        }
-
-        // Add to faced teams
-        self.records[team_a].teams_faced.insert(team_b.clone());
-        self.records[team_b].teams_faced.insert(team_a.clone());
-
-        // Advance/eliminate teams after BO3
-        if is_bo3 {
-            for team in &[team_a, team_b] {
-                if self.records[team].wins == 3 || self.records[team].losses == 3 {
-                    self.remaining.remove(team);
-                }
-            }
-        }
-    }
-
+    /// Simulate tournament round.
     fn simulate_round(&mut self) {
-        let mut teams = Vec::from_iter(self.remaining.iter().cloned());
+        let mut teams = Vec::from_iter(self.remaining.iter(self.teams.iter()));
 
         // Sort teams by mid-stage seed calculation:
         //   1. Current win-loss record
@@ -234,20 +253,21 @@ impl SwissSystem {
                 -self.records[team].diff(),
                 -self.records[team]
                     .teams_faced
-                    .iter()
+                    .iter(self.teams.iter())
                     .map(|opp| self.records[opp].diff())
                     .sum::<i8>(),
                 team.seed,
             )
         });
 
+        // Determine matchups for the current round.
         let matchups = if self.first_round {
             // First round is seeded differently (1-9, 2-10, 3-11 etc.)
             self.first_round = false;
             teams
                 .iter()
                 .zip(teams.iter().skip(teams.len() / 2))
-                .map(|(a, b)| (a.clone(), b.clone()))
+                .map(|(a, b)| (*a, *b))
                 .collect()
         } else {
             teams
@@ -257,7 +277,7 @@ impl SwissSystem {
                 .fold(Vec::new(), |mut acc, (_, group_iter)| {
                     let group = group_iter.collect::<Vec<_>>();
 
-                    // Group teams by record and run matches for each group, highest seed vs lowest seed.
+                    // Group teams by record and arrange matchups, highest seed vs lowest seed.
                     // Rearrange to avoid rematches:
                     //   - in rounds 2 and 3 (group sizes of 4 or 8), the highest seeded team faces the lowest seeded team that doesn't result in a rematch
                     //   - in rounds 4 and 5 (group sizes of 6), follow pre-determined highest priority matchup that doesn't result in a rematch
@@ -265,13 +285,9 @@ impl SwissSystem {
                     if group.len() == 6 {
                         for indices in MATCHUP_PRIORITY {
                             if indices.iter().all(|(ia, ib)| {
-                                !self.records[&group[*ia]].teams_faced.contains(&group[*ib])
+                                !self.records[group[*ia]].teams_faced.contains(group[*ib])
                             }) {
-                                acc.extend(
-                                    indices
-                                        .iter()
-                                        .map(|(ia, ib)| (group[*ia].clone(), group[*ib].clone())),
-                                );
+                                acc.extend(indices.iter().map(|(ia, ib)| (group[*ia], group[*ib])));
                                 break;
                             }
                         }
@@ -305,16 +321,14 @@ impl SwissSystem {
                             }
 
                             let half = group.len() / 2;
-                            let mut bottom_teams =
-                                group.iter().skip(half).cloned().collect::<Vec<_>>();
+                            let mut bottom_teams = group.iter().skip(half).collect::<Vec<_>>();
                             let mut matchups = vec![];
 
                             // Attempt to assign matchups, continue to the next iteration of the outer loop if it fails.
                             'inner: for team_a in group.iter().take(half) {
                                 for i in (0..bottom_teams.len()).rev() {
-                                    if !self.records[team_a].teams_faced.contains(&bottom_teams[i])
-                                    {
-                                        matchups.push((team_a.clone(), bottom_teams.remove(i)));
+                                    if !self.records[team_a].teams_faced.contains(bottom_teams[i]) {
+                                        matchups.push((*team_a, *bottom_teams.remove(i)));
                                         continue 'inner;
                                     }
                                 }
@@ -331,11 +345,52 @@ impl SwissSystem {
                 })
         };
 
-        for (team_a, team_b) in matchups.iter() {
-            self.simulate_match(team_a, team_b);
+        // Simulate matches for current round.
+        for (team_a, team_b) in matchups.into_iter() {
+            // BO3 if match is for advancement/elimination.
+            let is_bo3 = self.records[team_a].wins == 2 || self.records[team_a].losses == 2;
+
+            // Simulate match outcome.
+            let mut rng = rand::rng();
+            let p = self.probabilities[team_a][team_b];
+
+            let team_a_win = if is_bo3 {
+                let first_map = p > rng.random();
+                let second_map = p > rng.random();
+
+                if first_map != second_map {
+                    p > rng.random()
+                } else {
+                    first_map
+                }
+            } else {
+                p > rng.random()
+            };
+
+            // Update team records.
+            if team_a_win {
+                self.records[team_a].wins += 1;
+                self.records[team_b].losses += 1;
+            } else {
+                self.records[team_a].losses += 1;
+                self.records[team_b].wins += 1;
+            }
+
+            self.records[team_a].teams_faced.insert(team_b);
+            self.records[team_b].teams_faced.insert(team_a);
+
+            // Advance/eliminate teams after BO3.
+            if is_bo3 {
+                for team in &[team_a, team_b] {
+                    if self.records[team].wins == 3 || self.records[team].losses == 3 {
+                        self.remaining.remove(team);
+                    }
+                }
+            }
         }
     }
 
+    /// Simulate entire tournament.
     pub fn simulate_tournament(&mut self) {
         while !self.remaining.is_empty() {
             self.simulate_round();
@@ -348,30 +403,29 @@ type TeamResultField = fn(&TeamResult) -> u64;
 /// Instance of a simulation, to parse team data and run tournament iterations.
 #[derive(Debug, Clone)]
 pub struct Simulation {
-    sigma: f64,
     teams: [Team; 16],
 }
 
 impl Simulation {
-    pub fn try_from_file(filepath: PathBuf, sigma: f64) -> anyhow::Result<Self> {
+    pub fn try_from_file(filepath: PathBuf) -> anyhow::Result<Self> {
         Ok(Self {
-            sigma,
             teams: parse_toml(filepath)?,
         })
     }
 
     /// Run 'n' iterations of tournament simulation.
-    pub fn run(&self, n: u64) -> TeamIndex<TeamResult> {
-        let fresh_results = TeamIndex::new(self.teams.iter().cloned(), TeamResult::new);
+    pub fn run(&self, n: u64, sigma: f64) -> TeamIndex<TeamResult> {
+        let fresh_results = TeamIndex::new(TeamResult::new);
+        let fresh_ss = SwissSystem::new(self.teams.clone(), sigma);
 
         (0..n)
             .into_par_iter()
             .map(|_| {
-                let mut results = fresh_results.clone();
-                let mut ss = SwissSystem::new(self.teams.iter().cloned(), self.sigma);
+                let mut results = fresh_results;
+                let mut ss = fresh_ss.clone();
                 ss.simulate_tournament();
 
-                for (team, record) in ss.records.items() {
+                for (team, record) in ss.records.items(&ss.teams) {
                     match (record.wins, record.losses) {
                         (3, 0) => results[team].three_zero += 1,
                         (3, 1 | 2) => results[team].advanced += 1,
@@ -382,7 +436,7 @@ impl Simulation {
 
                 results
             })
-            .reduce(|| fresh_results.clone(), |acc, result| acc + result)
+            .reduce(|| fresh_results, |acc, result| acc + result)
     }
 
     /// Format results from a simulation into a readable/printable string.
@@ -420,7 +474,7 @@ impl Simulation {
 
             // Sort results from highest to lowest.
             let sorted_results = results
-                .items()
+                .items(&self.teams)
                 .sorted_by(|(_, a), (_, b)| func(b).cmp(&func(a)))
                 .enumerate();
 
@@ -447,8 +501,8 @@ impl Simulation {
 /// Run simulation and print results.
 pub fn simulate(file: PathBuf, iterations: u64, sigma: f64) -> anyhow::Result<()> {
     let now = std::time::Instant::now();
-    let sim = Simulation::try_from_file(file, sigma)?;
-    let results = sim.run(iterations);
+    let sim = Simulation::try_from_file(file)?;
+    let results = sim.run(iterations, sigma);
     println!("{}", sim.format_results(results, iterations, now.elapsed()));
     Ok(())
 }
