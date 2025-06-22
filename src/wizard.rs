@@ -219,9 +219,17 @@ impl Wizard<'_> {
 
     /// Start edit mode on the currently selected cell.
     fn start_edit(&mut self) {
-        if self.state.selected_cell().is_some() {
+        if let Some((_, col)) = self.state.selected_cell() {
             let mut textarea = TextArea::default();
-            textarea.set_placeholder_text("Enter a valid float (e.g. 1.56)");
+
+            let placeholder = match col {
+                0 => "Enter a valid seed (1-16)",
+                1 => "Enter the team name",
+                2 => "Enter the global ranking points for the team",
+                _ => unreachable!(),
+            };
+
+            textarea.set_placeholder_text(placeholder);
             self.editor = Some(textarea);
             self.validate_editor();
         }
