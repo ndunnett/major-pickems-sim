@@ -1,6 +1,6 @@
 [package]
 name = "major-pickems-sim"
-description = "Simulate tournament stage outcomes for Counter-Strike major tournaments."
+description = "Tool for analysing pick'ems for Counter-Strike major tournaments."
 version = "0.1.0"
 edition = "2024"
 readme = "README.md"
