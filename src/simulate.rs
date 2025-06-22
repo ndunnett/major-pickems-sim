@@ -1,17 +1,16 @@
 use std::{
     collections::HashSet,
-    fmt::{Debug, Display, Formatter},
-    fs::read_to_string,
-    hash::{Hash, Hasher},
+    fmt::Debug,
     ops::{Add, Index, IndexMut},
     path::PathBuf,
+    time::Duration,
 };
 
-use anyhow::anyhow;
 use itertools::Itertools;
 use rand::prelude::*;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use serde_json::Value;
+
+use crate::data::{Team, parse_json};
 
 /// Pre-determined matchup priority for a group size of 6.
 ///
@@ -35,27 +34,6 @@ const MATCHUP_PRIORITY: [[(usize, usize); 3]; 15] = [
     [(0, 1), (2, 4), (3, 5)],
     [(0, 1), (2, 3), (4, 5)], // last priority
 ];
-
-/// Struct to represent each team, including rating and seeding.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Team {
-    pub id: u8,
-    pub name: String,
-    pub seed: u8,
-    pub rating: i32,
-}
-
-impl Hash for Team {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.id.hash(state);
-    }
-}
-
-impl Display for Team {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.name)
-    }
-}
 
 /// Calculate the probability of team 'a' beating team 'b' for given sigma value.
 fn win_probability(a: &Team, b: &Team, sigma: f64) -> f64 {
@@ -173,7 +151,6 @@ impl Add for TeamIndex<TeamResult> {
         new
     }
 }
-
 
 /// Instance of a single swiss system iteration.
 #[derive(Debug, Clone)]
@@ -366,6 +343,8 @@ impl SwissSystem {
     }
 }
 
+type TeamResultField = fn(&TeamResult) -> u64;
+
 /// Instance of a simulation, to parse team data and run tournament iterations.
 #[derive(Debug, Clone)]
 pub struct Simulation {
@@ -375,49 +354,14 @@ pub struct Simulation {
 
 impl Simulation {
     pub fn try_from_file(filepath: PathBuf, sigma: f64) -> anyhow::Result<Self> {
-        let mut teams = Vec::new();
-        let mut id_iter = 0..u8::MAX;
-
-        let contents = read_to_string(filepath)?;
-        let json: Value = serde_json::from_str(&contents)?;
-        let object = json.as_object().ok_or(anyhow!("failed to parse .json"))?;
-        let list = object.iter().sorted_by(|(_, a), (_, b)| {
-            a["seed"]
-                .as_number()
-                .unwrap()
-                .as_u64()
-                .unwrap()
-                .cmp(&b["seed"].as_number().unwrap().as_u64().unwrap())
-        });
-
-        for (key, value) in list {
-            let id = id_iter.next().ok_or(anyhow!("exhausted id values"))?;
-            let name = key.to_string();
-
-            let seed = value["seed"]
-                .as_number()
-                .ok_or(anyhow!("failed to parse seed as number"))?
-                .as_u64()
-                .ok_or(anyhow!("failed to cast seed to u64"))? as u8;
-
-            let rating = value["rating"]
-                .as_number()
-                .ok_or(anyhow!("failed to parse rating as number"))?
-                .as_i64()
-                .ok_or(anyhow!("failed to cast rating to i64"))? as i32;
-
-            teams.push(Team {
-                id,
-                name,
-                seed,
-                rating,
-            });
-        }
-
-        Ok(Self { sigma, teams })
+        Ok(Self {
+            sigma,
+            teams: parse_json(filepath)?,
+        })
     }
 
-    pub fn run(&self, n: u32) -> TeamIndex<TeamResult> {
+    /// Run 'n' iterations of tournament simulation.
+    pub fn run(&self, n: u64) -> TeamIndex<TeamResult> {
         let fresh_results = TeamIndex::new(self.teams.iter().cloned(), TeamResult::new);
 
         (0..n)
@@ -440,4 +384,71 @@ impl Simulation {
             })
             .reduce(|| fresh_results.clone(), |acc, result| acc + result)
     }
+
+    /// Format results from a simulation into a readable/printable string.
+    pub fn format_results(
+        &self,
+        results: TeamIndex<TeamResult>,
+        iterations: u64,
+        run_time: Duration,
+    ) -> String {
+        // Format number of iterations into a string, with thousands separated by commas.
+        let formatted_iterations = iterations
+            .to_string()
+            .as_bytes()
+            .rchunks(3)
+            .rev()
+            .map(str::from_utf8)
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap()
+            .join(",");
+
+        let mut out = vec![format!(
+            "RESULTS FROM {formatted_iterations} TOURNAMENT SIMULATIONS"
+        )];
+
+        // Setup access functions and titles for each field of stats.
+        let fields: [(TeamResultField, &str); 3] = [
+            (|result| result.three_zero, "3-0"),
+            (|result| result.advanced, "3-1 or 3-2"),
+            (|result| result.zero_three, "0-3"),
+        ];
+
+        // Process each field of stats.
+        for (func, title) in fields.iter() {
+            out.push(format!("\nMost likely to {title}:"));
+
+            // Sort results from highest to lowest.
+            let sorted_results = results
+                .items()
+                .sorted_by(|(_, a), (_, b)| func(b).cmp(&func(a)))
+                .enumerate();
+
+            // Format each result into a string.
+            for (i, (team, result)) in sorted_results {
+                out.push(format!(
+                    "{num:<4}{name:<20}{percent:>6.1}%",
+                    num = format!("{}.", i + 1),
+                    name = team.name,
+                    percent = (func(result) as f32 / iterations as f32 * 1000.0).round() / 10.0
+                ));
+            }
+        }
+
+        out.push(format!(
+            "\nRun time: {} seconds",
+            run_time.as_millis() as f32 / 1000.0
+        ));
+
+        out.join("\n")
+    }
+}
+
+/// Run simulation and print results.
+pub fn simulate(file: PathBuf, iterations: u64, sigma: f64) -> anyhow::Result<()> {
+    let now = std::time::Instant::now();
+    let sim = Simulation::try_from_file(file, sigma)?;
+    let results = sim.run(iterations);
+    println!("{}", sim.format_results(results, iterations, now.elapsed()));
+    Ok(())
 }

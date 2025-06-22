@@ -1,74 +1,54 @@
-use std::time::Duration;
+use clap::{Args, Parser, Subcommand};
+use std::path::PathBuf;
 
-use clap::Parser;
-use itertools::Itertools;
-
-mod args;
+mod data;
 mod simulate;
 
-use crate::{
-    args::Args,
-    simulate::{Simulation, TeamIndex, TeamResult},
-};
+use crate::simulate::simulate;
 
-type TeamResultField = fn(&TeamResult) -> u64;
+#[derive(Debug, Parser)]
+#[command(version, about, long_about = None)]
+pub struct Cli {
+    #[command(subcommand)]
+    command: Command,
+}
 
-/// Format results from a simulation into a readable/printable string.
-fn format_results(results: TeamIndex<TeamResult>, iterations: u32, run_time: Duration) -> String {
-    let formatted_iterations = iterations
-        .to_string()
-        .as_bytes()
-        .rchunks(3)
-        .rev()
-        .map(str::from_utf8)
-        .collect::<Result<Vec<_>, _>>()
-        .unwrap()
-        .join(",");
+#[derive(Debug, Subcommand)]
+pub enum Command {
+    /// Simulate tournament outcomes
+    Simulate {
+        #[command(flatten)]
+        args: SimulateArgs,
+    },
+}
 
-    let mut out = vec![format!(
-        "RESULTS FROM {formatted_iterations} TOURNAMENT SIMULATIONS"
-    )];
+#[derive(Debug, Args)]
+pub struct SimulateArgs {
+    /// Path to load input data from (.toml)
+    #[arg(short, long)]
+    file: PathBuf,
 
-    let fields: [(TeamResultField, &str); 3] = [
-        (|result| result.three_zero, "3-0"),
-        (|result| result.advanced, "3-1 or 3-2"),
-        (|result| result.zero_three, "0-3"),
-    ];
+    /// Number of iterations to run
+    #[arg(short = 'n', long, default_value_t = 1_000_000)]
+    iterations: u64,
 
-    for (func, title) in fields.iter() {
-        out.push(format!("\nMost likely to {title}:"));
+    /// Sigma value to use for win probability
+    #[arg(short, long, default_value_t = 800.0)]
+    sigma: f64,
+}
 
-        let sorted_results = results
-            .items()
-            .sorted_by(|(_, a), (_, b)| func(b).cmp(&func(a)))
-            .enumerate();
+fn run() -> anyhow::Result<()> {
+    let cli = Cli::parse();
 
-        for (i, (team, result)) in sorted_results {
-            out.push(format!(
-                "{num:<4}{name:<20}{percent:>6.1}%",
-                num = format!("{}.", i + 1),
-                name = team.name,
-                percent = (func(result) as f32 / iterations as f32 * 1000.0).round() / 10.0
-            ));
-        }
+    match cli.command {
+        Command::Simulate { args } => simulate(args.file, args.iterations, args.sigma)?,
     }
 
-    out.push(format!(
-        "\nRun time: {} seconds",
-        run_time.as_millis() as f32 / 1000.0
-    ));
-
-    out.join("\n")
+    Ok(())
 }
 
 fn main() {
-    let args = Args::parse();
-    let now = std::time::Instant::now();
-    let sim = Simulation::try_from_file(args.file, args.sigma).unwrap();
-    let results_index = sim.run(args.iterations);
-
-    println!(
-        "{}",
-        format_results(results_index, args.iterations, now.elapsed())
-    );
+    if let Err(e) = run() {
+        eprintln!("{e}");
+    }
 }
