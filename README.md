@@ -14,26 +14,45 @@ cargo install major-pickems-sim
 
 ### Command line interface
 
+#### Simulate tournament outcomes
+
 ```text
-Usage: pickems [OPTIONS] --file <FILE>
+Usage: pickems simulate [OPTIONS] --file <FILE>
 
 Options:
-  -f, --file <FILE>              Path to input data (.json)
+  -f, --file <FILE>              Path to load input data from (.toml)
   -n, --iterations <ITERATIONS>  Number of iterations to run [default: 1000000]
   -s, --sigma <SIGMA>            Sigma value to use for win probability [default: 800]
   -h, --help                     Print help
-  -V, --version                  Print version
 ```
 
-### JSON data format
+#### Use the data wizard to create an input data file
 
 ```text
-{
-  <team name>: {
-    "seed": <initial seeding>,
-    "rating": <global ranking points>
-  }
-}
+Usage: pickems data wizard --file <FILE>
+
+Options:
+  -f, --file <FILE>  Path to save input data to (.toml)
+  -h, --help         Print help
+```
+
+#### Inspect input data file
+
+```text
+Usage: pickems data inspect --file <FILE>
+
+Options:
+  -f, --file <FILE>  Path to load input data from (.toml)
+  -h, --help         Print help
+```
+
+### TOML input data format
+
+```toml
+["<string: team name>"]
+seed = <integer: initial seed for tournament stage>
+rating = <integer: current global ranking points>
+...
 ```
 
 ### Latest Output: BLAST.tv Austin Major 2025 - Stage 3
@@ -95,5 +114,5 @@ Most likely to 0-3:
 15. Spirit                 0.2%
 16. Vitality               0.0%
 
-Run time: 2.091 seconds
+Run time: 0.88 seconds
 ```
