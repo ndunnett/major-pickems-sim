@@ -1,0 +1,63 @@
+[BIG]
+seed = 5
+rating = 1408
+
+[Cloud9]
+seed = 11
+rating = 1208
+
+[Complexity]
+seed = 4
+rating = 1485
+
+[FURIA]
+seed = 1
+rating = 1559
+
+[FlyQuest]
+seed = 12
+rating = 1358
+
+[Fnatic]
+seed = 6
+rating = 1317
+
+[GamerLegion]
+seed = 9
+rating = 1255
+
+[Imperial]
+seed = 16
+rating = 1228
+
+[Liquid]
+seed = 3
+rating = 1548
+
+[MIBR]
+seed = 10
+rating = 1294
+
+["Passion UA"]
+seed = 13
+rating = 1156
+
+["Rare Atom"]
+seed = 15
+rating = 929
+
+["The MongolZ"]
+seed = 7
+rating = 1748
+
+["Virtus.pro"]
+seed = 2
+rating = 1466
+
+[Wildcard]
+seed = 14
+rating = 1236
+
+[paiN]
+seed = 8
+rating = 1445

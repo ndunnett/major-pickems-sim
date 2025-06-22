@@ -10,7 +10,7 @@ use itertools::Itertools;
 use rand::prelude::*;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
-use crate::data::{Team, parse_json};
+use crate::data::{Team, parse_toml};
 
 /// Pre-determined matchup priority for a group size of 6.
 ///
@@ -75,13 +75,13 @@ impl<T: Debug + Clone> Index<&Team> for TeamIndex<T> {
     type Output = T;
 
     fn index(&self, team: &Team) -> &Self::Output {
-        &self.data[team.id as usize]
+        &self.data[team.index()]
     }
 }
 
 impl<T: Debug + Clone> IndexMut<&Team> for TeamIndex<T> {
     fn index_mut(&mut self, team: &Team) -> &mut Self::Output {
-        &mut self.data[team.id as usize]
+        &mut self.data[team.index()]
     }
 }
 
@@ -349,14 +349,14 @@ type TeamResultField = fn(&TeamResult) -> u64;
 #[derive(Debug, Clone)]
 pub struct Simulation {
     sigma: f64,
-    teams: Vec<Team>,
+    teams: [Team; 16],
 }
 
 impl Simulation {
     pub fn try_from_file(filepath: PathBuf, sigma: f64) -> anyhow::Result<Self> {
         Ok(Self {
             sigma,
-            teams: parse_json(filepath)?,
+            teams: parse_toml(filepath)?,
         })
     }
 

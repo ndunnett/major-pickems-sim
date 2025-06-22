@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeMap,
     fmt::{Debug, Display, Formatter},
     fs::read_to_string,
     hash::{Hash, Hasher},
@@ -7,20 +8,26 @@ use std::{
 
 use anyhow::anyhow;
 use itertools::Itertools;
-use serde_json::Value;
+use serde::{Deserialize, Serialize};
 
 /// Struct to represent each team, including rating and seeding.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Team {
-    pub id: u8,
     pub name: String,
     pub seed: u8,
-    pub rating: i32,
+    pub rating: i16,
+}
+
+impl Team {
+    /// Returns what should be the index of this team within an array sorted by seed.
+    pub const fn index(&self) -> usize {
+        self.seed as usize - 1
+    }
 }
 
 impl Hash for Team {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.id.hash(state);
+        self.seed.hash(state);
     }
 }
 
@@ -30,46 +37,63 @@ impl Display for Team {
     }
 }
 
-/// Parses a .json file into a vec of teams.
-pub fn parse_json(filepath: PathBuf) -> anyhow::Result<Vec<Team>> {
-    let mut teams = Vec::new();
-    let mut id_iter = 0..u8::MAX;
+/// Struct to store team data, used solely for serde.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TeamData {
+    pub seed: u8,
+    pub rating: i16,
+}
 
-    let contents = read_to_string(filepath)?;
-    let json: Value = serde_json::from_str(&contents)?;
-    let object = json.as_object().ok_or(anyhow!("failed to parse .json"))?;
-    let list = object.iter().sorted_by(|(_, a), (_, b)| {
-        a["seed"]
-            .as_number()
-            .unwrap()
-            .as_u64()
-            .unwrap()
-            .cmp(&b["seed"].as_number().unwrap().as_u64().unwrap())
-    });
-
-    for (key, value) in list {
-        let id = id_iter.next().ok_or(anyhow!("exhausted id values"))?;
-        let name = key.to_string();
-
-        let seed = value["seed"]
-            .as_number()
-            .ok_or(anyhow!("failed to parse seed as number"))?
-            .as_u64()
-            .ok_or(anyhow!("failed to cast seed to u64"))? as u8;
-
-        let rating = value["rating"]
-            .as_number()
-            .ok_or(anyhow!("failed to parse rating as number"))?
-            .as_i64()
-            .ok_or(anyhow!("failed to cast rating to i64"))? as i32;
-
-        teams.push(Team {
-            id,
-            name,
-            seed,
-            rating,
-        });
+impl From<&Team> for TeamData {
+    fn from(team: &Team) -> Self {
+        Self {
+            seed: team.seed,
+            rating: team.rating,
+        }
     }
+}
 
-    Ok(teams)
+/// Struct to store collection of teams, used solely for serde.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TeamDataMap(BTreeMap<String, TeamData>);
+
+impl From<&[Team]> for TeamDataMap {
+    fn from(teams: &[Team]) -> Self {
+        Self(
+            teams
+                .iter()
+                .map(|team| (team.name.clone(), TeamData::from(team)))
+                .collect(),
+        )
+    }
+}
+
+impl TryFrom<TeamDataMap> for [Team; 16] {
+    type Error = anyhow::Error;
+
+    fn try_from(teams_map: TeamDataMap) -> Result<Self, Self::Error> {
+        let teams = teams_map
+            .0
+            .into_iter()
+            .map(|(name, data)| Team {
+                name,
+                seed: data.seed,
+                rating: data.rating,
+            })
+            .sorted_by(|a, b| a.seed.cmp(&b.seed))
+            .collect::<Vec<_>>();
+
+        if teams.len() == 16 {
+            Ok(teams
+                .try_into()
+                .map_err(|_| anyhow!("failed to allocate array"))?)
+        } else {
+            Err(anyhow!("need to have exactly 16 teams"))
+        }
+    }
+}
+
+/// Parses a TOML file into an array of teams.
+pub fn parse_toml(filepath: PathBuf) -> anyhow::Result<[Team; 16]> {
+    <[Team; 16]>::try_from(toml::from_str::<TeamDataMap>(&read_to_string(filepath)?)?)
 }
