@@ -3,12 +3,15 @@ use std::{
     fmt::{Debug, Display, Formatter},
     fs::read_to_string,
     hash::{Hash, Hasher},
+    io::Write,
     path::PathBuf,
 };
 
 use anyhow::anyhow;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+
+use crate::wizard::Wizard;
 
 /// Struct to represent each team, including rating and seeding.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -96,4 +99,59 @@ impl TryFrom<TeamDataMap> for [Team; 16] {
 /// Parses a TOML file into an array of teams.
 pub fn parse_toml(filepath: PathBuf) -> anyhow::Result<[Team; 16]> {
     <[Team; 16]>::try_from(toml::from_str::<TeamDataMap>(&read_to_string(filepath)?)?)
+}
+
+/// Writes an iterator of teams into a TOML file.
+pub fn write_toml(filepath: PathBuf, teams: &[Team]) -> anyhow::Result<()> {
+    let teams_map = TeamDataMap::from(teams);
+    let contents = toml::to_string_pretty(&teams_map)?;
+
+    std::fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(filepath)?
+        .write_all(contents.as_bytes())?;
+
+    Ok(())
+}
+
+/// Format an iterator of teams into a table suitable to print.
+pub fn format_teams(teams: &[Team]) -> String {
+    let mut out = Vec::new();
+    out.push(format!("{:<4}  {:<18}{:>6}", "Seed", "Team", "Rating"));
+
+    for team in teams {
+        out.push(format!(
+            "{:<4}  {:<18}{:>6}",
+            format!("{}.", team.seed),
+            team.name,
+            team.rating
+        ));
+    }
+
+    out.join("\n")
+}
+
+/// Print input data loaded from a TOML file.
+pub fn inspect(filepath: PathBuf) -> anyhow::Result<()> {
+    println!("{}", format_teams(&parse_toml(filepath)?));
+    Ok(())
+}
+
+/// Run wizard to generate team data and write to a TOML file.
+pub fn wizard(filepath: PathBuf) -> anyhow::Result<()> {
+    if let Some(teams) = Wizard::run()? {
+        write_toml(filepath.clone(), &teams)?;
+
+        println!(
+            "Generated input data, saved to '{}':\n\n{}",
+            filepath.canonicalize()?.display(),
+            format_teams(&teams)
+        );
+    } else {
+        println!("Exited wizard without saving.",);
+    }
+
+    Ok(())
 }
