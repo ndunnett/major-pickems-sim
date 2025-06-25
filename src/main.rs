@@ -1,3 +1,8 @@
+#![cfg_attr(
+    feature = "pprof",
+    allow(dead_code, unreachable_code, unused_imports, unused_variables)
+)]
+
 use clap::{Args, Parser, Subcommand};
 use std::path::PathBuf;
 
@@ -76,8 +81,31 @@ fn run() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[cfg(not(feature = "pprof"))]
 fn main() {
     if let Err(e) = run() {
         eprintln!("{e}");
     }
+}
+
+#[cfg(feature = "pprof")]
+fn main() {
+    use pprof::protos::Message;
+    use std::{fs::File, io::Write};
+
+    let guard = pprof::ProfilerGuardBuilder::default()
+        .frequency(10000)
+        .blocklist(&["libc", "libgcc", "pthread", "vdso"])
+        .build()
+        .unwrap();
+
+    crate::simulate::Simulation::bench_test();
+
+    if let Ok(report) = guard.report().build() {
+        let mut content = Vec::new();
+        let profile = report.pprof().unwrap();
+        profile.encode(&mut content).unwrap();
+        let mut file = File::create("profile.pb").unwrap();
+        file.write_all(&content).unwrap();
+    };
 }

@@ -6,6 +6,7 @@
     "source=${localWorkspaceFolder},target=/ws,type=bind,consistency=cached"
   ],
   "workspaceFolder": "/ws",
+  "capAdd": ["PERFMON"],
   "customizations": {
     "vscode": {
       "extensions": [

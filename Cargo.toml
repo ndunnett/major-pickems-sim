@@ -1,3 +1,5 @@
+cargo-features = ["profile-rustflags"]
+
 [package]
 name = "major-pickems-sim"
 description = "Tool for analysing pick'ems for Counter-Strike major tournaments."
@@ -19,6 +21,14 @@ serde = { version = "1.0.219", features = ["derive"] }
 toml = "0.8.23"
 tui-textarea = "0.7.0"
 
+[dependencies.pprof]
+version = "0.15.0"
+features = ["flamegraph", "prost-codec"]
+optional = true
+
+[features]
+pprof = ["dep:pprof"]
+
 [[bin]]
 name = "pickems"
 path = "src/main.rs"
@@ -29,7 +39,11 @@ opt-level = 0
 panic = "abort"
 
 [profile.dev.package."*"]
-opt-level = 3
+opt-level = 2
+
+[profile.dev.build-override]
+opt-level = 0
+codegen-units = 256
 
 [profile.release]
 codegen-units = 1
@@ -37,3 +51,13 @@ lto = "fat"
 opt-level = 3
 panic = "abort"
 strip = true
+
+[profile.release.build-override]
+opt-level = 0
+codegen-units = 256
+
+[profile.pprof]
+inherits = "release"
+strip = false
+debug = true
+rustflags = ["-C", "link-arg=-Wl,--no-rosegment"]

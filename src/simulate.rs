@@ -413,6 +413,42 @@ impl Simulation {
         })
     }
 
+    /// Run single-threaded bench test for profiling/benchmarking purposes.
+    #[cfg(feature = "pprof")]
+    pub fn bench_test() {
+        let sim = Self {
+            teams: (0..16)
+                .map(|i| Team {
+                    name: format!("Team {}", i + 1),
+                    seed: i as u8 + 1,
+                    rating: 1000,
+                })
+                .collect_array()
+                .unwrap(),
+        };
+
+        let iterations = 500000;
+        let now = std::time::Instant::now();
+        let mut results = TeamIndex::new(TeamResult::new);
+        let fresh_ss = SwissSystem::new(sim.teams.clone(), 800.0);
+
+        for _ in 0..iterations {
+            let mut ss = fresh_ss.clone();
+            ss.simulate_tournament();
+
+            for (team, record) in ss.records.items(&ss.teams) {
+                match (record.wins, record.losses) {
+                    (3, 0) => results[team].three_zero += 1,
+                    (3, 1 | 2) => results[team].advanced += 1,
+                    (0, 3) => results[team].zero_three += 1,
+                    _ => {}
+                }
+            }
+        }
+
+        println!("{}", sim.format_results(results, iterations, now.elapsed()));
+    }
+
     /// Run 'n' iterations of tournament simulation.
     pub fn run(&self, n: u64, sigma: f64) -> TeamIndex<TeamResult> {
         let fresh_results = TeamIndex::new(TeamResult::new);

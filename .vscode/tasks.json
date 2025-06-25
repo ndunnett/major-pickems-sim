@@ -1,0 +1,16 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Run pprof",
+      "type": "shell",
+      "command": "cargo run --profile=pprof --features=pprof && pprof -http=localhost:8080 profile.pb",
+      "problemMatcher": [
+        "$rustc"
+      ],
+      "options": {
+        "cwd": "${workspaceRoot}"
+      }
+    }
+  ]
+}

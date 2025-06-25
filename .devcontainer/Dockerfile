@@ -6,7 +6,8 @@ ARG REPO=/ws
 ARG DEBIAN_FRONTEND=noninteractive
 RUN set -eux; apt update; apt full-upgrade -y; \
     apt install -y ca-certificates libc6-dev pkg-config libssl-dev \
-        mold clang zsh sudo git wget; \
+        linux-tools-common linux-tools-generic linux-tools-"$(uname -r)" \
+        graphviz mold clang zsh sudo git wget; \
     apt autoremove -y; apt clean; rm -rf /var/lib/apt/lists/*
 
 # delete default user on new ubuntu images
@@ -37,8 +38,14 @@ USER "$USERNAME"
 # install rust
 RUN set -eux; wget -qO - https://sh.rustup.rs | sh -s -- -y --default-toolchain nightly
 
-# add local bin to path
-ENV PATH="/home/$USERNAME/.local/bin:/home/$USERNAME/.cargo/bin:$PATH"
+# install go
+COPY --from=golang:1.24-bookworm --chown="$USERNAME:$USERNAME" /usr/local/go/ /usr/local/go/
+
+# add to path
+ENV PATH="/home/$USERNAME/.local/bin:/home/$USERNAME/.cargo/bin:/home/$USERNAME/go/bin:/usr/local/go/bin:$PATH"
+
+# install pprof
+RUN set -eux; go install github.com/google/pprof@latest
 
 # replace entrypoint
 CMD sleep infinity
