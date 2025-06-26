@@ -419,19 +419,23 @@ impl Simulation {
         })
     }
 
-    /// Run single-threaded bench test for profiling/benchmarking purposes.
-    pub fn bench_test(iterations: usize) -> Duration {
-        let sim = Self {
+    /// Produce simulation with dummy data for testing purposes.
+    pub fn dummy() -> Self {
+        Self {
             teams: (0..16)
                 .map(|i| Team {
                     name: format!("Team {}", i + 1),
                     seed: i as u8 + 1,
-                    rating: 1000,
+                    rating: 2000 - 50 * i,
                 })
                 .collect_array()
                 .unwrap(),
-        };
+        }
+    }
 
+    /// Run single-threaded bench test for profiling/benchmarking purposes.
+    pub fn bench_test(iterations: usize) -> Duration {
+        let sim = Self::dummy();
         let now = Instant::now();
         let mut results = TeamIndex::new(TeamResult::new);
         let fresh_ss = SwissSystem::new(sim.teams.clone(), 800.0);

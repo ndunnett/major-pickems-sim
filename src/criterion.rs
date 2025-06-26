@@ -2,9 +2,10 @@ use criterion::{Criterion, criterion_group, criterion_main};
 use pickems::Simulation;
 
 fn bench(c: &mut Criterion) {
-    let mut group = c.benchmark_group("group");
-    group.sample_size(40);
-    group.bench_function("Simulation", |b| b.iter(|| Simulation::bench_test(10000)));
+    let sim = Simulation::dummy();
+    let mut group = c.benchmark_group("Simulation");
+    group.sample_size(10);
+    group.bench_function("run", |b| b.iter(|| sim.clone().run(100000, 800.0)));
     group.finish();
 }
 
