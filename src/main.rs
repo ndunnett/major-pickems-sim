@@ -87,8 +87,8 @@ fn main() {
     use pprof::protos::Message;
     use std::{fs::File, io::Write};
 
-    let guard = pprof::ProfilerGuard::new(10000).unwrap();
-    let run_time = Simulation::bench_test(500000);
+    let guard = pprof::ProfilerGuard::new(1000).unwrap();
+    let run_time = Simulation::bench_test(1000000);
     println!("Run time: {} seconds", run_time.as_millis() as f32 / 1000.0);
 
     if let Ok(report) = guard.report().build() {
