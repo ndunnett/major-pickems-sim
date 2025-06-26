@@ -2,7 +2,7 @@ use std::{
     fmt::Debug,
     ops::{Add, Index, IndexMut},
     path::PathBuf,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use itertools::Itertools;
@@ -186,6 +186,12 @@ impl TeamResult {
             advanced: 0,
             zero_three: 0,
         }
+    }
+}
+
+impl Default for TeamResult {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -414,8 +420,7 @@ impl Simulation {
     }
 
     /// Run single-threaded bench test for profiling/benchmarking purposes.
-    #[cfg(feature = "pprof")]
-    pub fn bench_test() {
+    pub fn bench_test(iterations: usize) -> Duration {
         let sim = Self {
             teams: (0..16)
                 .map(|i| Team {
@@ -427,8 +432,7 @@ impl Simulation {
                 .unwrap(),
         };
 
-        let iterations = 500000;
-        let now = std::time::Instant::now();
+        let now = Instant::now();
         let mut results = TeamIndex::new(TeamResult::new);
         let fresh_ss = SwissSystem::new(sim.teams.clone(), 800.0);
 
@@ -446,7 +450,7 @@ impl Simulation {
             }
         }
 
-        println!("{}", sim.format_results(results, iterations, now.elapsed()));
+        now.elapsed()
     }
 
     /// Run 'n' iterations of tournament simulation.
@@ -536,7 +540,7 @@ impl Simulation {
 
 /// Run simulation and print results.
 pub fn simulate(file: PathBuf, iterations: u64, sigma: f64) -> anyhow::Result<()> {
-    let now = std::time::Instant::now();
+    let now = Instant::now();
     let sim = Simulation::try_from_file(file)?;
     let results = sim.run(iterations, sigma);
     println!("{}", sim.format_results(results, iterations, now.elapsed()));

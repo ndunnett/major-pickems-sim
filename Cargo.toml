@@ -26,12 +26,24 @@ version = "0.15.0"
 features = ["flamegraph", "prost-codec"]
 optional = true
 
+[dev-dependencies]
+criterion = "0.6.0"
+
 [features]
 pprof = ["dep:pprof"]
+
+[lib]
+name = "pickems"
+path = "src/lib.rs"
 
 [[bin]]
 name = "pickems"
 path = "src/main.rs"
+
+[[bench]]
+name = "criterion"
+path = "src/criterion.rs"
+harness = false
 
 [profile.dev]
 lto = "off"

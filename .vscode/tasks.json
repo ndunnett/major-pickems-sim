@@ -2,14 +2,45 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Run pprof",
+      "label": "pickems: run pprof",
       "type": "shell",
-      "command": "cargo run --profile=pprof --features=pprof && pprof -http=localhost:8080 profile.pb",
+      "command": "cargo run --profile=pprof --features=pprof && pprof -http=localhost:8080 target/profile.pb",
       "problemMatcher": [
         "$rustc"
       ],
       "options": {
         "cwd": "${workspaceRoot}"
+      },
+      "presentation": {
+        "clear": true
+      }
+    },
+    {
+      "label": "pickems: run criterion",
+      "type": "cargo",
+      "command": "bench",
+      "problemMatcher": [
+        "$rustc"
+      ],
+      "options": {
+        "cwd": "${workspaceRoot}"
+      },
+      "presentation": {
+        "clear": true
+      }
+    },
+    {
+      "label": "pickems: run simulation on newest input file",
+      "type": "cargo",
+      "command": "run --release -- simulate -f data/$(ls data -Art | tail -n 1)",
+      "problemMatcher": [
+        "$rustc"
+      ],
+      "options": {
+        "cwd": "${workspaceRoot}"
+      },
+      "presentation": {
+        "clear": true
       }
     }
   ]

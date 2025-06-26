@@ -3,17 +3,11 @@
     allow(dead_code, unreachable_code, unused_imports, unused_variables)
 )]
 
-use clap::{Args, Parser, Subcommand};
 use std::path::PathBuf;
 
-mod data;
-mod simulate;
-mod wizard;
+use clap::{Args, Parser, Subcommand};
 
-use crate::{
-    data::{inspect, wizard},
-    simulate::simulate,
-};
+use pickems::*;
 
 #[derive(Debug, Parser)]
 #[command(version, about, long_about = None)]
@@ -93,19 +87,15 @@ fn main() {
     use pprof::protos::Message;
     use std::{fs::File, io::Write};
 
-    let guard = pprof::ProfilerGuardBuilder::default()
-        .frequency(10000)
-        .blocklist(&["libc", "libgcc", "pthread", "vdso"])
-        .build()
-        .unwrap();
-
-    crate::simulate::Simulation::bench_test();
+    let guard = pprof::ProfilerGuard::new(10000).unwrap();
+    let run_time = Simulation::bench_test(500000);
+    println!("Run time: {} seconds", run_time.as_millis() as f32 / 1000.0);
 
     if let Ok(report) = guard.report().build() {
         let mut content = Vec::new();
         let profile = report.pprof().unwrap();
         profile.encode(&mut content).unwrap();
-        let mut file = File::create("profile.pb").unwrap();
+        let mut file = File::create("target/profile.pb").unwrap();
         file.write_all(&content).unwrap();
     };
 }

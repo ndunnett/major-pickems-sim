@@ -1,4 +1,4 @@
-// uncomment when working on profiling
+// // uncomment when working on profiling
 // {
 //   "rust-analyzer.cargo.features": [
 //     "pprof"
