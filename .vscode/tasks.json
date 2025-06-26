@@ -31,8 +31,8 @@
     },
     {
       "label": "pickems: run simulation on newest input file",
-      "type": "cargo",
-      "command": "run --release -- simulate -f data/$(ls data -Art | tail -n 1)",
+      "type": "shell",
+      "command": "cargo run --release -- simulate -f data/$(ls data -Art | tail -n 1)",
       "problemMatcher": [
         "$rustc"
       ],
