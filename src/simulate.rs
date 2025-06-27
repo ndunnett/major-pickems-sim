@@ -173,6 +173,13 @@ impl TeamRecord {
     pub const fn diff(&self) -> i8 {
         self.wins - self.losses
     }
+
+    pub fn buchholz(&self, records: &TeamIndex<TeamRecord>) -> i8 {
+        self.teams_faced
+            .iter()
+            .map(|opp| records[opp].diff())
+            .sum::<i8>()
+    }
 }
 
 /// Struct to tally up tournament results for a team.
@@ -264,12 +271,7 @@ impl SwissSystem {
         self.remaining.iter().sorted_by_key(|&i| {
             (
                 -self.records[i].diff(),
-                -self.records[i]
-                    .teams_faced
-                    .iter()
-                    .map(|opp| self.records[opp].diff())
-                    .sum::<i8>(),
-                self.teams[i as usize].seed,
+                -self.records[i].buchholz(&self.records),
             )
         })
     }
@@ -357,7 +359,7 @@ impl SwissSystem {
                         }
 
                         let mut bottom_teams = group.split_off(group.len() / 2);
-                        let mut matchups = vec![];
+                        let mut matchups = Vec::with_capacity(4);
 
                         // Attempt to assign matchups, continue to the next iteration of the outer loop if it fails.
                         'inner: for team_a in group.into_iter() {
