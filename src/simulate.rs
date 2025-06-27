@@ -586,3 +586,161 @@ pub fn simulate(file: PathBuf, iterations: u64, sigma: f64) -> anyhow::Result<()
     println!("{}", sim.format_results(results, iterations, now.elapsed()));
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Quick sanity test to check that things are generally working.
+    #[test]
+    fn sanity_test() {
+        let mut rng = make_deterministic_rng();
+        let mut results = TeamIndex::new(TeamResult::new);
+        let sim = Simulation::dummy();
+        let fresh_ss = SwissSystem::new(sim.teams.clone(), 800.0);
+        let iterations = 1000;
+
+        for _ in 0..iterations {
+            let mut ss = fresh_ss.clone();
+            ss.simulate_tournament(&mut rng);
+
+            for (team, record) in ss.records.items(&ss.teams) {
+                match (record.wins, record.losses) {
+                    (3, 0) => results[team].three_zero += 1,
+                    (3, 1 | 2) => results[team].advanced += 1,
+                    (0, 3) => results[team].zero_three += 1,
+                    _ => {}
+                }
+            }
+        }
+
+        // Total 3-0 stats should sum to 2 per iteration
+        assert_eq!(
+            sim.teams
+                .iter()
+                .map(|team| results[team].three_zero)
+                .sum::<u64>(),
+            iterations * 2
+        );
+
+        // Total 3-1/3-2 stats should sum to 6 per iteration
+        assert_eq!(
+            sim.teams
+                .iter()
+                .map(|team| results[team].advanced)
+                .sum::<u64>(),
+            iterations * 6
+        );
+
+        // Total 0-3 stats should sum to 2 per iteration
+        assert_eq!(
+            sim.teams
+                .iter()
+                .map(|team| results[team].zero_three)
+                .sum::<u64>(),
+            iterations * 2
+        );
+
+        // Best team should always have more 3-0 stats than the worst team
+        assert!(results.data[0].three_zero > results.data[15].three_zero);
+
+        // Best team should always have less 0-3 stats than the worst team
+        assert!(results.data[0].zero_three < results.data[15].zero_three);
+    }
+
+    /// Regression test, will break if the seeding algorithm changes.
+    #[test]
+    fn regression_test() {
+        let mut rng = make_deterministic_rng();
+        let sim = Simulation::dummy();
+        let mut ss = SwissSystem::new(sim.teams.clone(), 800.0);
+        ss.simulate_tournament(&mut rng);
+
+        let expected_records = TeamIndex {
+            data: [
+                TeamRecord {
+                    wins: 3,
+                    losses: 1,
+                    teams_faced: TeamSet { data: 21248 },
+                },
+                TeamRecord {
+                    wins: 3,
+                    losses: 0,
+                    teams_faced: TeamSet { data: 648 },
+                },
+                TeamRecord {
+                    wins: 3,
+                    losses: 1,
+                    teams_faced: TeamSet { data: 5312 },
+                },
+                TeamRecord {
+                    wins: 3,
+                    losses: 1,
+                    teams_faced: TeamSet { data: 2146 },
+                },
+                TeamRecord {
+                    wins: 2,
+                    losses: 3,
+                    teams_faced: TeamSet { data: 45632 },
+                },
+                TeamRecord {
+                    wins: 1,
+                    losses: 3,
+                    teams_faced: TeamSet { data: 10376 },
+                },
+                TeamRecord {
+                    wins: 3,
+                    losses: 2,
+                    teams_faced: TeamSet { data: 17436 },
+                },
+                TeamRecord {
+                    wins: 3,
+                    losses: 2,
+                    teams_faced: TeamSet { data: 33830 },
+                },
+                TeamRecord {
+                    wins: 0,
+                    losses: 3,
+                    teams_faced: TeamSet { data: 24577 },
+                },
+                TeamRecord {
+                    wins: 2,
+                    losses: 3,
+                    teams_faced: TeamSet { data: 10259 },
+                },
+                TeamRecord {
+                    wins: 2,
+                    losses: 3,
+                    teams_faced: TeamSet { data: 18628 },
+                },
+                TeamRecord {
+                    wins: 3,
+                    losses: 2,
+                    teams_faced: TeamSet { data: 34344 },
+                },
+                TeamRecord {
+                    wins: 3,
+                    losses: 0,
+                    teams_faced: TeamSet { data: 21 },
+                },
+                TeamRecord {
+                    wins: 1,
+                    losses: 3,
+                    teams_faced: TeamSet { data: 816 },
+                },
+                TeamRecord {
+                    wins: 1,
+                    losses: 3,
+                    teams_faced: TeamSet { data: 1345 },
+                },
+                TeamRecord {
+                    wins: 0,
+                    losses: 3,
+                    teams_faced: TeamSet { data: 2192 },
+                },
+            ],
+        };
+
+        assert_eq!(ss.records, expected_records);
+    }
+}
