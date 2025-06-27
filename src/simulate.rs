@@ -83,6 +83,20 @@ impl<T: Debug + Clone> IndexMut<usize> for TeamIndex<T> {
     }
 }
 
+impl<T: Debug + Clone> Index<u8> for TeamIndex<T> {
+    type Output = T;
+
+    fn index(&self, index: u8) -> &Self::Output {
+        &self.data[index as usize]
+    }
+}
+
+impl<T: Debug + Clone> IndexMut<u8> for TeamIndex<T> {
+    fn index_mut(&mut self, index: u8) -> &mut Self::Output {
+        &mut self.data[index as usize]
+    }
+}
+
 /// High performance set, specifically for teams.
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct TeamSet {
@@ -94,21 +108,13 @@ impl TeamSet {
         Self { data: 0 }
     }
 
-    /// Select which bit represents the given team.
-    const fn select_bit(team: &Team) -> u16 {
-        1_u16 << team.index()
+    pub const fn full() -> Self {
+        Self { data: u16::MAX }
     }
 
-    /// Create a set from an iterator of teams.
-    pub fn from_iter<'a>(teams: impl Iterator<Item = &'a Team>) -> Self {
-        Self {
-            data: teams.map(Self::select_bit).sum(),
-        }
-    }
-
-    /// Insert team into the set.
-    pub const fn insert(&mut self, team: &Team) -> bool {
-        let n = Self::select_bit(team);
+    /// Insert index into the set.
+    pub const fn insert(&mut self, index: u8) -> bool {
+        let n = 1_u16 << index;
 
         if self.data & n == 0 {
             self.data |= n;
@@ -118,9 +124,9 @@ impl TeamSet {
         }
     }
 
-    /// Remove team from the set.
-    pub const fn remove(&mut self, team: &Team) -> bool {
-        let n = Self::select_bit(team);
+    /// Remove index from the set.
+    pub const fn remove(&mut self, index: u8) -> bool {
+        let n = 1_u16 << index;
 
         if self.data & n == 0 {
             false
@@ -130,9 +136,9 @@ impl TeamSet {
         }
     }
 
-    /// Test if the set contains team.
-    pub const fn contains(&self, team: &Team) -> bool {
-        self.data & Self::select_bit(team) != 0
+    /// Test if the set contains index.
+    pub const fn contains(&self, index: u8) -> bool {
+        self.data & 1_u16 << index != 0
     }
 
     /// Test if the set is empty.
@@ -140,12 +146,9 @@ impl TeamSet {
         self.data == 0
     }
 
-    /// Returns an iterator of teams contained within the set, given an iterator of teams.
-    pub fn iter<'a, I: Iterator<Item = &'a Team>>(
-        &self,
-        teams: I,
-    ) -> impl Iterator<Item = &'a Team> {
-        teams.filter(|team| self.contains(team))
+    /// Returns an iterator of indices contained within the set.
+    pub fn iter(&self) -> impl Iterator<Item = u8> {
+        (0..16).filter(|&i| self.contains(i))
     }
 }
 
@@ -233,49 +236,42 @@ impl SwissSystem {
             )
         }));
 
-        let remaining = TeamSet::from_iter(teams.iter());
-
         Self {
             teams,
             records,
             probabilities,
-            remaining,
+            remaining: TeamSet::full(),
             first_round: true,
         }
     }
 
     pub fn reset(&mut self) {
         let records = TeamIndex::new(TeamRecord::new);
-        let remaining = TeamSet::from_iter(self.teams.iter());
+        let remaining = TeamSet::full();
         self.records = records;
         self.remaining = remaining;
         self.first_round = true;
     }
 
-    /// Return vec of teams sorted by mid-stage seed calculation.
+    /// Return iterator of team indices sorted by mid-stage seed calculation.
     ///
     /// 1. Current win-loss record
     /// 2. Buchholz difficulty score (sum of win-loss record for each opponent faced)
     /// 3. Initial seeding
     ///
     /// [Rules and Regs - Mid-stage Seed Calculation](https://github.com/ValveSoftware/counter-strike_rules_and_regs/blob/main/major-supplemental-rulebook.md#Mid-Stage-Seed-Calculation)
-    fn seed_teams(&self) -> Vec<Team> {
-        Vec::from_iter(
-            self.remaining
-                .iter(self.teams.iter())
-                .sorted_by_key(|team| {
-                    (
-                        -self.records[*team].diff(),
-                        -self.records[*team]
-                            .teams_faced
-                            .iter(self.teams.iter())
-                            .map(|opp| self.records[opp].diff())
-                            .sum::<i8>(),
-                        team.seed,
-                    )
-                })
-                .cloned(),
-        )
+    fn seed_teams(&self) -> impl Iterator<Item = u8> {
+        self.remaining.iter().sorted_by_key(|&i| {
+            (
+                -self.records[i].diff(),
+                -self.records[i]
+                    .teams_faced
+                    .iter()
+                    .map(|opp| self.records[opp].diff())
+                    .sum::<i8>(),
+                self.teams[i as usize].seed,
+            )
+        })
     }
 
     /// Pre-determined matchup priority for a group size of 6.
@@ -301,27 +297,33 @@ impl SwissSystem {
         [(0, 1), (2, 3), (4, 5)], // last priority
     ];
 
-    /// Group teams by record and arrange matchups, highest seed vs lowest seed.
+    /// Group team indices by record and arrange matchups, highest seed vs lowest seed.
     ///
     /// Rearrange to avoid rematches:
     ///   - in rounds 2 and 3 (group sizes of 4 or 8), the highest seeded team faces the lowest seeded team that doesn't result in a rematch
     ///   - in rounds 4 and 5 (group sizes of 6), follow pre-determined highest priority matchup that doesn't result in a rematch
     ///
     /// [Rules and Regs - Swiss Bracket](https://github.com/ValveSoftware/counter-strike_rules_and_regs/blob/main/major-supplemental-rulebook.md#swiss-bracket)
-    fn generate_matchups<'a>(&self, teams: &'a [Team]) -> Vec<(&'a Team, &'a Team)> {
-        teams
-            .iter()
-            .chunk_by(|team| self.records[*team].diff())
+    fn generate_matchups<I: Iterator<Item = u8>>(&self, team_indices: I) -> Vec<(u8, u8)> {
+        team_indices
+            .chunk_by(|&index| self.records[index].diff())
             .into_iter()
-            .fold(Vec::new(), |mut acc, (_, group_iter)| {
+            .fold(Vec::with_capacity(8), |mut acc, (_, group_iter)| {
                 let group = group_iter.collect::<Vec<_>>();
 
                 if group.len() == 6 {
                     for indices in Self::MATCHUP_PRIORITY {
-                        if indices.iter().all(|(ia, ib)| {
-                            !self.records[group[*ia]].teams_faced.contains(group[*ib])
-                        }) {
-                            acc.extend(indices.iter().map(|(ia, ib)| (group[*ia], group[*ib])));
+                        let matchups: [(u8, u8); 3] = indices
+                            .into_iter()
+                            .map(|(ia, ib)| (group[ia], group[ib]))
+                            .collect_array()
+                            .unwrap();
+
+                        if matchups
+                            .iter()
+                            .all(|(ia, ib)| !self.records[*ia].teams_faced.contains(*ib))
+                        {
+                            acc.extend(matchups);
                             break;
                         }
                     }
@@ -354,15 +356,14 @@ impl SwissSystem {
                             }
                         }
 
-                        let half = group.len() / 2;
-                        let mut bottom_teams = group.iter().skip(half).collect::<Vec<_>>();
+                        let mut bottom_teams = group.split_off(group.len() / 2);
                         let mut matchups = vec![];
 
                         // Attempt to assign matchups, continue to the next iteration of the outer loop if it fails.
-                        'inner: for team_a in group.iter().take(half) {
+                        'inner: for team_a in group.into_iter() {
                             for i in (0..bottom_teams.len()).rev() {
-                                if !self.records[*team_a].teams_faced.contains(bottom_teams[i]) {
-                                    matchups.push((*team_a, *bottom_teams.remove(i)));
+                                if !self.records[team_a].teams_faced.contains(bottom_teams[i]) {
+                                    matchups.push((team_a, bottom_teams.remove(i)));
                                     continue 'inner;
                                 }
                             }
@@ -380,12 +381,12 @@ impl SwissSystem {
     }
 
     /// Simulate independent match.
-    fn simulate_match(&mut self, rng: &mut RngType, team_a: &Team, team_b: &Team) {
+    fn simulate_match(&mut self, rng: &mut RngType, index_a: u8, index_b: u8) {
         // BO3 if match is for advancement/elimination.
-        let is_bo3 = self.records[team_a].wins == 2 || self.records[team_a].losses == 2;
+        let is_bo3 = self.records[index_a].wins == 2 || self.records[index_a].losses == 2;
 
         // Simulate match outcome.
-        let p = self.probabilities[team_a][team_b];
+        let p = self.probabilities[index_a][index_b];
 
         let team_a_win = if is_bo3 {
             let first_map = p > rng.random();
@@ -402,21 +403,21 @@ impl SwissSystem {
 
         // Update team records.
         if team_a_win {
-            self.records[team_a].wins += 1;
-            self.records[team_b].losses += 1;
+            self.records[index_a].wins += 1;
+            self.records[index_b].losses += 1;
         } else {
-            self.records[team_a].losses += 1;
-            self.records[team_b].wins += 1;
+            self.records[index_a].losses += 1;
+            self.records[index_b].wins += 1;
         }
 
-        self.records[team_a].teams_faced.insert(team_b);
-        self.records[team_b].teams_faced.insert(team_a);
+        self.records[index_a].teams_faced.insert(index_b);
+        self.records[index_b].teams_faced.insert(index_a);
 
         // Advance/eliminate teams after BO3.
         if is_bo3 {
-            for team in &[team_a, team_b] {
-                if self.records[*team].wins == 3 || self.records[*team].losses == 3 {
-                    self.remaining.remove(team);
+            for index in [index_a, index_b] {
+                if self.records[index].wins == 3 || self.records[index].losses == 3 {
+                    self.remaining.remove(index);
                 }
             }
         }
@@ -424,21 +425,17 @@ impl SwissSystem {
 
     /// Simulate tournament round.
     fn simulate_round(&mut self, rng: &mut RngType) {
-        let teams = self.seed_teams();
-
-        let matchups: Vec<(&Team, &Team)> = if self.first_round {
+        if self.first_round {
             // First round is matched up differently (1-9, 2-10, 3-11 etc.)
             self.first_round = false;
-            teams
-                .iter()
-                .zip(teams.iter().skip(teams.len() / 2))
-                .collect()
-        } else {
-            self.generate_matchups(&teams)
-        };
 
-        for (team_a, team_b) in matchups.into_iter() {
-            self.simulate_match(rng, team_a, team_b);
+            for (index_a, index_b) in (0..8).zip(8..16) {
+                self.simulate_match(rng, index_a, index_b);
+            }
+        } else {
+            for (index_a, index_b) in self.generate_matchups(self.seed_teams()).into_iter() {
+                self.simulate_match(rng, index_a, index_b);
+            }
         }
     }
 
@@ -612,7 +609,7 @@ mod tests {
 
         // Total 3-0 stats should sum to 2 per iteration
         assert_eq!(
-            (0..16)
+            (0..16_u8)
                 .map(|index| results[index].three_zero as usize)
                 .sum::<usize>(),
             iterations * 2
@@ -620,7 +617,7 @@ mod tests {
 
         // Total 3-1/3-2 stats should sum to 6 per iteration
         assert_eq!(
-            (0..16)
+            (0..16_u8)
                 .map(|index| results[index].advanced as usize)
                 .sum::<usize>(),
             iterations * 6
@@ -628,7 +625,7 @@ mod tests {
 
         // Total 0-3 stats should sum to 2 per iteration
         assert_eq!(
-            (0..16)
+            (0..16_u8)
                 .map(|index| results[index].zero_three as usize)
                 .sum::<usize>(),
             iterations * 2
