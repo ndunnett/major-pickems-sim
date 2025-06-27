@@ -69,6 +69,20 @@ impl<T: Debug + Clone> IndexMut<&Team> for TeamIndex<T> {
     }
 }
 
+impl<T: Debug + Clone> Index<usize> for TeamIndex<T> {
+    type Output = T;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.data[index]
+    }
+}
+
+impl<T: Debug + Clone> IndexMut<usize> for TeamIndex<T> {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.data[index]
+    }
+}
+
 /// High performance set, specifically for teams.
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct TeamSet {
@@ -251,8 +265,8 @@ impl SwissSystem {
                 .iter(self.teams.iter())
                 .sorted_by_key(|team| {
                     (
-                        -self.records[team].diff(),
-                        -self.records[team]
+                        -self.records[*team].diff(),
+                        -self.records[*team]
                             .teams_faced
                             .iter(self.teams.iter())
                             .map(|opp| self.records[opp].diff())
@@ -297,7 +311,7 @@ impl SwissSystem {
     fn generate_matchups<'a>(&self, teams: &'a [Team]) -> Vec<(&'a Team, &'a Team)> {
         teams
             .iter()
-            .chunk_by(|team| self.records[team].diff())
+            .chunk_by(|team| self.records[*team].diff())
             .into_iter()
             .fold(Vec::new(), |mut acc, (_, group_iter)| {
                 let group = group_iter.collect::<Vec<_>>();
@@ -347,7 +361,7 @@ impl SwissSystem {
                         // Attempt to assign matchups, continue to the next iteration of the outer loop if it fails.
                         'inner: for team_a in group.iter().take(half) {
                             for i in (0..bottom_teams.len()).rev() {
-                                if !self.records[team_a].teams_faced.contains(bottom_teams[i]) {
+                                if !self.records[*team_a].teams_faced.contains(bottom_teams[i]) {
                                     matchups.push((*team_a, *bottom_teams.remove(i)));
                                     continue 'inner;
                                 }
@@ -401,7 +415,7 @@ impl SwissSystem {
         // Advance/eliminate teams after BO3.
         if is_bo3 {
             for team in &[team_a, team_b] {
-                if self.records[team].wins == 3 || self.records[team].losses == 3 {
+                if self.records[*team].wins == 3 || self.records[*team].losses == 3 {
                     self.remaining.remove(team);
                 }
             }
@@ -466,9 +480,8 @@ impl Simulation {
     }
 
     /// Run single-threaded bench test for profiling/benchmarking purposes.
-    pub fn bench_test(iterations: usize) -> Duration {
+    pub fn bench_test(iterations: usize) -> TeamIndex<TeamResult> {
         let sim = Self::dummy();
-        let now = Instant::now();
         let mut results = TeamIndex::new(TeamResult::new);
         let fresh_ss = SwissSystem::new(sim.teams.clone(), 800.0);
         let mut rng = make_deterministic_rng();
@@ -487,7 +500,7 @@ impl Simulation {
             }
         }
 
-        now.elapsed()
+        results
     }
 
     /// Run 'n' iterations of tournament simulation.
@@ -594,50 +607,30 @@ mod tests {
     /// Quick sanity test to check that things are generally working.
     #[test]
     fn sanity_test() {
-        let mut rng = make_deterministic_rng();
-        let mut results = TeamIndex::new(TeamResult::new);
-        let sim = Simulation::dummy();
-        let fresh_ss = SwissSystem::new(sim.teams.clone(), 800.0);
         let iterations = 1000;
-
-        for _ in 0..iterations {
-            let mut ss = fresh_ss.clone();
-            ss.simulate_tournament(&mut rng);
-
-            for (team, record) in ss.records.items(&ss.teams) {
-                match (record.wins, record.losses) {
-                    (3, 0) => results[team].three_zero += 1,
-                    (3, 1 | 2) => results[team].advanced += 1,
-                    (0, 3) => results[team].zero_three += 1,
-                    _ => {}
-                }
-            }
-        }
+        let results = Simulation::bench_test(iterations);
 
         // Total 3-0 stats should sum to 2 per iteration
         assert_eq!(
-            sim.teams
-                .iter()
-                .map(|team| results[team].three_zero)
-                .sum::<u64>(),
+            (0..16)
+                .map(|index| results[index].three_zero as usize)
+                .sum::<usize>(),
             iterations * 2
         );
 
         // Total 3-1/3-2 stats should sum to 6 per iteration
         assert_eq!(
-            sim.teams
-                .iter()
-                .map(|team| results[team].advanced)
-                .sum::<u64>(),
+            (0..16)
+                .map(|index| results[index].advanced as usize)
+                .sum::<usize>(),
             iterations * 6
         );
 
         // Total 0-3 stats should sum to 2 per iteration
         assert_eq!(
-            sim.teams
-                .iter()
-                .map(|team| results[team].zero_three)
-                .sum::<u64>(),
+            (0..16)
+                .map(|index| results[index].zero_three as usize)
+                .sum::<usize>(),
             iterations * 2
         );
 

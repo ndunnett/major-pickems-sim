@@ -85,11 +85,16 @@ fn main() {
 #[cfg(feature = "pprof")]
 fn main() {
     use pprof::protos::Message;
-    use std::{fs::File, io::Write};
+    use std::{fs::File, io::Write, time::Instant};
 
+    let now = Instant::now();
     let guard = pprof::ProfilerGuard::new(1000).unwrap();
-    let run_time = Simulation::bench_test(1000000);
-    println!("Run time: {} seconds", run_time.as_millis() as f32 / 1000.0);
+    _ = Simulation::bench_test(1000000);
+
+    println!(
+        "Run time: {} seconds",
+        now.elapsed().as_millis() as f32 / 1000.0
+    );
 
     if let Ok(report) = guard.report().build() {
         let mut content = Vec::new();
