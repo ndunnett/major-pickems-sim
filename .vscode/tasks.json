@@ -30,6 +30,20 @@
       }
     },
     {
+      "label": "pickems: run tests",
+      "type": "cargo",
+      "command": "test",
+      "problemMatcher": [
+        "$rustc"
+      ],
+      "options": {
+        "cwd": "${workspaceRoot}"
+      },
+      "presentation": {
+        "clear": true
+      }
+    },
+    {
       "label": "pickems: run simulation on newest input file",
       "type": "shell",
       "command": "cargo run --release -- simulate -f data/$(ls data -Art | tail -n 1)",

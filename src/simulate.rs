@@ -11,31 +11,18 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 use crate::data::{Team, parse_toml};
 
-/// Pre-determined matchup priority for a group size of 6.
-///
-/// 0 -> lowest seeded team in the group, 5 -> highest seeded team in the group
-///
-/// [Rules and Regs - Swiss Bracket](https://github.com/ValveSoftware/counter-strike_rules_and_regs/blob/main/major-supplemental-rulebook.md#swiss-bracket)
-const MATCHUP_PRIORITY: [[(usize, usize); 3]; 15] = [
-    [(0, 5), (1, 4), (2, 3)], // first priority
-    [(0, 5), (1, 3), (2, 4)],
-    [(0, 4), (1, 5), (2, 3)],
-    [(0, 4), (1, 3), (2, 5)],
-    [(0, 3), (1, 5), (2, 4)],
-    [(0, 3), (1, 4), (2, 5)],
-    [(0, 5), (1, 2), (3, 4)],
-    [(0, 4), (1, 2), (3, 5)],
-    [(0, 2), (1, 5), (3, 4)],
-    [(0, 2), (1, 4), (3, 5)],
-    [(0, 3), (1, 2), (4, 5)],
-    [(0, 2), (1, 3), (4, 5)],
-    [(0, 1), (2, 5), (3, 4)],
-    [(0, 1), (2, 4), (3, 5)],
-    [(0, 1), (2, 3), (4, 5)], // last priority
-];
+type RngType = rand_chacha::ChaCha8Rng;
+
+fn make_rng() -> RngType {
+    rand_chacha::ChaCha8Rng::from_rng(&mut rand::rng())
+}
+
+fn make_deterministic_rng() -> RngType {
+    rand_chacha::ChaCha8Rng::seed_from_u64(7355608)
+}
 
 /// Store data indexed per team.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TeamIndex<T: Debug + Clone> {
     data: [T; 16],
 }
@@ -83,7 +70,7 @@ impl<T: Debug + Clone> IndexMut<&Team> for TeamIndex<T> {
 }
 
 /// High performance set, specifically for teams.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 struct TeamSet {
     data: u16,
 }
@@ -149,7 +136,7 @@ impl TeamSet {
 }
 
 /// Struct to keep record of wins, losses, and opponents faced for a team.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 struct TeamRecord {
     wins: i8,
     losses: i8,
@@ -233,173 +220,218 @@ impl SwissSystem {
         }));
 
         let remaining = TeamSet::from_iter(teams.iter());
-        let first_round = true;
 
         Self {
             teams,
             records,
             probabilities,
             remaining,
-            first_round,
+            first_round: true,
+        }
+    }
+
+    pub fn reset(&mut self) {
+        let records = TeamIndex::new(TeamRecord::new);
+        let remaining = TeamSet::from_iter(self.teams.iter());
+        self.records = records;
+        self.remaining = remaining;
+        self.first_round = true;
+    }
+
+    /// Return vec of teams sorted by mid-stage seed calculation.
+    ///
+    /// 1. Current win-loss record
+    /// 2. Buchholz difficulty score (sum of win-loss record for each opponent faced)
+    /// 3. Initial seeding
+    ///
+    /// [Rules and Regs - Mid-stage Seed Calculation](https://github.com/ValveSoftware/counter-strike_rules_and_regs/blob/main/major-supplemental-rulebook.md#Mid-Stage-Seed-Calculation)
+    fn seed_teams(&self) -> Vec<Team> {
+        Vec::from_iter(
+            self.remaining
+                .iter(self.teams.iter())
+                .sorted_by_key(|team| {
+                    (
+                        -self.records[team].diff(),
+                        -self.records[team]
+                            .teams_faced
+                            .iter(self.teams.iter())
+                            .map(|opp| self.records[opp].diff())
+                            .sum::<i8>(),
+                        team.seed,
+                    )
+                })
+                .cloned(),
+        )
+    }
+
+    /// Pre-determined matchup priority for a group size of 6.
+    ///
+    /// 0 -> lowest seeded team in the group, 5 -> highest seeded team in the group
+    ///
+    /// [Rules and Regs - Swiss Bracket](https://github.com/ValveSoftware/counter-strike_rules_and_regs/blob/main/major-supplemental-rulebook.md#swiss-bracket)
+    const MATCHUP_PRIORITY: [[(usize, usize); 3]; 15] = [
+        [(0, 5), (1, 4), (2, 3)], // first priority
+        [(0, 5), (1, 3), (2, 4)],
+        [(0, 4), (1, 5), (2, 3)],
+        [(0, 4), (1, 3), (2, 5)],
+        [(0, 3), (1, 5), (2, 4)],
+        [(0, 3), (1, 4), (2, 5)],
+        [(0, 5), (1, 2), (3, 4)],
+        [(0, 4), (1, 2), (3, 5)],
+        [(0, 2), (1, 5), (3, 4)],
+        [(0, 2), (1, 4), (3, 5)],
+        [(0, 3), (1, 2), (4, 5)],
+        [(0, 2), (1, 3), (4, 5)],
+        [(0, 1), (2, 5), (3, 4)],
+        [(0, 1), (2, 4), (3, 5)],
+        [(0, 1), (2, 3), (4, 5)], // last priority
+    ];
+
+    /// Group teams by record and arrange matchups, highest seed vs lowest seed.
+    ///
+    /// Rearrange to avoid rematches:
+    ///   - in rounds 2 and 3 (group sizes of 4 or 8), the highest seeded team faces the lowest seeded team that doesn't result in a rematch
+    ///   - in rounds 4 and 5 (group sizes of 6), follow pre-determined highest priority matchup that doesn't result in a rematch
+    ///
+    /// [Rules and Regs - Swiss Bracket](https://github.com/ValveSoftware/counter-strike_rules_and_regs/blob/main/major-supplemental-rulebook.md#swiss-bracket)
+    fn generate_matchups<'a>(&self, teams: &'a [Team]) -> Vec<(&'a Team, &'a Team)> {
+        teams
+            .iter()
+            .chunk_by(|team| self.records[team].diff())
+            .into_iter()
+            .fold(Vec::new(), |mut acc, (_, group_iter)| {
+                let group = group_iter.collect::<Vec<_>>();
+
+                if group.len() == 6 {
+                    for indices in Self::MATCHUP_PRIORITY {
+                        if indices.iter().all(|(ia, ib)| {
+                            !self.records[group[*ia]].teams_faced.contains(group[*ib])
+                        }) {
+                            acc.extend(indices.iter().map(|(ia, ib)| (group[*ia], group[*ib])));
+                            break;
+                        }
+                    }
+                } else {
+                    'outer: for arrangement in 0..usize::MAX {
+                        let mut group = group.clone();
+
+                        // After the first attempt, start rearranging seeding to ensure no rematches.
+                        // Start by swapping highest and 2nd highest seeded teams and progress through
+                        // on each loop, eventually trying every possible permutation.
+                        if arrangement > 0 {
+                            let mid_point = group.len() / 2;
+                            let multiples = arrangement / mid_point;
+                            let remainder = arrangement % mid_point;
+
+                            if multiples * 2 <= mid_point {
+                                for _ in 0..multiples {
+                                    group.swap(multiples * 2, multiples * 2 + 1);
+                                }
+
+                                if remainder > 0 {
+                                    group.swap(
+                                        multiples * 2 + remainder,
+                                        multiples * 2 + remainder + 1,
+                                    );
+                                }
+                            } else {
+                                // All swaps are exhausted, this should never happen.
+                                panic!("impossible to avoid rematch")
+                            }
+                        }
+
+                        let half = group.len() / 2;
+                        let mut bottom_teams = group.iter().skip(half).collect::<Vec<_>>();
+                        let mut matchups = vec![];
+
+                        // Attempt to assign matchups, continue to the next iteration of the outer loop if it fails.
+                        'inner: for team_a in group.iter().take(half) {
+                            for i in (0..bottom_teams.len()).rev() {
+                                if !self.records[team_a].teams_faced.contains(bottom_teams[i]) {
+                                    matchups.push((*team_a, *bottom_teams.remove(i)));
+                                    continue 'inner;
+                                }
+                            }
+
+                            continue 'outer;
+                        }
+
+                        acc.extend(matchups);
+                        break;
+                    }
+                }
+
+                acc
+            })
+    }
+
+    /// Simulate independent match.
+    fn simulate_match(&mut self, rng: &mut RngType, team_a: &Team, team_b: &Team) {
+        // BO3 if match is for advancement/elimination.
+        let is_bo3 = self.records[team_a].wins == 2 || self.records[team_a].losses == 2;
+
+        // Simulate match outcome.
+        let p = self.probabilities[team_a][team_b];
+
+        let team_a_win = if is_bo3 {
+            let first_map = p > rng.random();
+            let second_map = p > rng.random();
+
+            if first_map != second_map {
+                p > rng.random()
+            } else {
+                first_map
+            }
+        } else {
+            p > rng.random()
+        };
+
+        // Update team records.
+        if team_a_win {
+            self.records[team_a].wins += 1;
+            self.records[team_b].losses += 1;
+        } else {
+            self.records[team_a].losses += 1;
+            self.records[team_b].wins += 1;
+        }
+
+        self.records[team_a].teams_faced.insert(team_b);
+        self.records[team_b].teams_faced.insert(team_a);
+
+        // Advance/eliminate teams after BO3.
+        if is_bo3 {
+            for team in &[team_a, team_b] {
+                if self.records[team].wins == 3 || self.records[team].losses == 3 {
+                    self.remaining.remove(team);
+                }
+            }
         }
     }
 
     /// Simulate tournament round.
-    fn simulate_round(&mut self) {
-        let mut teams = Vec::from_iter(self.remaining.iter(self.teams.iter()));
+    fn simulate_round(&mut self, rng: &mut RngType) {
+        let teams = self.seed_teams();
 
-        // Sort teams by mid-stage seed calculation:
-        //   1. Current win-loss record
-        //   2. Buchholz difficulty score (sum of win-loss record for each opponent faced)
-        //   3. Initial seeding
-        // https://github.com/ValveSoftware/counter-strike_rules_and_regs/blob/main/major-supplemental-rulebook.md#Mid-Stage-Seed-Calculation
-
-        teams.sort_by_key(|team| {
-            (
-                -self.records[team].diff(),
-                -self.records[team]
-                    .teams_faced
-                    .iter(self.teams.iter())
-                    .map(|opp| self.records[opp].diff())
-                    .sum::<i8>(),
-                team.seed,
-            )
-        });
-
-        // Determine matchups for the current round.
-        let matchups = if self.first_round {
-            // First round is seeded differently (1-9, 2-10, 3-11 etc.)
+        let matchups: Vec<(&Team, &Team)> = if self.first_round {
+            // First round is matched up differently (1-9, 2-10, 3-11 etc.)
             self.first_round = false;
             teams
                 .iter()
                 .zip(teams.iter().skip(teams.len() / 2))
-                .map(|(a, b)| (*a, *b))
                 .collect()
         } else {
-            teams
-                .into_iter()
-                .chunk_by(|team| self.records[team].diff())
-                .into_iter()
-                .fold(Vec::new(), |mut acc, (_, group_iter)| {
-                    let group = group_iter.collect::<Vec<_>>();
-
-                    // Group teams by record and arrange matchups, highest seed vs lowest seed.
-                    // Rearrange to avoid rematches:
-                    //   - in rounds 2 and 3 (group sizes of 4 or 8), the highest seeded team faces the lowest seeded team that doesn't result in a rematch
-                    //   - in rounds 4 and 5 (group sizes of 6), follow pre-determined highest priority matchup that doesn't result in a rematch
-
-                    if group.len() == 6 {
-                        for indices in MATCHUP_PRIORITY {
-                            if indices.iter().all(|(ia, ib)| {
-                                !self.records[group[*ia]].teams_faced.contains(group[*ib])
-                            }) {
-                                acc.extend(indices.iter().map(|(ia, ib)| (group[*ia], group[*ib])));
-                                break;
-                            }
-                        }
-                    } else {
-                        'outer: for arrangement in 0..usize::MAX {
-                            let mut group = group.clone();
-
-                            // After the first attempt, start rearranging seeding to ensure no rematches.
-                            // Start by swapping highest and 2nd highest seeded teams and progress through
-                            // on each loop, eventually trying every possible permutation.
-                            if arrangement > 0 {
-                                let mid_point = group.len() / 2;
-                                let multiples = arrangement / mid_point;
-                                let remainder = arrangement % mid_point;
-
-                                if multiples * 2 <= mid_point {
-                                    for _ in 0..multiples {
-                                        group.swap(multiples * 2, multiples * 2 + 1);
-                                    }
-
-                                    if remainder > 0 {
-                                        group.swap(
-                                            multiples * 2 + remainder,
-                                            multiples * 2 + remainder + 1,
-                                        );
-                                    }
-                                } else {
-                                    // All swaps are exhausted, this should never happen.
-                                    panic!("impossible to avoid rematch")
-                                }
-                            }
-
-                            let half = group.len() / 2;
-                            let mut bottom_teams = group.iter().skip(half).collect::<Vec<_>>();
-                            let mut matchups = vec![];
-
-                            // Attempt to assign matchups, continue to the next iteration of the outer loop if it fails.
-                            'inner: for team_a in group.iter().take(half) {
-                                for i in (0..bottom_teams.len()).rev() {
-                                    if !self.records[team_a].teams_faced.contains(bottom_teams[i]) {
-                                        matchups.push((*team_a, *bottom_teams.remove(i)));
-                                        continue 'inner;
-                                    }
-                                }
-
-                                continue 'outer;
-                            }
-
-                            acc.extend(matchups);
-                            break;
-                        }
-                    }
-
-                    acc
-                })
+            self.generate_matchups(&teams)
         };
 
-        // Simulate matches for current round.
         for (team_a, team_b) in matchups.into_iter() {
-            // BO3 if match is for advancement/elimination.
-            let is_bo3 = self.records[team_a].wins == 2 || self.records[team_a].losses == 2;
-
-            // Simulate match outcome.
-            let mut rng = rand::rng();
-            let p = self.probabilities[team_a][team_b];
-
-            let team_a_win = if is_bo3 {
-                let first_map = p > rng.random();
-                let second_map = p > rng.random();
-
-                if first_map != second_map {
-                    p > rng.random()
-                } else {
-                    first_map
-                }
-            } else {
-                p > rng.random()
-            };
-
-            // Update team records.
-            if team_a_win {
-                self.records[team_a].wins += 1;
-                self.records[team_b].losses += 1;
-            } else {
-                self.records[team_a].losses += 1;
-                self.records[team_b].wins += 1;
-            }
-
-            self.records[team_a].teams_faced.insert(team_b);
-            self.records[team_b].teams_faced.insert(team_a);
-
-            // Advance/eliminate teams after BO3.
-            if is_bo3 {
-                for team in &[team_a, team_b] {
-                    if self.records[team].wins == 3 || self.records[team].losses == 3 {
-                        self.remaining.remove(team);
-                    }
-                }
-            }
+            self.simulate_match(rng, team_a, team_b);
         }
     }
 
     /// Simulate entire tournament.
-    pub fn simulate_tournament(&mut self) {
+    pub fn simulate_tournament(&mut self, rng: &mut RngType) {
         while !self.remaining.is_empty() {
-            self.simulate_round();
+            self.simulate_round(rng);
         }
     }
 }
@@ -439,10 +471,11 @@ impl Simulation {
         let now = Instant::now();
         let mut results = TeamIndex::new(TeamResult::new);
         let fresh_ss = SwissSystem::new(sim.teams.clone(), 800.0);
+        let mut rng = make_deterministic_rng();
 
         for _ in 0..iterations {
             let mut ss = fresh_ss.clone();
-            ss.simulate_tournament();
+            ss.simulate_tournament(&mut rng);
 
             for (team, record) in ss.records.items(&ss.teams) {
                 match (record.wins, record.losses) {
@@ -459,27 +492,30 @@ impl Simulation {
 
     /// Run 'n' iterations of tournament simulation.
     pub fn run(&self, n: u64, sigma: f64) -> TeamIndex<TeamResult> {
-        let fresh_results = TeamIndex::new(TeamResult::new);
         let fresh_ss = SwissSystem::new(self.teams.clone(), sigma);
+        let fresh_results = TeamIndex::new(TeamResult::new);
 
         (0..n)
             .into_par_iter()
-            .map(|_| {
-                let mut results = fresh_results;
-                let mut ss = fresh_ss.clone();
-                ss.simulate_tournament();
+            .map_init(
+                || (fresh_ss.clone(), make_rng()),
+                |(ss, rng), _| {
+                    let mut results = fresh_results;
+                    ss.reset();
+                    ss.simulate_tournament(rng);
 
-                for (team, record) in ss.records.items(&ss.teams) {
-                    match (record.wins, record.losses) {
-                        (3, 0) => results[team].three_zero += 1,
-                        (3, 1 | 2) => results[team].advanced += 1,
-                        (0, 3) => results[team].zero_three += 1,
-                        _ => {}
+                    for (team, record) in ss.records.items(&ss.teams) {
+                        match (record.wins, record.losses) {
+                            (3, 0) => results[team].three_zero += 1,
+                            (3, 1 | 2) => results[team].advanced += 1,
+                            (0, 3) => results[team].zero_three += 1,
+                            _ => {}
+                        }
                     }
-                }
 
-                results
-            })
+                    results
+                },
+            )
             .reduce(|| fresh_results, |acc, result| acc + result)
     }
 
