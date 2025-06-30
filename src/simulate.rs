@@ -8,6 +8,7 @@ use std::{
 use itertools::Itertools;
 use rand::prelude::*;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use smallvec::SmallVec;
 
 use crate::data::{Team, parse_toml};
 
@@ -141,11 +142,6 @@ impl TeamSet {
         self.data & 1_u16 << index != 0
     }
 
-    /// Test if the set is empty.
-    pub const fn is_empty(&self) -> bool {
-        self.data == 0
-    }
-
     /// Returns an iterator of indices contained within the set.
     pub fn iter(&self) -> impl Iterator<Item = u8> {
         (0..16).filter(|&i| self.contains(i))
@@ -227,7 +223,7 @@ pub struct SwissSystem {
     records: TeamIndex<TeamRecord>,
     probabilities: TeamIndex<TeamIndex<f64>>,
     remaining: TeamSet,
-    first_round: bool,
+    rounds_complete: u8,
 }
 
 impl SwissSystem {
@@ -248,16 +244,17 @@ impl SwissSystem {
             records,
             probabilities,
             remaining: TeamSet::full(),
-            first_round: true,
+            rounds_complete: 0,
         }
     }
 
+    /// Reset Swiss System state to restart tournament.
     pub fn reset(&mut self) {
         let records = TeamIndex::new(TeamRecord::new);
         let remaining = TeamSet::full();
         self.records = records;
         self.remaining = remaining;
-        self.first_round = true;
+        self.rounds_complete = 0;
     }
 
     /// Return iterator of team indices sorted by mid-stage seed calculation.
@@ -276,12 +273,19 @@ impl SwissSystem {
         })
     }
 
+    /// Pre-determined matchup priority for a group size of 4.
+    const MATCHUP_PRIORITY_4: [[(usize, usize); 2]; 3] = [
+        [(0, 3), (1, 2)], // first priority
+        [(0, 2), (1, 3)],
+        [(0, 1), (2, 3)],
+    ];
+
     /// Pre-determined matchup priority for a group size of 6.
     ///
     /// 0 -> lowest seeded team in the group, 5 -> highest seeded team in the group
     ///
     /// [Rules and Regs - Swiss Bracket](https://github.com/ValveSoftware/counter-strike_rules_and_regs/blob/main/major-supplemental-rulebook.md#swiss-bracket)
-    const MATCHUP_PRIORITY: [[(usize, usize); 3]; 15] = [
+    const MATCHUP_PRIORITY_6: [[(usize, usize); 3]; 15] = [
         [(0, 5), (1, 4), (2, 3)], // first priority
         [(0, 5), (1, 3), (2, 4)],
         [(0, 4), (1, 5), (2, 3)],
@@ -299,6 +303,53 @@ impl SwissSystem {
         [(0, 1), (2, 3), (4, 5)], // last priority
     ];
 
+    /// Pre-determined matchup priority for a group size of 8.
+    ///
+    /// Determined by matching highest seed teams first with lowest seed teams.
+    /// No need to explore every permutation, only the first 3 options for each team.
+    const MATCHUP_PRIORITY_8: [[(usize, usize); 4]; 7] = [
+        [(0, 7), (1, 6), (2, 5), (3, 4)], // first priority
+        [(0, 6), (1, 7), (2, 5), (3, 4)],
+        [(0, 5), (1, 7), (2, 6), (3, 4)],
+        [(0, 7), (1, 5), (2, 6), (3, 4)],
+        [(0, 7), (1, 4), (2, 6), (3, 5)],
+        [(0, 7), (1, 6), (2, 4), (3, 5)],
+        [(0, 7), (1, 6), (2, 3), (4, 5)], // last priority
+    ];
+
+    /// Pre-determined matchups for second round.
+    /// Highest vs. lowest mid-stage seed for each group, groups being 0-7 and 8-15
+    const SECOND_ROUND_MATCHUPS: [(usize, usize); 8] = [
+        (0, 7),
+        (1, 6),
+        (2, 5),
+        (3, 4),
+        (8, 15),
+        (9, 14),
+        (10, 13),
+        (11, 12),
+    ];
+
+    /// Apply a matchup priority lookup table to a group and return an iterator of matchups.
+    fn apply_priority<const N: usize, const M: usize>(
+        &self,
+        priority: [[(usize, usize); M]; N],
+        group: SmallVec<u8, 8>,
+    ) -> impl Iterator<Item = (u8, u8)> {
+        for indices in priority {
+            if indices
+                .iter()
+                .all(|(ia, ib)| !self.records[group[*ia]].teams_faced.contains(group[*ib]))
+            {
+                return indices
+                    .into_iter()
+                    .map(move |(ia, ib)| (group[ia], group[ib]));
+            }
+        }
+
+        unreachable!("matchups without rematch not possible")
+    }
+
     /// Group team indices by record and arrange matchups, highest seed vs lowest seed.
     ///
     /// Rearrange to avoid rematches:
@@ -306,76 +357,18 @@ impl SwissSystem {
     ///   - in rounds 4 and 5 (group sizes of 6), follow pre-determined highest priority matchup that doesn't result in a rematch
     ///
     /// [Rules and Regs - Swiss Bracket](https://github.com/ValveSoftware/counter-strike_rules_and_regs/blob/main/major-supplemental-rulebook.md#swiss-bracket)
-    fn generate_matchups<I: Iterator<Item = u8>>(&self, team_indices: I) -> Vec<(u8, u8)> {
-        team_indices
+    fn generate_matchups(&self) -> SmallVec<(u8, u8), 8> {
+        self.seed_teams()
             .chunk_by(|&index| self.records[index].diff())
             .into_iter()
-            .fold(Vec::with_capacity(8), |mut acc, (_, group_iter)| {
-                let group = group_iter.collect::<Vec<_>>();
+            .fold(SmallVec::new(), |mut acc, (_, group_iter)| {
+                let group = group_iter.collect::<SmallVec<_, 8>>();
 
-                if group.len() == 6 {
-                    for indices in Self::MATCHUP_PRIORITY {
-                        let matchups: [(u8, u8); 3] = indices
-                            .into_iter()
-                            .map(|(ia, ib)| (group[ia], group[ib]))
-                            .collect_array()
-                            .unwrap();
-
-                        if matchups
-                            .iter()
-                            .all(|(ia, ib)| !self.records[*ia].teams_faced.contains(*ib))
-                        {
-                            acc.extend(matchups);
-                            break;
-                        }
-                    }
-                } else {
-                    'outer: for arrangement in 0..usize::MAX {
-                        let mut group = group.clone();
-
-                        // After the first attempt, start rearranging seeding to ensure no rematches.
-                        // Start by swapping highest and 2nd highest seeded teams and progress through
-                        // on each loop, eventually trying every possible permutation.
-                        if arrangement > 0 {
-                            let mid_point = group.len() / 2;
-                            let multiples = arrangement / mid_point;
-                            let remainder = arrangement % mid_point;
-
-                            if multiples * 2 <= mid_point {
-                                for _ in 0..multiples {
-                                    group.swap(multiples * 2, multiples * 2 + 1);
-                                }
-
-                                if remainder > 0 {
-                                    group.swap(
-                                        multiples * 2 + remainder,
-                                        multiples * 2 + remainder + 1,
-                                    );
-                                }
-                            } else {
-                                // All swaps are exhausted, this should never happen.
-                                panic!("impossible to avoid rematch")
-                            }
-                        }
-
-                        let mut bottom_teams = group.split_off(group.len() / 2);
-                        let mut matchups = Vec::with_capacity(4);
-
-                        // Attempt to assign matchups, continue to the next iteration of the outer loop if it fails.
-                        'inner: for team_a in group.into_iter() {
-                            for i in (0..bottom_teams.len()).rev() {
-                                if !self.records[team_a].teams_faced.contains(bottom_teams[i]) {
-                                    matchups.push((team_a, bottom_teams.remove(i)));
-                                    continue 'inner;
-                                }
-                            }
-
-                            continue 'outer;
-                        }
-
-                        acc.extend(matchups);
-                        break;
-                    }
+                match group.len() {
+                    4 => acc.extend(self.apply_priority(Self::MATCHUP_PRIORITY_4, group)),
+                    6 => acc.extend(self.apply_priority(Self::MATCHUP_PRIORITY_6, group)),
+                    8 => acc.extend(self.apply_priority(Self::MATCHUP_PRIORITY_8, group)),
+                    _ => unreachable!("malformed group"),
                 }
 
                 acc
@@ -427,23 +420,35 @@ impl SwissSystem {
 
     /// Simulate tournament round.
     fn simulate_round(&mut self, rng: &mut RngType) {
-        if self.first_round {
-            // First round is matched up differently (1-9, 2-10, 3-11 etc.)
-            self.first_round = false;
-
-            for (index_a, index_b) in (0..8).zip(8..16) {
-                self.simulate_match(rng, index_a, index_b);
+        match self.rounds_complete {
+            0 => {
+                // First round is matched up differently (1-9, 2-10, 3-11 etc.)
+                for (index_a, index_b) in (0..8).zip(8..16) {
+                    self.simulate_match(rng, index_a, index_b);
+                }
             }
-        } else {
-            for (index_a, index_b) in self.generate_matchups(self.seed_teams()).into_iter() {
-                self.simulate_match(rng, index_a, index_b);
+            1 => {
+                // Second round is trivial to match
+                let teams = self.seed_teams().collect::<SmallVec<u8, 16>>();
+
+                for (seed_a, seed_b) in Self::SECOND_ROUND_MATCHUPS {
+                    self.simulate_match(rng, teams[seed_a], teams[seed_b]);
+                }
+            }
+            _ => {
+                // Remaining rounds can be matched with lookup tables
+                for (index_a, index_b) in self.generate_matchups() {
+                    self.simulate_match(rng, index_a, index_b);
+                }
             }
         }
+
+        self.rounds_complete += 1;
     }
 
     /// Simulate entire tournament.
     pub fn simulate_tournament(&mut self, rng: &mut RngType) {
-        while !self.remaining.is_empty() {
+        while self.rounds_complete < 5 {
             self.simulate_round(rng);
         }
     }
