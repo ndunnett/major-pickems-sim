@@ -24,11 +24,11 @@ fn make_deterministic_rng() -> RngType {
 
 /// Store data indexed per team.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct TeamIndex<T: Debug + Clone> {
+pub struct TeamIndex<T> {
     data: [T; 16],
 }
 
-impl<T: Debug + Clone> TeamIndex<T> {
+impl<T> TeamIndex<T> {
     /// Create a new index with default values created by calling `factory`.
     pub fn new<F: Fn() -> T>(factory: F) -> Self {
         Self {
@@ -56,47 +56,28 @@ impl<T: Debug + Clone> TeamIndex<T> {
     }
 }
 
-impl<T: Debug + Clone> Index<&Team> for TeamIndex<T> {
-    type Output = T;
+// Generic index implementation for usize, u8, &Team
+macro_rules! impl_index {
+    ($ty:ty, $to_usize:expr) => {
+        impl<T> Index<$ty> for TeamIndex<T> {
+            type Output = T;
 
-    fn index(&self, team: &Team) -> &Self::Output {
-        &self.data[team.index()]
-    }
+            fn index(&self, index: $ty) -> &Self::Output {
+                &self.data[$to_usize(index)]
+            }
+        }
+
+        impl<T> IndexMut<$ty> for TeamIndex<T> {
+            fn index_mut(&mut self, index: $ty) -> &mut Self::Output {
+                &mut self.data[$to_usize(index)]
+            }
+        }
+    };
 }
 
-impl<T: Debug + Clone> IndexMut<&Team> for TeamIndex<T> {
-    fn index_mut(&mut self, team: &Team) -> &mut Self::Output {
-        &mut self.data[team.index()]
-    }
-}
-
-impl<T: Debug + Clone> Index<usize> for TeamIndex<T> {
-    type Output = T;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        &self.data[index]
-    }
-}
-
-impl<T: Debug + Clone> IndexMut<usize> for TeamIndex<T> {
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        &mut self.data[index]
-    }
-}
-
-impl<T: Debug + Clone> Index<u8> for TeamIndex<T> {
-    type Output = T;
-
-    fn index(&self, index: u8) -> &Self::Output {
-        &self.data[index as usize]
-    }
-}
-
-impl<T: Debug + Clone> IndexMut<u8> for TeamIndex<T> {
-    fn index_mut(&mut self, index: u8) -> &mut Self::Output {
-        &mut self.data[index as usize]
-    }
-}
+impl_index!(usize, |index| index);
+impl_index!(u8, |index| index as usize);
+impl_index!(&Team, |team: &Team| team.index());
 
 /// High performance set, specifically for teams.
 #[derive(Debug, Clone, Copy, PartialEq)]
