@@ -325,24 +325,28 @@ impl SwissSystem {
         (11, 12),
     ];
 
-    /// Apply a matchup priority lookup table to a group and return an iterator of matchups.
+    /// Apply a matchup priority lookup table to a group and return an array of matchups.
     fn apply_priority<const N: usize, const M: usize>(
         &self,
         priority: [[(usize, usize); M]; N],
-        group: SmallVec<u8, 8>,
-    ) -> impl Iterator<Item = (u8, u8)> {
+        group: [u8; 8],
+    ) -> [(u8, u8); M] {
         for indices in priority {
             if indices
-                .iter()
-                .all(|(ia, ib)| !self.records[group[*ia]].teams_faced.contains(group[*ib]))
+                .into_iter()
+                .all(|(ia, ib)| !self.records[group[ia]].teams_faced.contains(group[ib]))
             {
-                return indices
-                    .into_iter()
-                    .map(move |(ia, ib)| (group[ia], group[ib]));
+                let mut matchups = [(0, 0); M];
+
+                for (i, &(ia, ib)) in indices.iter().enumerate() {
+                    matchups[i] = (group[ia], group[ib]);
+                }
+
+                return matchups;
             }
         }
 
-        unreachable!("matchups without rematch not possible")
+        unreachable!("matchups without rematch not possible");
     }
 
     /// Group team indices by record and arrange matchups, highest seed vs lowest seed.
@@ -353,21 +357,34 @@ impl SwissSystem {
     ///
     /// [Rules and Regs - Swiss Bracket](https://github.com/ValveSoftware/counter-strike_rules_and_regs/blob/main/major-supplemental-rulebook.md#swiss-bracket)
     fn generate_matchups(&self) -> SmallVec<(u8, u8), 8> {
-        self.seed_teams()
-            .chunk_by(|&index| self.records[index].diff())
-            .into_iter()
-            .fold(SmallVec::new(), |mut acc, (_, group_iter)| {
-                let group = group_iter.collect::<SmallVec<_, 8>>();
+        let mut matchups = SmallVec::new();
+        let mut teams = self.seed_teams().peekable();
 
-                match group.len() {
-                    4 => acc.extend(self.apply_priority(Self::MATCHUP_PRIORITY_4, group)),
-                    6 => acc.extend(self.apply_priority(Self::MATCHUP_PRIORITY_6, group)),
-                    8 => acc.extend(self.apply_priority(Self::MATCHUP_PRIORITY_8, group)),
-                    _ => unreachable!("malformed group"),
-                }
+        // Chunk into groups of win-loss diff.
+        while let Some(first_team) = teams.next() {
+            let mut group = [first_team; 8];
+            let mut len = 1;
 
-                acc
-            })
+            while let Some(next_team) = teams.next_if(|&next_team| {
+                self.records[next_team].diff() == self.records[first_team].diff()
+            }) {
+                group[len] = next_team;
+                len += 1;
+            }
+
+            // Apply matchup priority to group and extend matchups.
+            match len {
+                4 => matchups
+                    .extend_from_slice(&self.apply_priority(Self::MATCHUP_PRIORITY_4, group)),
+                6 => matchups
+                    .extend_from_slice(&self.apply_priority(Self::MATCHUP_PRIORITY_6, group)),
+                8 => matchups
+                    .extend_from_slice(&self.apply_priority(Self::MATCHUP_PRIORITY_8, group)),
+                _ => unreachable!("malformed group"),
+            }
+        }
+
+        matchups
     }
 
     /// Simulate independent match.
@@ -425,9 +442,14 @@ impl SwissSystem {
             1 => {
                 // Second round is trivial to match
                 let teams = self.seed_teams().collect::<SmallVec<u8, 16>>();
+                let mut matchups = [(0, 0); 8];
 
-                for (seed_a, seed_b) in Self::SECOND_ROUND_MATCHUPS {
-                    self.simulate_match(rng, teams[seed_a], teams[seed_b]);
+                for (i, (ia, ib)) in Self::SECOND_ROUND_MATCHUPS.into_iter().enumerate() {
+                    matchups[i] = (teams[ia], teams[ib]);
+                }
+
+                for (index_a, index_b) in matchups {
+                    self.simulate_match(rng, index_a, index_b);
                 }
             }
             _ => {
