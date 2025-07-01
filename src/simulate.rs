@@ -95,27 +95,19 @@ impl TeamSet {
     }
 
     /// Insert index into the set.
-    pub const fn insert(&mut self, index: u8) -> bool {
+    pub fn insert(&mut self, index: u8) -> bool {
         let n = 1_u16 << index;
-
-        if self.data & n == 0 {
-            self.data |= n;
-            true
-        } else {
-            false
-        }
+        let inserted = self.data & n == 0;
+        self.data |= n;
+        inserted
     }
 
     /// Remove index from the set.
-    pub const fn remove(&mut self, index: u8) -> bool {
+    pub fn remove(&mut self, index: u8) -> bool {
         let n = 1_u16 << index;
-
-        if self.data & n == 0 {
-            false
-        } else {
-            self.data &= u16::MAX ^ n;
-            true
-        }
+        let removed = self.data & n != 0;
+        self.data &= !n;
+        removed
     }
 
     /// Test if the set contains index.
@@ -123,9 +115,24 @@ impl TeamSet {
         self.data & 1_u16 << index != 0
     }
 
+    /// Test if the set is empty.
+    pub const fn is_empty(&self) -> bool {
+        self.data == 0
+    }
+
     /// Returns an iterator of indices contained within the set.
     pub fn iter(&self) -> impl Iterator<Item = u8> {
-        (0..16).filter(|&i| self.contains(i))
+        let mut set = *self;
+
+        std::iter::from_fn(move || {
+            if set.is_empty() {
+                None
+            } else {
+                let next_index = set.data.trailing_zeros() as u8;
+                set.remove(next_index);
+                Some(next_index)
+            }
+        })
     }
 }
 
