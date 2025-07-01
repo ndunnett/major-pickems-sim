@@ -253,12 +253,19 @@ impl SwissSystem {
     ///
     /// [Rules and Regs - Mid-stage Seed Calculation](https://github.com/ValveSoftware/counter-strike_rules_and_regs/blob/main/major-supplemental-rulebook.md#Mid-Stage-Seed-Calculation)
     fn seed_teams(&self) -> impl Iterator<Item = u8> {
-        self.remaining.iter().sorted_by_key(|&i| {
-            (
-                -self.records[i].diff(),
-                -self.records[i].buchholz(&self.records),
-            )
-        })
+        self.remaining
+            .iter()
+            .map(|i| {
+                (
+                    i,
+                    (
+                        -self.records[i].diff(),
+                        -self.records[i].buchholz(&self.records),
+                    ),
+                )
+            })
+            .sorted_by_key(|&(_, key)| key)
+            .map(|(i, _)| i)
     }
 
     /// Pre-determined matchup priority for a group size of 4.
