@@ -48,11 +48,12 @@ Options:
 
 ### TOML input data format
 
+The input data file uses the TOML format, with a section for each team containing the initial seed and global ranking points for that team. Each data file is expected to contain exactly 16 teams.
+
 ```toml
-["<string: team name>"]
-seed = <integer: initial seed for tournament stage>
-rating = <integer: current global ranking points>
-...
+["{string: team name}"]
+seed = {integer: initial seed for tournament stage}
+rating = {integer: current global ranking points}
 ```
 
 ### Latest Output: StarLadder Budapest Major 2025 - Stage 1
