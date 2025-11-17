@@ -1,11 +1,4 @@
-use std::{
-    collections::BTreeMap,
-    fmt::{Debug, Display, Formatter},
-    fs::read_to_string,
-    hash::{Hash, Hasher},
-    io::Write,
-    path::PathBuf,
-};
+use std::{collections::BTreeMap, fmt::Debug, fs::read_to_string, io::Write, path::PathBuf};
 
 use anyhow::anyhow;
 use itertools::Itertools;
@@ -13,98 +6,69 @@ use serde::{Deserialize, Serialize};
 
 use crate::wizard::Wizard;
 
-/// Struct to represent each team, including rating and seeding.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Team {
-    pub name: String,
-    pub seed: u8,
-    pub rating: i16,
-}
-
-impl Team {
-    /// Returns what should be the index of this team within an array sorted by seed.
-    pub const fn index(&self) -> usize {
-        self.seed as usize - 1
-    }
-}
-
-impl Hash for Team {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.seed.hash(state);
-    }
-}
-
-impl Display for Team {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.name)
-    }
-}
+pub type TeamSeed = u16;
 
 /// Struct to store team data, used solely for serde.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TeamData {
-    pub seed: u8,
+    pub seed: TeamSeed,
     pub rating: i16,
-}
-
-impl From<&Team> for TeamData {
-    fn from(team: &Team) -> Self {
-        Self {
-            seed: team.seed,
-            rating: team.rating,
-        }
-    }
 }
 
 /// Struct to store collection of teams, used solely for serde.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TeamDataMap(BTreeMap<String, TeamData>);
 
-impl From<&[Team]> for TeamDataMap {
-    fn from(teams: &[Team]) -> Self {
-        Self(
-            teams
-                .iter()
-                .map(|team| (team.name.clone(), TeamData::from(team)))
-                .collect(),
-        )
+impl<I: IntoIterator<Item = (String, TeamData)>> From<I> for TeamDataMap {
+    fn from(teams: I) -> Self {
+        Self(teams.into_iter().collect())
     }
 }
 
-impl TryFrom<TeamDataMap> for [Team; 16] {
+impl TryFrom<TeamDataMap> for ([String; 16], [i16; 16]) {
     type Error = anyhow::Error;
 
     fn try_from(teams_map: TeamDataMap) -> Result<Self, Self::Error> {
         let teams = teams_map
             .0
             .into_iter()
-            .map(|(name, data)| Team {
-                name,
-                seed: data.seed,
-                rating: data.rating,
-            })
-            .sorted_by(|a, b| a.seed.cmp(&b.seed))
+            .sorted_by(|(_, a), (_, b)| a.seed.cmp(&b.seed))
+            .map(|(name, data)| (name, data.rating))
             .collect::<Vec<_>>();
 
         if teams.len() == 16 {
-            Ok(teams
-                .try_into()
-                .map_err(|_| anyhow!("failed to allocate array"))?)
+            let ratings = teams
+                .iter()
+                .map(|(_, rating)| *rating)
+                .collect_array()
+                .ok_or_else(|| anyhow!("failed to allocate array"))?;
+
+            let names = teams
+                .into_iter()
+                .map(|(name, _)| name)
+                .collect_array()
+                .ok_or_else(|| anyhow!("failed to allocate array"))?;
+
+            Ok((names, ratings))
         } else {
-            Err(anyhow!("need to have exactly 16 teams"))
+            Err(anyhow!(
+                "there must be exactly 16 teams (only {} teams recognised)",
+                teams.len()
+            ))
         }
     }
 }
 
-/// Parses a TOML file into an array of teams.
-pub fn parse_toml(filepath: PathBuf) -> anyhow::Result<[Team; 16]> {
-    <[Team; 16]>::try_from(toml::from_str::<TeamDataMap>(&read_to_string(filepath)?)?)
+/// Parses a TOML file into a SoA of team information.
+pub fn parse_toml(filepath: PathBuf) -> anyhow::Result<([String; 16], [i16; 16])> {
+    <([String; 16], [i16; 16])>::try_from(toml::from_str::<TeamDataMap>(&read_to_string(
+        filepath,
+    )?)?)
 }
 
-/// Writes an iterator of teams into a TOML file.
-pub fn write_toml(filepath: PathBuf, teams: &[Team]) -> anyhow::Result<()> {
-    let teams_map = TeamDataMap::from(teams);
-    let contents = toml::to_string_pretty(&teams_map)?;
+/// Writes a map of teams into a TOML file.
+pub fn write_toml(filepath: PathBuf, teams: &TeamDataMap) -> anyhow::Result<()> {
+    let contents = toml::to_string_pretty(teams)?;
 
     std::fs::OpenOptions::new()
         .write(true)
@@ -116,17 +80,17 @@ pub fn write_toml(filepath: PathBuf, teams: &[Team]) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Format an iterator of teams into a table suitable to print.
-pub fn format_teams(teams: &[Team]) -> String {
+/// Format a SoA of team information into a table suitable to print.
+pub fn format_teams(teams: &([String; 16], [i16; 16])) -> String {
     let mut out = Vec::new();
     out.push(format!("{:<4}  {:<18}{:>6}", "Seed", "Team", "Rating"));
 
-    for team in teams {
+    for (seed, (name, rating)) in teams.0.iter().zip(teams.1.iter()).enumerate() {
         out.push(format!(
             "{:<4}  {:<18}{:>6}",
-            format!("{}.", team.seed),
-            team.name,
-            team.rating
+            format!("{}.", seed + 1),
+            name,
+            rating
         ));
     }
 
@@ -145,10 +109,11 @@ pub fn wizard(filepath: PathBuf) -> anyhow::Result<()> {
         write_toml(filepath.clone(), &teams)?;
 
         println!(
-            "Generated input data, saved to '{}':\n\n{}",
+            "Generated input data, saved to '{}':\n",
             filepath.canonicalize()?.display(),
-            format_teams(&teams)
         );
+
+        inspect(filepath)?;
     } else {
         println!("Exited wizard without saving.",);
     }

@@ -115,5 +115,5 @@ Most likely to 0-3:
 15. FaZe                   0.6%
 16. Legacy                 0.3%
 
-Run time: 0.173 seconds
+Run time: 0.096 seconds
 ```

@@ -1,3 +1,4 @@
+#![feature(portable_simd)]
 #![cfg_attr(
     feature = "pprof",
     allow(dead_code, unreachable_code, unused_imports, unused_variables)

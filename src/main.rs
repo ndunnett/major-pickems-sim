@@ -42,7 +42,7 @@ pub struct SimulateArgs {
 
     /// Sigma value to use for win probability
     #[arg(short, long, default_value_t = 800.0)]
-    sigma: f64,
+    sigma: f32,
 }
 
 #[derive(Debug, Subcommand)]
