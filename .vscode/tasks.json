@@ -44,9 +44,23 @@
       }
     },
     {
-      "label": "pickems: run simulation on newest input file",
+      "label": "pickems: run simulation on newest input file (release)",
       "type": "shell",
       "command": "cargo run --release -- simulate -f data/$(ls data -Art | tail -n 1)",
+      "problemMatcher": [
+        "$rustc"
+      ],
+      "options": {
+        "cwd": "${workspaceRoot}"
+      },
+      "presentation": {
+        "clear": true
+      }
+    },
+    {
+      "label": "pickems: run simulation on newest input file (dev)",
+      "type": "shell",
+      "command": "cargo run -- simulate -f data/$(ls data -Art | tail -n 1)",
       "problemMatcher": [
         "$rustc"
       ],
