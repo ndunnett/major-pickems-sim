@@ -230,7 +230,7 @@ impl Iterator for MatchupGenerator {
 
 /// Instance of a single swiss system iteration.
 #[derive(Debug, Clone, Copy)]
-pub(super) struct SwissSystem {
+pub struct SwissSystem {
     pub wins: [u8; 16],
     pub losses: [u8; 16],
     diffs: [i8; 16],

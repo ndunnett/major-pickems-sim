@@ -10,9 +10,9 @@ fn main() -> anyhow::Result<()> {
     match Args::parse() {
         Some(Args::Simulate {
             file,
-            iterations,
             sigma,
-        }) => simulate(file, iterations, sigma),
+            iterations,
+        }) => simulate::<BasicReport>(file, sigma, iterations),
         Some(Args::Inspect { file }) => inspect(file),
         Some(Args::Wizard { file }) => wizard(file),
         None => Err(anyhow!("failed to parse CLI arguments")),

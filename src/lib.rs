@@ -9,4 +9,4 @@ mod simulate;
 mod wizard;
 
 pub use data::{inspect, wizard};
-pub use simulate::{Simulation, simulate};
+pub use simulate::{BasicReport, NullReport, Simulation, simulate};

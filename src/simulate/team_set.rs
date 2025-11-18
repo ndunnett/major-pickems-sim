@@ -4,7 +4,7 @@ use crate::data::TeamSeed;
 
 /// High performance set, specifically for teams.
 #[derive(Clone, Copy, PartialEq)]
-pub(super) struct TeamSet {
+pub struct TeamSet {
     data: u16,
 }
 
@@ -84,7 +84,7 @@ impl<const N: usize> From<[TeamSeed; N]> for TeamSet {
 }
 
 /// Struct to iterate `TeamSeed`s contained within a `TeamSet`.
-pub(super) struct TeamSetIter {
+pub struct TeamSetIter {
     set: TeamSet,
 }
 

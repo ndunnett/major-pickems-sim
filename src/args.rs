@@ -5,8 +5,8 @@ use clap::{Arg, Command};
 pub(super) enum Args {
     Simulate {
         file: PathBuf,
-        iterations: u64,
         sigma: f32,
+        iterations: u64,
     },
     Inspect {
         file: PathBuf,
@@ -89,8 +89,8 @@ impl Args {
         if let Some(sim) = matches.subcommand_matches("simulate") {
             return Some(Self::Simulate {
                 file: sim.get_one::<PathBuf>("file")?.clone(),
-                iterations: *sim.get_one::<u64>("iterations")?,
                 sigma: *sim.get_one::<f32>("sigma")?,
+                iterations: *sim.get_one::<u64>("iterations")?,
             });
         } else if let Some(data) = matches.subcommand_matches("data") {
             if let Some(inspect) = data.subcommand_matches("inspect") {
