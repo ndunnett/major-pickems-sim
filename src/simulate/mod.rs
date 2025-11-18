@@ -6,23 +6,25 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 use crate::{data::parse_toml, simulate::reporting::Report};
 
+mod matching;
 mod reporting;
 mod swiss_system;
 mod team_set;
 
+use matching::MatchupGenerator;
 pub use reporting::{BasicReport, NullReport};
 use swiss_system::SwissSystem;
 use team_set::TeamSet;
 
-type RngType = rand_chacha::ChaCha8Rng;
+pub(super) type RngType = rand_chacha::ChaCha8Rng;
 
 /// Random number generator for normal use.
-fn make_rng() -> RngType {
+pub(super) fn make_rng() -> RngType {
     RngType::from_rng(&mut rand::rng())
 }
 
 /// Deterministic random number generator for testing/benchmarking.
-fn make_deterministic_rng() -> RngType {
+pub(super) fn make_deterministic_rng() -> RngType {
     RngType::seed_from_u64(7355608)
 }
 
@@ -147,38 +149,5 @@ mod tests {
 
         // Best team should always have less 0-3 stats than the worst team
         assert!(report.stats[0].zero_three < report.stats[15].zero_three);
-    }
-
-    /// Regression test, will break if the seeding algorithm changes.
-    #[test]
-    fn regression_test() {
-        let mut rng = make_deterministic_rng();
-        let sim = Simulation::dummy(1);
-        let mut ss = SwissSystem::new(sim.ratings, sim.sigma);
-        ss.simulate_tournament(&mut rng);
-
-        assert_eq!(ss.wins, [3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 3, 1, 0, 0, 1, 1]);
-        assert_eq!(ss.losses, [0, 2, 1, 1, 0, 2, 1, 3, 3, 3, 2, 3, 3, 3, 3, 3]);
-        assert_eq!(
-            ss.opponents,
-            [
-                TeamSet::from([6, 7, 8]),
-                TeamSet::from([2, 6, 8, 9, 11]),
-                TeamSet::from([1, 4, 5, 10]),
-                TeamSet::from([4, 7, 9, 11]),
-                TeamSet::from([2, 3, 12]),
-                TeamSet::from([2, 7, 10, 11, 13]),
-                TeamSet::from([0, 1, 10, 14]),
-                TeamSet::from([0, 3, 5, 8, 15]),
-                TeamSet::from([0, 1, 7, 14, 15]),
-                TeamSet::from([1, 3, 10, 14, 15]),
-                TeamSet::from([2, 5, 6, 9, 13]),
-                TeamSet::from([1, 3, 5, 12]),
-                TeamSet::from([4, 11, 15]),
-                TeamSet::from([5, 10, 14]),
-                TeamSet::from([6, 8, 9, 13]),
-                TeamSet::from([7, 8, 9, 12]),
-            ]
-        );
     }
 }
