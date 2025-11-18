@@ -4,7 +4,7 @@ use itertools::Itertools;
 use rand::prelude::*;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
-use crate::{data::parse_toml, simulate::reporting::Report};
+use crate::data::parse_toml;
 
 mod matching;
 mod reporting;
@@ -12,7 +12,7 @@ mod swiss_system;
 mod team_set;
 
 use matching::MatchupGenerator;
-pub use reporting::{BasicReport, NullReport};
+pub use reporting::*;
 use swiss_system::SwissSystem;
 use team_set::TeamSet;
 
@@ -101,8 +101,20 @@ pub fn simulate<R: Report>(file: PathBuf, sigma: f32, iterations: u64) -> anyhow
     let sim = Simulation::new(names, ratings, sigma, iterations);
     let report = sim.run::<R>();
 
+    // Format number of iterations into a string, with thousands separated by commas.
+    let formatted_iterations = sim
+        .iterations
+        .to_string()
+        .as_bytes()
+        .rchunks(3)
+        .rev()
+        .map(str::from_utf8)
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap()
+        .join(",");
+
     println!(
-        "{}\n\nRun time: {} seconds",
+        "RESULTS FROM {formatted_iterations} TOURNAMENT SIMULATIONS\n{}\n\nRun time: {} seconds",
         report.format(&sim),
         now.elapsed().as_millis() as f32 / 1000.0
     );

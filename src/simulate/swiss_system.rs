@@ -18,6 +18,7 @@ pub struct SwissSystem {
     pub(super) opponents: [TeamSet; 16],
     pub(super) probabilities_bo1: [[f32; 16]; 16],
     pub(super) probabilities_bo3: [[f32; 16]; 16],
+    pub(super) ratings: [i16; 16],
     pub(super) remaining: TeamSet,
     pub(super) rounds_complete: u8,
 }
@@ -92,6 +93,7 @@ impl SwissSystem {
             opponents,
             probabilities_bo1,
             probabilities_bo3,
+            ratings,
             remaining: TeamSet::full(),
             rounds_complete: 0,
         }

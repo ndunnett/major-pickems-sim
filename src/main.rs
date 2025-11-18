@@ -1,9 +1,10 @@
 use anyhow::anyhow;
 
-mod args;
-use args::Args;
-
 use pickems::*;
+
+mod args;
+
+use crate::args::{Args, ReportType};
 
 #[cfg(not(feature = "pprof"))]
 fn main() -> anyhow::Result<()> {
@@ -12,7 +13,12 @@ fn main() -> anyhow::Result<()> {
             file,
             sigma,
             iterations,
-        }) => simulate::<BasicReport>(file, sigma, iterations),
+            report,
+        }) => match report {
+            ReportType::All => simulate::<ReportAll>(file, sigma, iterations),
+            ReportType::Basic => simulate::<BasicReport>(file, sigma, iterations),
+            ReportType::Strength => simulate::<StrengthReport>(file, sigma, iterations),
+        },
         Some(Args::Inspect { file }) => inspect(file),
         Some(Args::Wizard { file }) => wizard(file),
         None => Err(anyhow!("failed to parse CLI arguments")),
