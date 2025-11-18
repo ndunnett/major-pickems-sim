@@ -772,7 +772,7 @@ dependencies = [
 
 [[package]]
 name = "major-pickems-sim"
-version = "0.2.2-prerelease"
+version = "0.2.2"
 dependencies = [
  "anyhow",
  "arrayvec",
