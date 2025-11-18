@@ -15,6 +15,9 @@ use std::simd::prelude::*;
 
 use crate::data::{TeamSeed, parse_toml};
 
+mod team_set;
+use team_set::TeamSet;
+
 type RngType = rand_chacha::ChaCha8Rng;
 
 fn make_rng() -> RngType {
@@ -23,87 +26,6 @@ fn make_rng() -> RngType {
 
 fn make_deterministic_rng() -> RngType {
     rand_chacha::ChaCha8Rng::seed_from_u64(7355608)
-}
-
-/// High performance set, specifically for teams.
-#[derive(Clone, Copy, PartialEq)]
-struct TeamSet {
-    data: u16,
-}
-
-impl TeamSet {
-    #[inline(always)]
-    pub const fn new() -> Self {
-        Self { data: 0 }
-    }
-
-    #[inline(always)]
-    pub const fn full() -> Self {
-        Self { data: u16::MAX }
-    }
-
-    /// Insert index into the set.
-    #[inline(always)]
-    pub fn insert(&mut self, index: TeamSeed) -> bool {
-        let n = 1_u16 << index;
-        let inserted = self.data & n == 0;
-        self.data |= n;
-        inserted
-    }
-
-    /// Remove index from the set.
-    #[inline(always)]
-    pub fn remove(&mut self, index: TeamSeed) -> bool {
-        let n = 1_u16 << index;
-        let removed = self.data & n != 0;
-        self.data &= !n;
-        removed
-    }
-
-    /// Test if the set contains index.
-    #[inline(always)]
-    pub fn contains(&self, index: TeamSeed) -> bool {
-        self.data & 1_u16 << index != 0
-    }
-
-    /// Test if the set is empty.
-    #[inline(always)]
-    pub fn is_empty(&self) -> bool {
-        self.data == 0
-    }
-
-    /// Returns an iterator of indices contained within the set.
-    pub fn iter(&self) -> impl Iterator<Item = TeamSeed> {
-        let mut set = *self;
-
-        std::iter::from_fn(move || {
-            if set.is_empty() {
-                None
-            } else {
-                let next_index = set.data.trailing_zeros() as TeamSeed;
-                set.remove(next_index);
-                Some(next_index)
-            }
-        })
-    }
-}
-
-impl std::fmt::Debug for TeamSet {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_set().entries(self.iter()).finish()
-    }
-}
-
-impl<const N: usize> From<[TeamSeed; N]> for TeamSet {
-    fn from(seeds: [TeamSeed; N]) -> Self {
-        let mut set = Self::new();
-
-        for seed in seeds {
-            set.insert(seed);
-        }
-
-        set
-    }
 }
 
 /// Struct to tally up tournament results for a team.
@@ -258,7 +180,7 @@ impl MatchupGenerator {
     ) -> ArrayVec<(TeamSeed, TeamSeed), 8> {
         'outer: for indices in priority {
             for (ia, ib) in indices {
-                if opponents[group[ia] as usize].contains(group[ib]) {
+                if opponents[group[ia] as usize].contains(&group[ib]) {
                     continue 'outer;
                 }
             }
@@ -459,7 +381,7 @@ impl SwissSystem {
         const ONE: Simd<u16, 16> = Simd::splat(1);
 
         let mask = {
-            let shifted = Simd::splat(self.opponents[team as usize].data) >> Self::SEED_LANES;
+            let shifted = self.opponents[team as usize].splat() >> Self::SEED_LANES;
             (shifted & ONE).cast::<i8>().neg()
         };
 
@@ -540,11 +462,11 @@ impl SwissSystem {
         // Advance/eliminate teams after BO3.
         if is_bo3 {
             if self.wins[a] == 3 || self.losses[a] == 3 {
-                self.remaining.remove(seed_a);
+                self.remaining.remove(&seed_a);
             }
 
             if self.wins[b] == 3 || self.losses[b] == 3 {
-                self.remaining.remove(seed_b);
+                self.remaining.remove(&seed_b);
             }
         }
     }
