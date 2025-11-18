@@ -1,5 +1,3 @@
-use std::process::ExitCode;
-
 use anyhow::anyhow;
 
 mod args;
@@ -8,8 +6,8 @@ use args::Args;
 use pickems::*;
 
 #[cfg(not(feature = "pprof"))]
-fn main() -> ExitCode {
-    let ret = match Args::parse() {
+fn main() -> anyhow::Result<()> {
+    match Args::parse() {
         Some(Args::Simulate {
             file,
             iterations,
@@ -18,13 +16,6 @@ fn main() -> ExitCode {
         Some(Args::Inspect { file }) => inspect(file),
         Some(Args::Wizard { file }) => wizard(file),
         None => Err(anyhow!("failed to parse CLI arguments")),
-    };
-
-    if let Err(e) = ret {
-        eprintln!("{e}");
-        ExitCode::FAILURE
-    } else {
-        ExitCode::SUCCESS
     }
 }
 
