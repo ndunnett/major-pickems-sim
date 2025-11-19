@@ -7,11 +7,17 @@ pub(super) enum ReportType {
     All,
     Basic,
     Strength,
+    Picks,
 }
 
 impl ValueEnum for ReportType {
     fn value_variants<'a>() -> &'a [Self] {
-        &[ReportType::All, ReportType::Basic, ReportType::Strength]
+        &[
+            ReportType::All,
+            ReportType::Basic,
+            ReportType::Strength,
+            ReportType::Picks,
+        ]
     }
 
     fn to_possible_value(&self) -> Option<PossibleValue> {
@@ -21,6 +27,7 @@ impl ValueEnum for ReportType {
                 .help("3-0, advancment, and 0-3 percentages for each team"),
             ReportType::Strength => PossibleValue::new("strength")
                 .help("relative strength of opponents faced for each team"),
+            ReportType::Picks => PossibleValue::new("picks").help("statistically optimal picks"),
         })
     }
 }

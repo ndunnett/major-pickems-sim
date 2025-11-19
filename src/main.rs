@@ -18,6 +18,7 @@ fn main() -> anyhow::Result<()> {
             ReportType::All => simulate::<ReportAll>(file, sigma, iterations),
             ReportType::Basic => simulate::<BasicReport>(file, sigma, iterations),
             ReportType::Strength => simulate::<StrengthReport>(file, sigma, iterations),
+            ReportType::Picks => simulate::<PicksReport>(file, sigma, iterations),
         },
         Some(Args::Inspect { file }) => inspect(file),
         Some(Args::Wizard { file }) => wizard(file),
