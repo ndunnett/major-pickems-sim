@@ -65,14 +65,20 @@ impl TeamSet {
     }
 }
 
+impl Default for TeamSet {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl std::fmt::Debug for TeamSet {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_set().entries(self.iter()).finish()
     }
 }
 
-impl<const N: usize> From<[TeamSeed; N]> for TeamSet {
-    fn from(seeds: [TeamSeed; N]) -> Self {
+impl FromIterator<TeamSeed> for TeamSet {
+    fn from_iter<I: IntoIterator<Item = TeamSeed>>(seeds: I) -> Self {
         let mut set = Self::new();
 
         for seed in seeds {

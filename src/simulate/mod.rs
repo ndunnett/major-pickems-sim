@@ -61,10 +61,9 @@ impl Simulation {
     }
 
     /// Run single-threaded bench test for profiling/benchmarking purposes.
-    pub fn bench_test<R: Report>(iterations: u64) -> R {
+    pub fn bench_test<R: Report>(iterations: u64, mut report: R) -> R {
         let sim = Self::dummy(iterations);
         let fresh_ss = SwissSystem::new(sim.ratings, sim.sigma);
-        let mut report = R::default();
         let mut rng = make_deterministic_rng();
 
         for _ in 0..iterations {
@@ -77,7 +76,7 @@ impl Simulation {
     }
 
     /// Run a tournament simulation to completion and return a report.
-    pub fn run<R: Report>(&self) -> R {
+    pub fn run<R: Report>(&self, fresh_report: R) -> R {
         let fresh_ss = SwissSystem::new(self.ratings, self.sigma);
 
         (0..self.iterations)
@@ -87,7 +86,9 @@ impl Simulation {
                 |(ss, rng), _| {
                     ss.reset();
                     ss.simulate_tournament(rng);
-                    R::from_swiss_system(ss)
+                    let mut report = fresh_report;
+                    report.update(ss);
+                    report
                 },
             )
             .sum()
@@ -95,11 +96,16 @@ impl Simulation {
 }
 
 /// Run a tournament simulation and print the report.
-pub fn simulate<R: Report>(file: PathBuf, sigma: f32, iterations: u64) -> anyhow::Result<()> {
+pub fn simulate<R: Report>(
+    file: PathBuf,
+    sigma: f32,
+    iterations: u64,
+    report: R,
+) -> anyhow::Result<()> {
     let now = Instant::now();
     let (names, ratings) = parse_toml(file)?;
     let sim = Simulation::new(names, ratings, sigma, iterations);
-    let report = sim.run::<R>();
+    let report = sim.run(report);
 
     // Format number of iterations into a string, with thousands separated by commas.
     let formatted_iterations = sim
@@ -130,7 +136,7 @@ mod tests {
     #[test]
     fn sanity_test() {
         let iterations = 1000;
-        let report = Simulation::bench_test::<BasicReport>(iterations);
+        let report = Simulation::bench_test(iterations, BasicReport::default());
 
         // Total 3-0 stats should sum to 2 per iteration
         assert_eq!(

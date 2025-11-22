@@ -5,7 +5,7 @@ fn bench(c: &mut Criterion) {
     let sim = Simulation::dummy(100000);
     let mut group = c.benchmark_group("Simulation");
     group.sample_size(10);
-    group.bench_function("run", |b| b.iter(|| sim.clone().run::<NullReport>()));
+    group.bench_function("run", |b| b.iter(|| sim.clone().run(NullReport)));
     group.finish();
 }
 
