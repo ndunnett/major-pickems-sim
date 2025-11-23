@@ -4,7 +4,7 @@ use pickems::*;
 
 mod args;
 
-use crate::args::{Args, ReportType};
+use crate::args::{Args, ExtraArgs, ReportType};
 
 #[cfg(not(feature = "pprof"))]
 fn main() -> anyhow::Result<()> {
@@ -14,11 +14,29 @@ fn main() -> anyhow::Result<()> {
             sigma,
             iterations,
             report,
+            extra_args,
         }) => match report {
             ReportType::All => simulate(file, sigma, iterations, ReportAll::default()),
             ReportType::Basic => simulate(file, sigma, iterations, BasicReport::default()),
             ReportType::Strength => simulate(file, sigma, iterations, StrengthReport::default()),
             ReportType::Picks => simulate(file, sigma, iterations, PicksReport::default()),
+            ReportType::Assess => {
+                if let Some(ExtraArgs::Assess {
+                    three_zero,
+                    advancing,
+                    zero_three,
+                }) = extra_args.as_deref()
+                {
+                    simulate(
+                        file.clone(),
+                        sigma,
+                        iterations,
+                        AssessReport::try_from_args(file, three_zero, advancing, zero_three)?,
+                    )
+                } else {
+                    Err(anyhow!("failed to parse args"))
+                }
+            }
         },
         Some(Args::Inspect { file }) => inspect(file),
         Some(Args::Wizard { file }) => wizard(file),

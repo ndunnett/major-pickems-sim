@@ -1,13 +1,15 @@
 use std::path::PathBuf;
 
 use clap::{Arg, Command, ValueEnum, builder::PossibleValue, value_parser};
+use itertools::Itertools;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub(super) enum ReportType {
     All,
     Basic,
     Strength,
     Picks,
+    Assess,
 }
 
 impl ValueEnum for ReportType {
@@ -17,6 +19,7 @@ impl ValueEnum for ReportType {
             ReportType::Basic,
             ReportType::Strength,
             ReportType::Picks,
+            ReportType::Assess,
         ]
     }
 
@@ -28,8 +31,18 @@ impl ValueEnum for ReportType {
             ReportType::Strength => PossibleValue::new("strength")
                 .help("relative strength of opponents faced for each team"),
             ReportType::Picks => PossibleValue::new("picks").help("statistically optimal picks"),
+            ReportType::Assess => PossibleValue::new("assess").help("simulated outcome of picks"),
         })
     }
+}
+
+#[derive(Clone)]
+pub(super) enum ExtraArgs {
+    Assess {
+        three_zero: [String; 2],
+        advancing: [String; 6],
+        zero_three: [String; 2],
+    },
 }
 
 pub(super) enum Args {
@@ -38,6 +51,7 @@ pub(super) enum Args {
         sigma: f32,
         iterations: u64,
         report: ReportType,
+        extra_args: Option<Box<ExtraArgs>>,
     },
     Inspect {
         file: PathBuf,
@@ -86,8 +100,37 @@ impl Args {
                             .short('r')
                             .long("report")
                             .default_value("basic")
+                            .requires_ifs([
+                                ("assess", "three-zero"),
+                                ("assess", "advancing"),
+                                ("assess", "zero-three"),
+                            ])
                             .help("Report format to return")
                             .value_parser(value_parser!(ReportType)),
+                    )
+                    .arg(
+                        Arg::new("three-zero")
+                            .long("three-zero")
+                            .required_if_eq("report", "assess")
+                            .num_args(2)
+                            .help("3-0 picks")
+                            .value_parser(value_parser!(String)),
+                    )
+                    .arg(
+                        Arg::new("advancing")
+                            .long("advancing")
+                            .required_if_eq("report", "assess")
+                            .num_args(6)
+                            .help("3-1/3-2 picks")
+                            .value_parser(value_parser!(String)),
+                    )
+                    .arg(
+                        Arg::new("zero-three")
+                            .long("zero-three")
+                            .required_if_eq("report", "assess")
+                            .num_args(2)
+                            .help("0-3 picks")
+                            .value_parser(value_parser!(String)),
                     ),
             )
             .subcommand(
@@ -126,11 +169,24 @@ impl Args {
         let matches = Self::cmd().get_matches();
 
         if let Some(sim) = matches.subcommand_matches("simulate") {
+            let report = *sim.get_one::<ReportType>("report")?;
+
+            let extra_args = if report == ReportType::Assess {
+                Some(Box::new(ExtraArgs::Assess {
+                    three_zero: sim.get_many("three-zero")?.cloned().collect_array()?,
+                    advancing: sim.get_many("advancing")?.cloned().collect_array()?,
+                    zero_three: sim.get_many("zero-three")?.cloned().collect_array()?,
+                }))
+            } else {
+                None
+            };
+
             return Some(Self::Simulate {
                 file: sim.get_one::<PathBuf>("file")?.clone(),
                 sigma: *sim.get_one::<f32>("sigma")?,
                 iterations: *sim.get_one::<u64>("iterations")?,
-                report: *sim.get_one::<ReportType>("report")?,
+                report,
+                extra_args,
             });
         } else if let Some(data) = matches.subcommand_matches("data") {
             if let Some(inspect) = data.subcommand_matches("inspect") {

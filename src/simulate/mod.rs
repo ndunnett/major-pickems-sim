@@ -149,7 +149,7 @@ mod tests {
         // Total 3-1/3-2 stats should sum to 6 per iteration
         assert_eq!(
             (0..16)
-                .map(|index| report.stats[index].advanced)
+                .map(|index| report.stats[index].advancing)
                 .sum::<u64>(),
             iterations * 6
         );

@@ -1,7 +1,9 @@
-use std::{iter::Sum, ops::Add};
+use std::{iter::Sum, ops::Add, path::PathBuf};
+
+use anyhow::anyhow;
 
 use crate::{
-    data::TeamSeed,
+    data::{TeamSeed, parse_toml},
     simulate::{Simulation, SwissSystem, TeamSet, reporting::Report},
 };
 
@@ -13,7 +15,7 @@ pub struct AssessReport {
     pub success: u64,
     pub n: u64,
     pub three_zero_picks: TeamSet,
-    pub advanced_picks: TeamSet,
+    pub advancing_picks: TeamSet,
     pub zero_three_picks: TeamSet,
 }
 
@@ -33,9 +35,58 @@ impl AssessReport {
             success: 0,
             n: 0,
             three_zero_picks: three_zero_picks.into_iter().collect(),
-            advanced_picks: advanced_picks.into_iter().collect(),
+            advancing_picks: advanced_picks.into_iter().collect(),
             zero_three_picks: zero_three_picks.into_iter().collect(),
         }
+    }
+
+    pub fn try_from_args(
+        file: PathBuf,
+        three_zero_str: &[String; 2],
+        advancing_str: &[String; 6],
+        zero_three_str: &[String; 2],
+    ) -> anyhow::Result<Self> {
+        let (names, _) = parse_toml(file)?;
+
+        let mut three_zero_picks = Vec::new();
+        let mut advancing_picks = Vec::new();
+        let mut zero_three_picks = Vec::new();
+
+        for s in three_zero_str.iter() {
+            three_zero_picks.push(
+                names
+                    .iter()
+                    .position(|name| name.to_lowercase() == s.to_lowercase())
+                    .ok_or_else(|| anyhow!("failed to find team \"{s}\" in the input file"))?
+                    as TeamSeed,
+            );
+        }
+
+        for s in advancing_str.iter() {
+            advancing_picks.push(
+                names
+                    .iter()
+                    .position(|name| name.to_lowercase() == s.to_lowercase())
+                    .ok_or_else(|| anyhow!("failed to find team \"{s}\" in the input file"))?
+                    as TeamSeed,
+            );
+        }
+
+        for s in zero_three_str.iter() {
+            zero_three_picks.push(
+                names
+                    .iter()
+                    .position(|name| name.to_lowercase() == s.to_lowercase())
+                    .ok_or_else(|| anyhow!("failed to find team \"{s}\" in the input file"))?
+                    as TeamSeed,
+            );
+        }
+
+        Ok(Self::new(
+            three_zero_picks,
+            advancing_picks,
+            zero_three_picks,
+        ))
     }
 }
 
@@ -80,7 +131,7 @@ impl Report for AssessReport {
                 .filter(|&pick| ss.wins[pick as usize] == 3 && ss.losses[pick as usize] == 0)
                 .count()
                 + self
-                    .advanced_picks
+                    .advancing_picks
                     .iter()
                     .filter(|&pick| ss.wins[pick as usize] == 3 && ss.losses[pick as usize] > 0)
                     .count()

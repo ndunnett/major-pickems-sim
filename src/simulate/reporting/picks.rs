@@ -73,7 +73,7 @@ impl Report for PicksReport {
     }
 
     fn format(&self, sim: &Simulation) -> String {
-        let [three_zero, advanced, zero_three] = self.basic.calculate_probabilities(sim);
+        let [three_zero, advancing, zero_three] = self.basic.calculate_probabilities(sim);
 
         // Sort out candidates for each category of picks.
         let candidates = |probabilities: [f32; 16]| -> BinaryHeap<Candidate> {
@@ -88,15 +88,15 @@ impl Report for PicksReport {
         };
 
         let mut three_zero_candidates = candidates(three_zero);
-        let mut advanced_candidates = candidates(advanced);
+        let mut advancing_candidates = candidates(advancing);
         let mut zero_three_candidates = candidates(zero_three);
 
         // Naively select 3-1/3-2 picks.
-        let mut advanced_picks = HashSet::new();
+        let mut advancing_picks = HashSet::new();
 
         for _ in 0..6 {
-            if let Some(candidate) = advanced_candidates.pop() {
-                advanced_picks.insert(candidate);
+            if let Some(candidate) = advancing_candidates.pop() {
+                advancing_picks.insert(candidate);
             }
         }
 
@@ -116,7 +116,7 @@ impl Report for PicksReport {
             let mut swap_candidates = BinaryHeap::new();
 
             while let Some(candidate) = three_zero_candidates.peek()
-                && advanced_picks.contains(candidate)
+                && advancing_picks.contains(candidate)
             {
                 swap_candidates.push(three_zero_candidates.pop().unwrap());
             }
@@ -124,33 +124,33 @@ impl Report for PicksReport {
             match (
                 three_zero_candidates.pop(),
                 swap_candidates.pop(),
-                advanced_candidates.pop(),
+                advancing_candidates.pop(),
             ) {
                 // There are teams in all relevant candidate pools.
-                (Some(next_three_zero), Some(next_swap), Some(next_advanced))
-                    if advanced_picks.contains(&next_swap) =>
+                (Some(next_three_zero), Some(next_swap), Some(next_advancing))
+                    if advancing_picks.contains(&next_swap) =>
                 {
-                    let swap_advanced = advanced_picks.get(&next_swap).unwrap();
+                    let swap_advancing = advancing_picks.get(&next_swap).unwrap();
 
                     // Calculate delta in win probability for swapping teams.
-                    let cost = next_advanced.probability - swap_advanced.probability;
+                    let cost = next_advancing.probability - swap_advancing.probability;
                     let reward = next_swap.probability - next_three_zero.probability;
 
                     // Swap teams if it is worthwhile, and repopulate candidate pools with candidates that remain unselected.
                     if reward > cost {
                         three_zero_picks.insert(next_swap);
-                        advanced_picks.remove(&next_swap);
-                        advanced_picks.insert(next_advanced);
+                        advancing_picks.remove(&next_swap);
+                        advancing_picks.insert(next_advancing);
                         three_zero_candidates.push(next_three_zero);
                     } else {
                         three_zero_picks.insert(next_three_zero);
-                        advanced_candidates.push(next_advanced);
+                        advancing_candidates.push(next_advancing);
                     }
                 }
                 // There are only teams left in the 3-0 candidate pool, and unviable candidates in the 3-1/3-2 pool.
-                (Some(next_three_zero), None, Some(next_advanced)) => {
+                (Some(next_three_zero), None, Some(next_advancing)) => {
                     three_zero_picks.insert(next_three_zero);
-                    advanced_candidates.push(next_advanced);
+                    advancing_candidates.push(next_advancing);
                 }
                 // There are only teams left in the 3-0 candidate pool.
                 (Some(next_three_zero), None, None) => {
@@ -169,7 +169,7 @@ impl Report for PicksReport {
         // Assess picks through simulation
         let assessment = sim.run(AssessReport::new(
             three_zero_picks.iter().map(|c| c.seed),
-            advanced_picks.iter().map(|c| c.seed),
+            advancing_picks.iter().map(|c| c.seed),
             zero_three_picks.iter().map(|c| c.seed),
         ));
 
@@ -191,7 +191,7 @@ impl Report for PicksReport {
         let mut out = vec![String::from("\n3-0 picks:")];
         format_picks(&mut out, &three_zero_picks);
         out.push(String::from("\n3-1 or 3-2 picks:"));
-        format_picks(&mut out, &advanced_picks);
+        format_picks(&mut out, &advancing_picks);
         out.push(String::from("\n0-3 picks:"));
         format_picks(&mut out, &zero_three_picks);
         out.push(assessment.format(sim));
