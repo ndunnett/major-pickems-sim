@@ -1,0 +1,63 @@
+[3DMAX]
+seed = 2
+rating = 1677
+
+[Astralis]
+seed = 1
+rating = 1613
+
+[Aurora]
+seed = 6
+rating = 1829
+
+[B8]
+seed = 16
+rating = 1571
+
+[FaZe]
+seed = 11
+rating = 1659
+
+[FlyQuest]
+seed = 13
+rating = 1327
+
+[Imperial]
+seed = 15
+rating = 1336
+
+[Liquid]
+seed = 8
+rating = 1730
+
+[M80]
+seed = 14
+rating = 1252
+
+[MIBR]
+seed = 7
+rating = 1365
+
+["Natus Vincere"]
+seed = 5
+rating = 1821
+
+["Ninjas in Pyjamas"]
+seed = 9
+rating = 1336
+
+[PARIVISION]
+seed = 4
+rating = 1420
+
+["Passion UA"]
+seed = 3
+rating = 1347
+
+[TYLOO]
+seed = 12
+rating = 1436
+
+[fnatic]
+seed = 10
+rating = 1424

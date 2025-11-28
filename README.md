@@ -56,64 +56,64 @@ seed = {integer: initial seed for tournament stage}
 rating = {integer: current global ranking points}
 ```
 
-### Latest Output: StarLadder Budapest Major 2025 - Stage 1
+### Latest Output: StarLadder Budapest Major 2025 - Stage 2
 
 ```text
 RESULTS FROM 1,000,000 TOURNAMENT SIMULATIONS
 
 Most likely to 3-0:
-1.  Legacy                49.9%
-2.  FaZe                  37.9%
-3.  B8                    25.7%
-4.  GamerLegion           23.0%
-5.  fnatic                17.5%
-6.  PARIVISION            14.2%
-7.  Ninjas in Pyjamas      8.0%
-8.  Imperial               7.8%
-9.  FlyQuest               3.8%
-10. Lynn Vision            3.0%
-11. M80                    2.6%
-12. RED Canids             1.6%
-13. The Huns               1.5%
-14. NRG                    1.4%
-15. Fluxo                  1.2%
-16. Rare Atom              0.8%
+1.  Aurora                40.8%
+2.  Natus Vincere         37.3%
+3.  3DMAX                 22.7%
+4.  Liquid                22.3%
+5.  FaZe                  19.3%
+6.  Astralis              18.9%
+7.  B8                     8.2%
+8.  PARIVISION             5.7%
+9.  TYLOO                  5.5%
+10. MIBR                   4.3%
+11. fnatic                 3.9%
+12. Imperial               3.3%
+13. Passion UA             2.8%
+14. Ninjas in Pyjamas      2.4%
+15. FlyQuest               1.6%
+16. M80                    0.9%
 
 Most likely to 3-1 or 3-2:
-1.  GamerLegion           61.3%
-2.  B8                    59.6%
-3.  FaZe                  54.2%
-4.  PARIVISION            53.3%
-5.  fnatic                52.3%
-6.  Legacy                46.3%
-7.  Imperial              45.3%
-8.  Ninjas in Pyjamas     44.6%
-9.  FlyQuest              39.9%
-10. Lynn Vision           32.5%
-11. M80                   30.1%
-12. RED Canids            18.4%
-13. Fluxo                 18.0%
-14. The Huns              17.4%
-15. NRG                   16.3%
-16. Rare Atom             10.5%
+1.  Liquid                60.6%
+2.  FaZe                  56.5%
+3.  3DMAX                 56.2%
+4.  Natus Vincere         54.2%
+5.  Astralis              52.5%
+6.  Aurora                51.6%
+7.  B8                    49.5%
+8.  TYLOO                 33.7%
+9.  PARIVISION            32.6%
+10. fnatic                31.4%
+11. MIBR                  25.6%
+12. Passion UA            22.9%
+13. Imperial              22.0%
+14. Ninjas in Pyjamas     21.0%
+15. FlyQuest              18.4%
+16. M80                   11.3%
 
 Most likely to 0-3:
-1.  Rare Atom             35.1%
-2.  Fluxo                 28.4%
-3.  NRG                   25.5%
-4.  The Huns              24.7%
-5.  RED Canids            22.2%
-6.  M80                   16.8%
-7.  Lynn Vision           14.8%
-8.  FlyQuest              11.3%
-9.  Ninjas in Pyjamas      5.8%
-10. Imperial               5.6%
-11. PARIVISION             3.2%
-12. fnatic                 2.9%
-13. GamerLegion            1.3%
-14. B8                     1.3%
-15. FaZe                   0.6%
-16. Legacy                 0.3%
+1.  M80                   36.5%
+2.  FlyQuest              27.5%
+3.  Ninjas in Pyjamas     22.3%
+4.  Passion UA            20.9%
+5.  Imperial              17.7%
+6.  fnatic                15.9%
+7.  MIBR                  14.6%
+8.  TYLOO                 11.9%
+9.  PARIVISION            11.8%
+10. B8                     8.7%
+11. Astralis               3.5%
+12. FaZe                   2.7%
+13. 3DMAX                  2.5%
+14. Liquid                 2.1%
+15. Natus Vincere          0.8%
+16. Aurora                 0.6%
 
-Run time: 0.096 seconds
+Run time: 0.097 seconds
 ```
