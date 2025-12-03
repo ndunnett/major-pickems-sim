@@ -56,64 +56,89 @@ seed = {integer: initial seed for tournament stage}
 rating = {integer: current global ranking points}
 ```
 
-### Latest Output: StarLadder Budapest Major 2025 - Stage 2
+### Latest Output: StarLadder Budapest Major 2025 - Stage 3
 
 ```text
 RESULTS FROM 1,000,000 TOURNAMENT SIMULATIONS
 
 Most likely to 3-0:
-1.  Aurora                40.8%
-2.  Natus Vincere         37.3%
-3.  3DMAX                 22.7%
-4.  Liquid                22.3%
-5.  FaZe                  19.3%
-6.  Astralis              18.9%
-7.  B8                     8.2%
-8.  PARIVISION             5.7%
-9.  TYLOO                  5.5%
-10. MIBR                   4.3%
-11. fnatic                 3.9%
-12. Imperial               3.3%
-13. Passion UA             2.8%
-14. Ninjas in Pyjamas      2.4%
-15. FlyQuest               1.6%
-16. M80                    0.9%
+1.  FURIA                 41.5%
+2.  Falcons               33.3%
+3.  Vitality              31.6%
+4.  MOUZ                  20.2%
+5.  The MongolZ           19.6%
+6.  G2                    11.8%
+7.  Team Spirit           10.0%
+8.  Liquid                 7.3%
+9.  Natus Vincere          6.3%
+10. paiN                   4.5%
+11. 3DMAX                  4.2%
+12. B8                     3.4%
+13. FaZe                   3.0%
+14. PARIVISION             1.9%
+15. Passion UA             0.9%
+16. Imperial               0.6%
 
 Most likely to 3-1 or 3-2:
-1.  Liquid                60.6%
-2.  FaZe                  56.5%
-3.  3DMAX                 56.2%
-4.  Natus Vincere         54.2%
-5.  Astralis              52.5%
-6.  Aurora                51.6%
-7.  B8                    49.5%
-8.  TYLOO                 33.7%
-9.  PARIVISION            32.6%
-10. fnatic                31.4%
-11. MIBR                  25.6%
-12. Passion UA            22.9%
-13. Imperial              22.0%
-14. Ninjas in Pyjamas     21.0%
-15. FlyQuest              18.4%
-16. M80                   11.3%
+1.  MOUZ                  54.5%
+2.  Falcons               53.9%
+3.  Vitality              53.2%
+4.  The MongolZ           51.7%
+5.  FURIA                 51.1%
+6.  Team Spirit           49.8%
+7.  G2                    47.0%
+8.  Liquid                44.5%
+9.  Natus Vincere         44.5%
+10. paiN                  31.6%
+11. 3DMAX                 29.5%
+12. B8                    29.0%
+13. FaZe                  25.4%
+14. PARIVISION            18.7%
+15. Passion UA             9.2%
+16. Imperial               6.5%
 
 Most likely to 0-3:
-1.  M80                   36.5%
-2.  FlyQuest              27.5%
-3.  Ninjas in Pyjamas     22.3%
-4.  Passion UA            20.9%
-5.  Imperial              17.7%
-6.  fnatic                15.9%
-7.  MIBR                  14.6%
-8.  TYLOO                 11.9%
-9.  PARIVISION            11.8%
-10. B8                     8.7%
-11. Astralis               3.5%
-12. FaZe                   2.7%
-13. 3DMAX                  2.5%
-14. Liquid                 2.1%
-15. Natus Vincere          0.8%
-16. Aurora                 0.6%
+1.  Imperial              40.9%
+2.  Passion UA            36.5%
+3.  PARIVISION            24.0%
+4.  FaZe                  18.5%
+5.  B8                    16.4%
+6.  3DMAX                 15.4%
+7.  paiN                  11.7%
+8.  Natus Vincere          9.4%
+9.  Liquid                 8.8%
+10. Team Spirit            5.3%
+11. G2                     4.6%
+12. The MongolZ            2.6%
+13. MOUZ                   2.5%
+14. Vitality               1.5%
+15. Falcons                1.2%
+16. FURIA                  0.7%
 
-Run time: 0.097 seconds
+Run time: 0.093 seconds
+```
+
+```text
+RESULTS FROM 1,000,000 TOURNAMENT SIMULATIONS
+
+3-0 picks:
+1.  FURIA                 41.6%
+2.  G2                    11.8%
+
+3-1 or 3-2 picks:
+1.  MOUZ                  54.4%
+2.  Falcons               53.9%
+3.  Vitality              53.2%
+4.  The MongolZ           51.7%
+5.  Team Spirit           49.7%
+6.  Liquid                44.6%
+
+0-3 picks:
+1.  Imperial              40.8%
+2.  Passion UA            36.5%
+
+Simulated stars earned: 4.384 +/- 1.398
+Expected success (>=5 stars): 46.7%
+
+Run time: 0.197 seconds
 ```
