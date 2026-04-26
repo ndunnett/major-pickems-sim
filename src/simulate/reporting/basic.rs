@@ -94,7 +94,7 @@ impl Report for BasicReport {
             let sorted_results = sim
                 .names
                 .iter()
-                .zip(probabilities[index].into_iter())
+                .zip(probabilities[index])
                 .sorted_by(|(_, a), (_, b)| b.total_cmp(a))
                 .enumerate();
 

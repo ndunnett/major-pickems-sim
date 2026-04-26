@@ -99,10 +99,8 @@ impl Wizard<'_> {
                     key: Key::Char('s') | Key::Char('S'),
                     ctrl: true,
                     ..
-                } => {
-                    if self.problems.is_empty() {
-                        self.save = true;
-                    }
+                } if self.problems.is_empty() => {
+                    self.save = true;
                 }
                 Input {
                     key: Key::Char('n') | Key::Char('N'),
@@ -289,7 +287,7 @@ impl Wizard<'_> {
 
     /// Resort teams and check for problems. Call when the teams vec is changed.
     fn on_teams_change(&mut self) {
-        self.teams.sort_by(|(_, a), (_, b)| a.seed.cmp(&b.seed));
+        self.teams.sort_by_key(|(_, a)| a.seed);
         self.problems.clear();
 
         if self.teams.len() < 16 {
