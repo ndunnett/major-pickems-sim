@@ -10,7 +10,7 @@ use ratatui::{
         Block, BorderType, Borders, Cell, HighlightSpacing, Paragraph, Row, Table, TableState,
     },
 };
-use tui_textarea::{Input, Key, TextArea};
+use ratatui_textarea::{Input, Key, TextArea};
 
 use crate::data::{TeamData, TeamDataMap, TeamSeed};
 

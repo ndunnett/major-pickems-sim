@@ -6,7 +6,7 @@ ARG REPO=/ws
 ARG DEBIAN_FRONTEND=noninteractive
 RUN set -eux; apt update; apt full-upgrade -y; \
     apt install -y ca-certificates libc6-dev pkg-config libssl-dev \
-        linux-tools-common linux-tools-generic linux-tools-"$(uname -r)" \
+        linux-tools-common linux-tools-generic linux-tools-6.11.0-19-generic \
         graphviz clang zsh sudo git wget; \
     apt autoremove -y; apt clean; rm -rf /var/lib/apt/lists/*
 

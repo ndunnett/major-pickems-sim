@@ -51,7 +51,7 @@ fn main() {
 
     let now = Instant::now();
     let guard = pprof::ProfilerGuard::new(1000).unwrap();
-    _ = Simulation::bench_test(1000000);
+    _ = Simulation::bench_test(1000000, NullReport);
 
     println!(
         "Run time: {} seconds",

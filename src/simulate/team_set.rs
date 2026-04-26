@@ -1,4 +1,4 @@
-use std::simd::{LaneCount, Simd, SupportedLaneCount};
+use std::simd::Simd;
 
 use crate::data::TeamSeed;
 
@@ -57,10 +57,7 @@ impl TeamSet {
 
     // Constructs a new SIMD vector with all elements set to the current state of the set.
     #[inline(always)]
-    pub fn splat<const N: usize>(&self) -> Simd<u16, N>
-    where
-        LaneCount<N>: SupportedLaneCount,
-    {
+    pub fn splat<const N: usize>(&self) -> Simd<u16, N> {
         Simd::splat(self.data)
     }
 }
