@@ -7,10 +7,10 @@ mod basic;
 mod picks;
 mod strength;
 
-pub use assess::*;
-pub use basic::*;
-pub use picks::*;
-pub use strength::*;
+pub use assess::AssessReport;
+pub use basic::BasicReport;
+pub use picks::PicksReport;
+pub use strength::StrengthReport;
 
 /// Interface for a generic report type to gather information from simulation iterations and formulate a report.
 pub trait Report: Copy + Send + Sum + Sync {

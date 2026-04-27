@@ -115,7 +115,7 @@ pub fn wizard(filepath: PathBuf) -> anyhow::Result<()> {
 
         inspect(filepath)?;
     } else {
-        println!("Exited wizard without saving.",);
+        println!("Exited wizard without saving.");
     }
 
     Ok(())

@@ -3,8 +3,8 @@ use std::path::PathBuf;
 use clap::{Arg, Command, ValueEnum, builder::PossibleValue, value_parser};
 use itertools::Itertools;
 
-#[derive(Clone, Copy, PartialEq)]
-pub(super) enum ReportType {
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum ReportType {
     All,
     Basic,
     Strength,
@@ -15,29 +15,29 @@ pub(super) enum ReportType {
 impl ValueEnum for ReportType {
     fn value_variants<'a>() -> &'a [Self] {
         &[
-            ReportType::All,
-            ReportType::Basic,
-            ReportType::Strength,
-            ReportType::Picks,
-            ReportType::Assess,
+            Self::All,
+            Self::Basic,
+            Self::Strength,
+            Self::Picks,
+            Self::Assess,
         ]
     }
 
     fn to_possible_value(&self) -> Option<PossibleValue> {
         Some(match self {
-            ReportType::All => PossibleValue::new("all").help("includes all statistics"),
-            ReportType::Basic => PossibleValue::new("basic")
+            Self::All => PossibleValue::new("all").help("includes all statistics"),
+            Self::Basic => PossibleValue::new("basic")
                 .help("3-0, advancment, and 0-3 percentages for each team"),
-            ReportType::Strength => PossibleValue::new("strength")
+            Self::Strength => PossibleValue::new("strength")
                 .help("relative strength of opponents faced for each team"),
-            ReportType::Picks => PossibleValue::new("picks").help("statistically optimal picks"),
-            ReportType::Assess => PossibleValue::new("assess").help("simulated outcome of picks"),
+            Self::Picks => PossibleValue::new("picks").help("statistically optimal picks"),
+            Self::Assess => PossibleValue::new("assess").help("simulated outcome of picks"),
         })
     }
 }
 
 #[derive(Clone)]
-pub(super) enum ExtraArgs {
+pub enum ExtraArgs {
     Assess {
         three_zero: [String; 2],
         advancing: [String; 6],
@@ -45,7 +45,7 @@ pub(super) enum ExtraArgs {
     },
 }
 
-pub(super) enum Args {
+pub enum Args {
     Simulate {
         file: PathBuf,
         sigma: f32,

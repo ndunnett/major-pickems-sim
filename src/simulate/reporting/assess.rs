@@ -52,7 +52,7 @@ impl AssessReport {
         let mut advancing_picks = Vec::new();
         let mut zero_three_picks = Vec::new();
 
-        for s in three_zero_str.iter() {
+        for s in three_zero_str {
             three_zero_picks.push(
                 names
                     .iter()
@@ -62,7 +62,7 @@ impl AssessReport {
             );
         }
 
-        for s in advancing_str.iter() {
+        for s in advancing_str {
             advancing_picks.push(
                 names
                     .iter()
@@ -72,7 +72,7 @@ impl AssessReport {
             );
         }
 
-        for s in zero_three_str.iter() {
+        for s in zero_three_str {
             zero_three_picks.push(
                 names
                     .iter()
@@ -105,8 +105,8 @@ impl Add for AssessReport {
             self.n += rhs.n;
 
             let delta = self.mean - rhs.mean;
-            self.mean = (n_self * self.mean + n_rhs * rhs.mean) / n;
-            self.ds += rhs.ds + delta * delta * (n_self * n_rhs / n);
+            self.mean = n_rhs.mul_add(rhs.mean, n_self * self.mean) / n;
+            self.ds += (delta * delta).mul_add(n_self * n_rhs / n, rhs.ds);
 
             self
         }
@@ -150,7 +150,7 @@ impl Report for AssessReport {
         let delta1 = stars as f32 - self.mean;
         self.mean += delta1 / self.n as f32;
         let delta2 = stars as f32 - self.mean;
-        self.ds += delta1 * delta2;
+        self.ds = delta1.mul_add(delta2, self.ds);
     }
 
     fn format(&self, _sim: &Simulation) -> String {

@@ -10,6 +10,16 @@ license = "MIT"
 homepage = "https://github.com/ndunnett/major-pickems-sim"
 repository = "https://github.com/ndunnett/major-pickems-sim"
 
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -2 }
+doc_markdown = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+cast_precision_loss = "allow"
+cast_possible_truncation = "allow"
+cast_lossless = "allow"
+
 [dependencies]
 anyhow = "1.0"
 arrayvec = "0.7"

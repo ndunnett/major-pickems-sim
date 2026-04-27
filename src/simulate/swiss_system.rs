@@ -36,6 +36,7 @@ impl SwissSystem {
         Simd::from_array(seeds)
     };
 
+    #[allow(clippy::many_single_char_names)]
     pub fn new(ratings: [i16; 16], sigma: f32) -> Self {
         const ONE: Simd<f32, 16> = Simd::splat(1.0);
         const TWO: Simd<f32, 16> = Simd::splat(2.0);
@@ -100,8 +101,8 @@ impl SwissSystem {
     }
 
     /// Reset Swiss System state to restart tournament.
-    #[inline(always)]
-    pub fn reset(&mut self) {
+    #[inline]
+    pub const fn reset(&mut self) {
         self.wins = [0; 16];
         self.losses = [0; 16];
         self.diffs = [0; 16];
@@ -196,17 +197,17 @@ impl SwissSystem {
         // Advance/eliminate teams after BO3.
         if is_bo3 {
             if self.wins[a] == 3 || self.losses[a] == 3 {
-                self.remaining.remove(&seed_a);
+                self.remaining.remove(seed_a);
             }
 
             if self.wins[b] == 3 || self.losses[b] == 3 {
-                self.remaining.remove(&seed_b);
+                self.remaining.remove(seed_b);
             }
         }
     }
 
     /// Simulate tournament round.
-    #[inline(always)]
+    #[inline]
     fn simulate_round(&mut self, rng: &mut RngType) {
         for (a, b) in MatchupGenerator::new(&*self) {
             self.simulate_match(rng, a, b);

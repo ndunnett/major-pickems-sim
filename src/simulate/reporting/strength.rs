@@ -33,13 +33,13 @@ impl Add for StrengthReport {
 
                 // Combine ratings stats
                 let r_delta = a.r_mean - b.r_mean;
-                a.r_mean = (na * a.r_mean + nb * b.r_mean) / n;
-                a.r_ds += b.r_ds + r_delta * r_delta * (na * nb / n);
+                a.r_mean = nb.mul_add(b.r_mean, na * a.r_mean) / n;
+                a.r_ds += (r_delta * r_delta).mul_add(na * nb / n, b.r_ds);
 
                 // Combine probability stats
                 let p_delta = a.p_mean - b.p_mean;
-                a.p_mean = (na * a.p_mean + nb * b.p_mean) / n;
-                a.p_ds += b.p_ds + p_delta * p_delta * (na * nb / n);
+                a.p_mean = nb.mul_add(b.p_mean, na * a.p_mean) / n;
+                a.p_ds += (p_delta * p_delta).mul_add(na * nb / n, b.p_ds);
 
                 // Combine count
                 a.n += b.n;
@@ -68,14 +68,14 @@ impl Report for StrengthReport {
                 let r_delta1 = r - result.r_mean;
                 result.r_mean += r_delta1 / result.n as f32;
                 let r_delta2 = r - result.r_mean;
-                result.r_ds += r_delta1 * r_delta2;
+                result.r_ds = r_delta1.mul_add(r_delta2, result.r_ds);
 
                 // Update probability stats
                 let p = ss.probabilities_bo1[seed][opponent as usize] * 100.0;
                 let p_delta1 = p - result.p_mean;
                 result.p_mean += p_delta1 / result.n as f32;
                 let p_delta2 = p - result.p_mean;
-                result.p_ds += p_delta1 * p_delta2;
+                result.p_ds = p_delta1.mul_add(p_delta2, result.p_ds);
             }
         }
     }

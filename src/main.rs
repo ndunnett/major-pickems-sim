@@ -1,13 +1,17 @@
-use anyhow::anyhow;
-
-use pickems::*;
-
+#[cfg(not(feature = "pprof"))]
 mod args;
-
-use crate::args::{Args, ExtraArgs, ReportType};
 
 #[cfg(not(feature = "pprof"))]
 fn main() -> anyhow::Result<()> {
+    use anyhow::anyhow;
+
+    use crate::args::{Args, ExtraArgs, ReportType};
+
+    use pickems::{
+        AssessReport, BasicReport, PicksReport, ReportAll, StrengthReport, inspect, simulate,
+        wizard,
+    };
+
     match Args::parse() {
         Some(Args::Simulate {
             file,
@@ -49,9 +53,11 @@ fn main() {
     use pprof::protos::Message;
     use std::{fs::File, io::Write, time::Instant};
 
+    use pickems::{NullReport, Simulation};
+
     let now = Instant::now();
     let guard = pprof::ProfilerGuard::new(1000).unwrap();
-    _ = Simulation::bench_test(1000000, NullReport);
+    _ = Simulation::bench_test(1_000_000, NullReport);
 
     println!(
         "Run time: {} seconds",
@@ -64,5 +70,5 @@ fn main() {
         profile.encode(&mut content).unwrap();
         let mut file = File::create("target/profile.pb").unwrap();
         file.write_all(&content).unwrap();
-    };
+    }
 }

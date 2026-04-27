@@ -73,7 +73,7 @@ impl Wizard<'_> {
         if let Some(editor) = self.editor.as_mut() {
             match event::read()?.into() {
                 Input {
-                    key: Key::Char('c') | Key::Char('C'),
+                    key: Key::Char('c' | 'C'),
                     ctrl: true,
                     ..
                 } => self.cancel = true,
@@ -91,19 +91,19 @@ impl Wizard<'_> {
             match event::read()?.into() {
                 Input { key: Key::Esc, .. }
                 | Input {
-                    key: Key::Char('c') | Key::Char('C'),
+                    key: Key::Char('c' | 'C'),
                     ctrl: true,
                     ..
                 } => self.cancel = true,
                 Input {
-                    key: Key::Char('s') | Key::Char('S'),
+                    key: Key::Char('s' | 'S'),
                     ctrl: true,
                     ..
                 } if self.problems.is_empty() => {
                     self.save = true;
                 }
                 Input {
-                    key: Key::Char('n') | Key::Char('N'),
+                    key: Key::Char('n' | 'N'),
                     ctrl: true,
                     ..
                 } => self.add_new_team(),
@@ -146,11 +146,11 @@ impl Wizard<'_> {
                     0 => {
                         let seed = editor.lines()[0].parse::<TeamSeed>()?;
 
-                        if !(1..=16).contains(&seed) {
-                            Err(anyhow!("invalid seed, must be within range 1-16"))
-                        } else {
+                        if (1..=16).contains(&seed) {
                             data.seed = seed;
                             Ok((name, data))
+                        } else {
+                            Err(anyhow!("invalid seed, must be within range 1-16"))
                         }
                     }
                     1 => {
@@ -162,7 +162,7 @@ impl Wizard<'_> {
                         {
                             Err(anyhow!("name already exists, must be unique"))
                         } else {
-                            name = editor.lines()[0].clone();
+                            name.clone_from(&editor.lines()[0]);
                             Ok((name, data))
                         }
                     }
@@ -190,7 +190,7 @@ impl Wizard<'_> {
     fn validate_editor(&mut self) -> bool {
         let parse = self.parse_edit();
 
-        if let Some(editor) = &mut self.editor {
+        self.editor.as_mut().is_some_and(|editor| {
             if let Err(err) = parse {
                 editor.set_block(
                     Block::default()
@@ -210,9 +210,7 @@ impl Wizard<'_> {
                 );
                 true
             }
-        } else {
-            false
-        }
+        })
     }
 
     /// Start edit mode on the currently selected cell.
@@ -257,7 +255,7 @@ impl Wizard<'_> {
 
         let seed = (1..=16)
             .find(|n| !seeds.contains(n))
-            .unwrap_or_else(|| seeds.last().map(|seed| seed + 1).unwrap_or(1));
+            .unwrap_or_else(|| seeds.last().map_or(1, |seed| seed + 1));
 
         self.teams
             .push((format!("Team {seed}"), TeamData { seed, rating: 0 }));
@@ -301,7 +299,7 @@ impl Wizard<'_> {
             .map(|(_, data)| data.seed)
             .collect::<Vec<_>>();
 
-        for seed in seeds.iter() {
+        for seed in &seeds {
             if !(1..=16).contains(seed) {
                 self.problems.push(format!("Invalid seed ({seed})"));
             }
@@ -325,7 +323,7 @@ impl Wizard<'_> {
             }
         }
 
-        for (name, data) in self.teams.iter() {
+        for (name, data) in &self.teams {
             if data.rating == 0 {
                 self.problems.push(format!("Rating not set ({name})"));
             }
@@ -333,7 +331,7 @@ impl Wizard<'_> {
     }
 
     /// Move the cursor to the next row.
-    fn next_row(&mut self) {
+    const fn next_row(&mut self) {
         let i = match self.state.selected() {
             Some(i) => {
                 if i >= self.teams.len() - 1 {
@@ -349,7 +347,7 @@ impl Wizard<'_> {
     }
 
     /// Move the cursor to the previous row.
-    fn previous_row(&mut self) {
+    const fn previous_row(&mut self) {
         let i = match self.state.selected() {
             Some(i) => {
                 if i == 0 {
@@ -375,6 +373,7 @@ impl Wizard<'_> {
     }
 
     /// Render the user interface.
+    #[allow(clippy::cast_possible_truncation)]
     fn render(&mut self, frame: &mut Frame) {
         let rects = Layout::vertical([
             Constraint::Min(17),
@@ -456,7 +455,7 @@ impl Wizard<'_> {
         let problems = if self.problems.is_empty() {
             Paragraph::new(Text::from("No problems")).light_green()
         } else {
-            Paragraph::new(Text::from_iter(self.problems.iter().map(|s| s.as_str()))).block(
+            Paragraph::new(self.problems.iter().map(String::as_str).collect::<Text>()).block(
                 Block::default()
                     .borders(Borders::ALL)
                     .border_type(BorderType::Rounded)

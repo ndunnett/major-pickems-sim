@@ -125,7 +125,7 @@ impl MatchupGenerator {
     ) -> ArrayVec<(TeamSeed, TeamSeed), 8> {
         'outer: for indices in priority {
             for (ia, ib) in indices {
-                if opponents[group[ia] as usize].contains(&group[ib]) {
+                if opponents[group[ia] as usize].contains(group[ib]) {
                     continue 'outer;
                 }
             }
@@ -196,21 +196,21 @@ impl Iterator for MatchupGenerator {
                                 &self.opponents,
                                 Self::MATCHUP_PRIORITY_4,
                                 &teams[start..*team_index],
-                            )
+                            );
                         }
                         6 => {
                             *matchups = Self::apply_priority(
                                 &self.opponents,
                                 Self::MATCHUP_PRIORITY_6,
                                 &teams[start..*team_index],
-                            )
+                            );
                         }
                         8 => {
                             *matchups = Self::apply_priority(
                                 &self.opponents,
                                 Self::MATCHUP_PRIORITY_8,
                                 &teams[start..*team_index],
-                            )
+                            );
                         }
                         _ => unreachable!("malformed group"),
                     }

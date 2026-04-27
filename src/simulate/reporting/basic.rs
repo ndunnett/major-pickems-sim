@@ -87,7 +87,7 @@ impl Report for BasicReport {
         let fields: [(usize, &str); 3] = [(0, "3-0"), (1, "3-1 or 3-2"), (2, "0-3")];
 
         // Process each field of stats.
-        for (index, title) in fields.into_iter() {
+        for (index, title) in fields {
             out.push(format!("\nMost likely to {title}:"));
 
             // Sort results from highest to lowest.

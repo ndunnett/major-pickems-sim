@@ -12,20 +12,24 @@ mod swiss_system;
 mod team_set;
 
 use matching::MatchupGenerator;
-pub use reporting::*;
+pub use reporting::{
+    AssessReport, BasicReport, NullReport, PicksReport, Report, ReportAll, StrengthReport,
+};
 use swiss_system::SwissSystem;
 use team_set::TeamSet;
 
-pub(super) type RngType = rand_chacha::ChaCha8Rng;
+pub type RngType = rand_chacha::ChaCha8Rng;
 
 /// Random number generator for normal use.
-pub(super) fn make_rng() -> RngType {
+#[must_use]
+pub fn make_rng() -> RngType {
     RngType::from_rng(&mut rand::rng())
 }
 
 /// Deterministic random number generator for testing/benchmarking.
-pub(super) fn make_deterministic_rng() -> RngType {
-    RngType::seed_from_u64(7355608)
+#[must_use]
+pub fn make_deterministic_rng() -> RngType {
+    RngType::seed_from_u64(7_355_608)
 }
 
 /// Instance of a simulation, to parse team data and run tournament iterations.
@@ -38,7 +42,8 @@ pub struct Simulation {
 }
 
 impl Simulation {
-    pub fn new(names: [String; 16], ratings: [i16; 16], sigma: f32, iterations: u64) -> Self {
+    #[must_use]
+    pub const fn new(names: [String; 16], ratings: [i16; 16], sigma: f32, iterations: u64) -> Self {
         Self {
             names,
             ratings,
@@ -48,6 +53,7 @@ impl Simulation {
     }
 
     /// Produce simulation with dummy data for testing purposes.
+    #[must_use]
     pub fn dummy(iterations: u64) -> Self {
         Self {
             names: (0..16)
