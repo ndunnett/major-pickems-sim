@@ -13,6 +13,7 @@ mod wizard;
 
 use args::{Args, ExtraArgs, ReportType};
 
+/// Dispatch parsed command-line arguments to the selected command.
 pub fn run(args: Args) -> anyhow::Result<()> {
     match args {
         Args::Simulate {

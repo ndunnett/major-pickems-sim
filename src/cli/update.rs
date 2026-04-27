@@ -20,6 +20,7 @@ struct RemoteRecord {
     sha: String,
 }
 
+/// Update local TOML data files from the repository data directory.
 pub fn run(path: &PathBuf) -> anyhow::Result<()> {
     let local_records = get_local_hashes(path)?;
     let remote_records = get_remote_hashes()?;
@@ -72,6 +73,8 @@ fn get_local_hashes(path: &PathBuf) -> anyhow::Result<Vec<LocalRecord>> {
 
         let file = std::fs::read(entry.path())?;
         let len = file.len();
+        // Git blob object IDs hash a header plus contents, not just the raw
+        // file bytes. GitHub's contents API exposes this blob SHA.
         let mut buffer = format!("blob {len}\0").into_bytes();
         buffer.extend(file);
 

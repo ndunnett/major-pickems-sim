@@ -12,6 +12,10 @@ use crate::{
     simulation::{Simulation, SwissSystem},
 };
 
+/// Candidate team for one pick category.
+///
+/// Equality and hashing intentionally use only the team index so a candidate can
+/// move between probability-ranked pools without becoming a distinct set entry.
 #[derive(Debug, Clone, Copy)]
 struct Candidate {
     index: Index,
@@ -44,7 +48,7 @@ impl PartialOrd for Candidate {
     }
 }
 
-/// Report for selecting optimal picks from basic statistics.
+/// Report for selecting pick recommendations from basic outcome probabilities.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct PicksReport {
     pub basic: BasicReport,
@@ -73,7 +77,8 @@ impl Report for PicksReport {
     fn format(&self, sim: &Simulation) -> String {
         let [three_zero, advancing, zero_three] = self.basic.calculate_probabilities(sim);
 
-        // Sort out candidates for each category of picks.
+        // Build max-heaps for each pick category so the highest probability
+        // candidate is always popped first.
         let candidates = |probabilities: [f32; 16]| -> BinaryHeap<Candidate> {
             probabilities
                 .iter()
@@ -89,7 +94,7 @@ impl Report for PicksReport {
         let mut advancing_candidates = candidates(advancing);
         let mut zero_three_candidates = candidates(zero_three);
 
-        // Naively select 3-1/3-2 picks.
+        // Start with the best advancement picks.
         let mut advancing_picks = HashSet::new();
 
         for _ in 0..6 {
@@ -98,7 +103,8 @@ impl Report for PicksReport {
             }
         }
 
-        // Naively select 0-3 picks.
+        // Select 0-3 picks independently because they do not overlap with the
+        // advancement categories in valid terminal outcomes.
         let mut zero_three_picks = HashSet::new();
 
         for _ in 0..2 {
@@ -107,7 +113,7 @@ impl Report for PicksReport {
             }
         }
 
-        // Optimise 3-0 picks by swapping previous 3-1/3-2 picks to maximise win probability.
+        // Optimise 3-0 picks by swapping previous advancement picks to maximise win probability.
         let mut three_zero_picks = HashSet::new();
 
         while three_zero_picks.len() < 2 {
@@ -130,11 +136,13 @@ impl Report for PicksReport {
                 {
                     let swap_advancing = advancing_picks.get(&next_swap).unwrap();
 
-                    // Calculate delta in win probability for swapping teams.
+                    // Compare the lost advancement probability against the
+                    // gained 3-0 probability from making the swap.
                     let cost = next_advancing.probability - swap_advancing.probability;
                     let reward = next_swap.probability - next_three_zero.probability;
 
-                    // Swap teams if it is worthwhile, and repopulate candidate pools with candidates that remain unselected.
+                    // Repopulate candidate pools with candidates that remain
+                    // unselected so the next loop considers them again.
                     if reward > cost {
                         three_zero_picks.insert(next_swap);
                         advancing_picks.remove(&next_swap);
@@ -145,7 +153,8 @@ impl Report for PicksReport {
                         advancing_candidates.push(next_advancing);
                     }
                 }
-                // There are only teams left in the 3-0 candidate pool, and unviable candidates in the 3-1/3-2 pool.
+                // There are only teams left in the 3-0 candidate pool, and
+                // unviable candidates in the advancement pool.
                 (Some(next_three_zero), None, Some(next_advancing)) => {
                     three_zero_picks.insert(next_three_zero);
                     advancing_candidates.push(next_advancing);
@@ -154,7 +163,8 @@ impl Report for PicksReport {
                 (Some(next_three_zero), None, None) => {
                     three_zero_picks.insert(next_three_zero);
                 }
-                // The current state no longer makes any sense, either the 3-0 pool is empty or the 3-1/3-2 picks don't contain the next swap candidate.
+                // The current state no longer makes any sense, either the 3-0 pool is empty
+                // or the advancement picks don't contain the next swap candidate.
                 state => {
                     unreachable!("invalid state for picking 3-0 teams:\n\n{state:#?}");
                 }
@@ -164,14 +174,14 @@ impl Report for PicksReport {
         // The picks at this point are potentially still suboptimal, in future I want to further optimise picks
         // using A* or similar to explore more combinations.
 
-        // Assess picks through simulation
+        // Assess picks through a second simulation pass using the chosen teams.
         let assessment = sim.run(AssessReport::new(
             three_zero_picks.iter().map(|c| c.index),
             advancing_picks.iter().map(|c| c.index),
             zero_three_picks.iter().map(|c| c.index),
         ));
 
-        // Format results into a string
+        // Format results into a string.
         let format_picks = |out: &mut Vec<String>, picks: &HashSet<Candidate>| {
             for (i, (name, p)) in picks
                 .iter()

@@ -1,4 +1,6 @@
-/// Represents the initial seed of a team.
+/// Initial tournament seed of a team.
+///
+/// Seeds are one-based and valid in the inclusive range `1..=16`.
 #[nutype::nutype(
     validate(greater_or_equal = 1, less_or_equal = 16),
     derive(
@@ -17,6 +19,7 @@
 pub struct Seed(u16);
 
 impl Seed {
+    /// Iterate through all valid initial seeds in ascending order.
     pub fn iter_all() -> impl Iterator<Item = Self> {
         (1..=16).map(|i| Self::try_new(i).unwrap())
     }
@@ -29,12 +32,18 @@ impl From<Index> for Seed {
     }
 }
 
-/// Represents the index of a team within an array sorted in ascending order by initial seed.
+/// Zero-based index into arrays sorted by ascending initial seed.
+///
+/// `Index` is the simulation-facing companion to [`Seed`]: seed `1` maps to
+/// index `0`, and seed `16` maps to index `15`.
 #[derive(Debug, Clone, Copy, PartialOrd, Ord, PartialEq, Eq, Hash)]
 #[repr(transparent)]
 pub struct Index(u16);
 
 impl Index {
+    /// Construct an index from a compile-time constant.
+    ///
+    /// This fails to compile when `N >= 16`.
     #[inline]
     #[must_use]
     pub const fn new<const N: u16>() -> Self {
@@ -42,6 +51,7 @@ impl Index {
         Self(N)
     }
 
+    /// Construct an index from a runtime value.
     #[inline]
     pub fn try_new(n: u16) -> anyhow::Result<Self> {
         if n < 16 {
@@ -51,18 +61,21 @@ impl Index {
         }
     }
 
+    /// Return this index as a `usize` for array indexing.
     #[inline]
     #[must_use]
     pub const fn to_usize(self) -> usize {
         self.0 as usize
     }
 
+    /// Convert this zero-based index into its one-based tournament seed.
     #[inline]
     #[must_use]
     pub fn to_seed(self) -> Seed {
         Seed::try_new(self.0 + 1).unwrap()
     }
 
+    /// Return a bit mask selecting this index in a 16-bit [`Set`](crate::datatypes::Set).
     #[inline]
     #[must_use]
     pub const fn bit_select(self) -> u16 {
@@ -93,6 +106,7 @@ impl Index {
         Self(n as u16)
     }
 
+    /// Iterate through every valid zero-based index.
     pub fn iter_all() -> impl Iterator<Item = Self> {
         (0..16).map(|i| unsafe { Self::from_u16(i) })
     }
@@ -100,6 +114,8 @@ impl Index {
 
 impl From<Seed> for Index {
     fn from(seed: Seed) -> Self {
+        // `Seed` is guaranteed to be in 1..=16, so subtracting one preserves the
+        // `Index` invariant of 0..16.
         Self(unsafe { std::mem::transmute::<Seed, u16>(seed) } - 1)
     }
 }

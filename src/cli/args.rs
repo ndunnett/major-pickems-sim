@@ -5,12 +5,18 @@ use itertools::Itertools;
 
 use pickems::datatypes::Name;
 
+/// Report formats accepted by the `simulate --report` option.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum ReportType {
+    /// Include every report.
     All,
+    /// Basic 3-0, advancement, and 0-3 percentages.
     Basic,
+    /// Opponent strength statistics.
     Strength,
+    /// Recommended pick'em selections.
     Picks,
+    /// Simulated outcome for user-provided picks.
     Assess,
 }
 
@@ -29,7 +35,7 @@ impl ValueEnum for ReportType {
         Some(match self {
             Self::All => PossibleValue::new("all").help("includes all statistics"),
             Self::Basic => PossibleValue::new("basic")
-                .help("3-0, advancment, and 0-3 percentages for each team"),
+                .help("3-0, advancement, and 0-3 percentages for each team"),
             Self::Strength => PossibleValue::new("strength")
                 .help("relative strength of opponents faced for each team"),
             Self::Picks => PossibleValue::new("picks").help("statistically optimal picks"),
@@ -42,8 +48,10 @@ fn name_parser(s: &str) -> Result<Name, String> {
     Name::try_new(s).map_err(|e| format!("{e}"))
 }
 
+/// Additional command arguments that only apply to specific report modes.
 #[derive(Clone)]
 pub enum ExtraArgs {
+    /// Team-name picks required by the assess report.
     Assess {
         three_zero: [Name; 2],
         advancing: [Name; 6],
@@ -51,6 +59,7 @@ pub enum ExtraArgs {
     },
 }
 
+/// Parsed top-level command.
 pub enum Args {
     Simulate {
         file: PathBuf,
@@ -187,12 +196,15 @@ impl Args {
             )
     }
 
+    /// Parse process arguments into a top-level command.
     pub fn parse() -> Option<Self> {
         let matches = Self::cmd().get_matches();
 
         if let Some(sim) = matches.subcommand_matches("simulate") {
             let report_type = *sim.get_one::<ReportType>("report")?;
 
+            // `clap` has already enforced these arguments for `--report assess`;
+            // collect into fixed arrays so downstream code can rely on counts.
             let extra_args = if report_type == ReportType::Assess {
                 Some(Box::new(ExtraArgs::Assess {
                     three_zero: sim.get_many("three-zero")?.cloned().collect_array()?,

@@ -23,15 +23,19 @@ pub fn make_deterministic_rng() -> RngType {
     RngType::seed_from_u64(7_355_608)
 }
 
-/// Instance of a simulation, to parse team data and run tournament iterations.
+/// Configuration for running repeated tournament simulations.
 #[derive(Debug, Clone)]
 pub struct Simulation {
+    /// Seed-ordered team data.
     pub teams: Teams,
+    /// Standard deviation parameter for the logistic win-probability model.
     pub sigma: f32,
+    /// Number of independent tournaments to simulate.
     pub iterations: u64,
 }
 
 impl Simulation {
+    /// Construct a simulation from team data, sigma, and iteration count.
     #[must_use]
     pub const fn new(teams: Teams, sigma: f32, iterations: u64) -> Self {
         Self {
@@ -75,6 +79,8 @@ impl Simulation {
             .map_init(
                 || (fresh_ss, make_rng()),
                 |(ss, rng), _| {
+                    // Reuse the precomputed probability matrices per worker and
+                    // reset only the mutable tournament state each iteration.
                     ss.reset();
                     ss.simulate_tournament(rng);
                     let mut report = fresh_report;

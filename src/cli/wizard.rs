@@ -23,7 +23,7 @@ const BROWSE_FOOTER: [&str; 2] = [
 /// Footer content to render when in edit mode.
 const EDITOR_FOOTER: &str = "(Esc) cancel edit | (Enter) commit edit";
 
-/// Wizard to create input data, using ratatui.
+/// Interactive data-entry wizard backed by `ratatui`.
 pub struct Wizard<'a> {
     save: bool,
     cancel: bool,
@@ -216,6 +216,8 @@ impl Wizard<'_> {
 
             textarea.set_placeholder_text(placeholder);
             self.editor = Some(textarea);
+
+            // Validate immediately so an empty editor shows the correct state.
             self.validate_editor();
         }
     }
@@ -303,6 +305,8 @@ impl Wizard<'_> {
 
         let names = self.teams.iter().map(|(name, _)| name).collect::<Vec<_>>();
 
+        // `Name` equality is case-insensitive, so this catches names that only
+        // differ by case as duplicates too.
         for name_a in names.iter().unique() {
             if names.iter().filter(|&name_b| name_a == name_b).count() > 1 {
                 self.problems.push(format!("Duplicate name ({name_a})"));

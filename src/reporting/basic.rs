@@ -10,10 +10,14 @@ use crate::{
     simulation::{Simulation, SwissSystem},
 };
 
+/// Counts of terminal outcomes for one team across simulation iterations.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct BasicStats {
+    /// Number of simulations where the team advanced 3-0.
     pub three_zero: u64,
+    /// Number of simulations where the team advanced 3-1 or 3-2.
     pub advancing: u64,
+    /// Number of simulations where the team was eliminated 0-3.
     pub zero_three: u64,
 }
 
@@ -25,13 +29,15 @@ impl AddAssign for BasicStats {
     }
 }
 
-/// Report for basic statistic gathering; 3-0, advancment, and 0-3 percentages for each team.
+/// Report for 3-0, advancement, and 0-3 percentages for each team.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct BasicReport {
+    /// Per-team outcome counts, indexed by initial seed index.
     pub stats: [BasicStats; 16],
 }
 
 impl BasicReport {
+    /// Convert raw counts into probabilities for each terminal outcome.
     pub(super) fn calculate_probabilities(&self, sim: &Simulation) -> [[f32; 16]; 3] {
         let n = sim.iterations as f32;
         let [mut three_zero, mut advancing, mut zero_three] = [[0.0; 16]; 3];

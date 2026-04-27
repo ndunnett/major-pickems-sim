@@ -8,19 +8,27 @@ use crate::{
     simulation::{Simulation, SwissSystem},
 };
 
-/// Report for selecting optimal picks from basic statistics.
+/// Report for estimating how often a concrete pick set earns enough stars.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct AssessReport {
+    /// Running mean of stars earned.
     pub mean: f32,
+    /// Sum of squared differences for variance calculation.
     pub ds: f32,
+    /// Number of simulations with at least five stars.
     pub success: u64,
+    /// Number of simulated tournaments assessed.
     pub n: u64,
+    /// Teams selected as 3-0 picks.
     pub three_zero_picks: Set,
+    /// Teams selected as 3-1/3-2 advancement picks.
     pub advancing_picks: Set,
+    /// Teams selected as 0-3 picks.
     pub zero_three_picks: Set,
 }
 
 impl AssessReport {
+    /// Construct an assessment report from selected team indices.
     pub fn new<
         I1: IntoIterator<Item = Index>,
         I2: IntoIterator<Item = Index>,
@@ -41,6 +49,7 @@ impl AssessReport {
         }
     }
 
+    /// Resolve CLI team-name picks into simulation indices.
     pub fn try_from_args(
         teams: &Teams,
         three_zero_str: &[Name; 2],
@@ -123,10 +132,11 @@ impl Sum for AssessReport {
 
 impl Report for AssessReport {
     fn update(&mut self, ss: &SwissSystem) {
-        // Update count
+        // Update count before Welford's mean/variance step.
         self.n += 1;
 
-        // Check results
+        // Count stars under the current pick'em rules represented by this
+        // report: exact 3-0, non-3-0 advancement, and exact 0-3.
         let stars = {
             self.three_zero_picks
                 .iter()
@@ -146,7 +156,7 @@ impl Report for AssessReport {
                     .count()
         };
 
-        // Update stats
+        // Update success count and running distribution of stars.
         if stars >= 5 {
             self.success += 1;
         }

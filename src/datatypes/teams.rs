@@ -7,22 +7,26 @@ use serde::{Deserialize, Serialize};
 
 use crate::datatypes::{Index, Name, Rating, Seed, Set};
 
-/// Struct to store team data.
+/// Input data for a single team.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Team {
+    /// Initial one-based tournament seed.
     pub seed: Seed,
+    /// Rating points used by the simulation model.
     pub rating: Rating,
 }
 
-/// Struct to store a collection of teams.
+/// TOML-friendly collection of teams keyed by team name.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Map(BTreeMap<Name, Team>);
 
 impl Map {
+    /// Parse a team map from a TOML file.
     pub fn parse_toml(filepath: PathBuf) -> anyhow::Result<Self> {
         Ok(toml::from_str::<Self>(&read_to_string(filepath)?)?)
     }
 
+    /// Write a team map to a TOML file.
     pub fn write_toml(&self, filepath: PathBuf) -> anyhow::Result<()> {
         let contents = toml::to_string_pretty(self)?;
 
@@ -43,10 +47,14 @@ impl<I: IntoIterator<Item = (Name, Team)>> From<I> for Map {
     }
 }
 
-/// Struct to efficiently store a collection of teams as a struct of arrays.
+/// Seed-ordered team data optimized for simulation.
+///
+/// The arrays are indexed by [`Index`], so element `0` corresponds to seed `1`.
 #[derive(Debug, Clone)]
 pub struct Teams {
+    /// Team names sorted by ascending initial seed.
     pub names: [Name; 16],
+    /// Team ratings sorted by ascending initial seed.
     pub ratings: [Rating; 16],
 }
 
@@ -66,10 +74,12 @@ impl Teams {
         }
     }
 
+    /// Parse, validate, and convert TOML input into seed-ordered team arrays.
     pub fn parse_toml(filepath: PathBuf) -> anyhow::Result<Self> {
         Self::try_from(Map::parse_toml(filepath)?)
     }
 
+    /// Convert seed-ordered team arrays back into TOML input format.
     pub fn write_toml(&self, filepath: PathBuf) -> anyhow::Result<()> {
         let map = Map::from(self);
         map.write_toml(filepath)
@@ -80,6 +90,8 @@ impl TryFrom<Map> for Teams {
     type Error = anyhow::Error;
 
     fn try_from(teams_map: Map) -> Result<Self, Self::Error> {
+        // Convert seeds to a bitset first so we can cheaply detect missing
+        // seeds before doing the more expensive duplicate check.
         let set = teams_map
             .0
             .values()
@@ -93,6 +105,8 @@ impl TryFrom<Map> for Teams {
                 }
             }
 
+            // If no seed is missing but the set is still not complete, at least
+            // one seed was duplicated.
             let indices = teams_map
                 .0
                 .values()
@@ -113,6 +127,8 @@ impl TryFrom<Map> for Teams {
             ));
         }
 
+        // Sorting here establishes the central invariant for `Teams`: every
+        // parallel array is indexed by zero-based initial seed.
         let teams = teams_map
             .0
             .into_iter()

@@ -12,13 +12,15 @@ pub use basic::BasicReport;
 pub use picks::PicksReport;
 pub use strength::StrengthReport;
 
-/// Interface for a generic report type to gather information from simulation iterations and formulate a report.
+/// Interface for aggregating completed tournament iterations into displayable output.
 pub trait Report: Copy + Send + Sum + Sync {
+    /// Update this report with one completed Swiss-system tournament.
     fn update(&mut self, ss: &SwissSystem);
+    /// Format the aggregated report for the command-line interface.
     fn format(&self, sim: &Simulation) -> String;
 }
 
-/// Report which composes all other reports.
+/// Report that composes the main report types into one output.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ReportAll {
     pub basic: BasicReport,
@@ -60,7 +62,7 @@ impl Report for ReportAll {
     }
 }
 
-/// Report type to use for benchmarking without optimising away simulation.
+/// Report type to use for benchmarking without optimising away simulation work.
 #[derive(Debug, Clone, Copy)]
 pub struct NullReport;
 

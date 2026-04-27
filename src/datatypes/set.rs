@@ -2,28 +2,30 @@ use std::simd::Simd;
 
 use crate::datatypes::Index;
 
-/// High performance set, specifically for teams.
+/// Compact set of team indices backed by a 16-bit bitset.
+///
+/// This type is specialized for the simulator's fixed 16-team stages.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Set {
     data: u16,
 }
 
 impl Set {
-    /// Constructs a new empty set.
+    /// Construct a new empty set.
     #[inline]
     #[must_use]
     pub const fn new() -> Self {
         Self { data: 0 }
     }
 
-    /// Constructs a new full set.
+    /// Construct a set containing all 16 valid indices.
     #[inline]
     #[must_use]
     pub const fn full() -> Self {
         Self { data: u16::MAX }
     }
 
-    /// Inserts index into the set.
+    /// Insert an index into the set, returning whether the set changed.
     #[inline]
     pub const fn insert(&mut self, index: Index) -> bool {
         let old = self.data;
@@ -31,7 +33,7 @@ impl Set {
         old != self.data
     }
 
-    /// Removes index from the set.
+    /// Remove an index from the set, returning whether the set changed.
     #[inline]
     pub const fn remove(&mut self, index: Index) -> bool {
         let old = self.data;
@@ -39,28 +41,28 @@ impl Set {
         old != self.data
     }
 
-    /// Tests if the set contains index.
+    /// Test whether the set contains an index.
     #[inline]
     #[must_use]
     pub const fn contains(self, index: Index) -> bool {
         (self.data & index.bit_select()) != 0
     }
 
-    /// Tests if the set is empty.
+    /// Test whether the set is empty.
     #[inline]
     #[must_use]
     pub const fn is_empty(self) -> bool {
         self.data == 0
     }
 
-    /// Returns an iterator of `Index`s (copied) contained within the set.
+    /// Return an iterator of contained indices in ascending order.
     #[inline]
     #[must_use]
     pub const fn iter(self) -> SetIter {
         SetIter { set: self }
     }
 
-    // Constructs a new SIMD vector with all elements set to the current state of the set.
+    /// Construct a SIMD vector with every lane set to the raw bitset value.
     #[inline]
     #[must_use]
     pub const fn splat<const N: usize>(self) -> Simd<u16, N> {
@@ -92,7 +94,7 @@ impl FromIterator<Index> for Set {
     }
 }
 
-/// Struct to iterate `Index`s contained within a `TeamSet`.
+/// Iterator over indices contained in a [`Set`].
 pub struct SetIter {
     set: Set,
 }
@@ -105,6 +107,8 @@ impl Iterator for SetIter {
         if self.set.is_empty() {
             None
         } else {
+            // `trailing_zeros` is always less than 16 here because every stored
+            // bit outside the low 16 bits is impossible for `u16`.
             let next = unsafe { Index::from_u32(self.set.data.trailing_zeros()) };
             self.set.data &= self.set.data - 1;
             Some(next)
@@ -118,65 +122,24 @@ mod tests {
 
     use crate::datatypes::Index;
 
+    macro_rules! i {
+        ($n:expr) => {
+            Index::new::<$n>()
+        };
+    }
+
     /// Compares functionality to `std::collections::HashSet`.
     #[test]
     fn compare_std_hashset() {
         use std::collections::HashSet;
 
-        let samples = unsafe {
-            [
-                vec![
-                    Index::from_u16(0),
-                    Index::from_u16(1),
-                    Index::from_u16(2),
-                    Index::from_u16(3),
-                ],
-                vec![
-                    Index::from_u16(15),
-                    Index::from_u16(14),
-                    Index::from_u16(13),
-                    Index::from_u16(12),
-                ],
-                vec![
-                    Index::from_u16(0),
-                    Index::from_u16(2),
-                    Index::from_u16(4),
-                    Index::from_u16(6),
-                    Index::from_u16(8),
-                    Index::from_u16(10),
-                    Index::from_u16(12),
-                    Index::from_u16(14),
-                ],
-                vec![
-                    Index::from_u16(1),
-                    Index::from_u16(3),
-                    Index::from_u16(5),
-                    Index::from_u16(7),
-                    Index::from_u16(9),
-                    Index::from_u16(11),
-                    Index::from_u16(13),
-                    Index::from_u16(15),
-                ],
-                vec![
-                    Index::from_u16(0),
-                    Index::from_u16(1),
-                    Index::from_u16(2),
-                    Index::from_u16(3),
-                    Index::from_u16(4),
-                    Index::from_u16(5),
-                    Index::from_u16(6),
-                    Index::from_u16(7),
-                    Index::from_u16(8),
-                    Index::from_u16(9),
-                    Index::from_u16(10),
-                    Index::from_u16(11),
-                    Index::from_u16(12),
-                    Index::from_u16(13),
-                    Index::from_u16(14),
-                    Index::from_u16(15),
-                ],
-            ]
-        };
+        let samples = [
+            vec![i!(0), i!(1), i!(2), i!(3)],
+            vec![i!(15), i!(14), i!(13), i!(12)],
+            vec![i!(0), i!(2), i!(4), i!(6), i!(8), i!(10), i!(12), i!(14)],
+            vec![i!(1), i!(3), i!(5), i!(7), i!(9), i!(11), i!(13), i!(15)],
+            Index::iter_all().collect(),
+        ];
 
         for sample in samples {
             let mut reference = HashSet::new();

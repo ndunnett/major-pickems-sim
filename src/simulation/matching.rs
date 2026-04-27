@@ -5,7 +5,7 @@ use crate::{
     simulation::SwissSystem,
 };
 
-/// Different representations of seeded matchups.
+/// Backing state for generated matchups in the current tournament round.
 #[derive(Debug)]
 enum Matchups {
     Range(std::array::IntoIter<(Index, Index), 8>),
@@ -21,7 +21,7 @@ enum Matchups {
     },
 }
 
-/// Struct to iterate seeded matchups.
+/// Iterator that yields Swiss-system matchups for the current round.
 #[derive(Debug)]
 pub struct MatchupGenerator {
     matchups: Matchups,
@@ -75,7 +75,9 @@ impl MatchupGenerator {
     ];
 
     /// Pre-determined matchups for second round.
-    /// Highest vs. lowest mid-stage seed for each group, groups being 0-7 and 8-15
+    ///
+    /// Highest vs. lowest mid-stage seed for each group, groups being 0-7 and
+    /// 8-15.
     const SECOND_ROUND_MATCHUPS: [(usize, usize); 8] = [
         (0, 7),
         (1, 6),
@@ -87,6 +89,7 @@ impl MatchupGenerator {
         (11, 12),
     ];
 
+    /// Fixed first-round pairings by initial seed index.
     const FIRST_ROUND_MATCHUPS: [(Index, Index); 8] = [
         (Index::new::<0>(), Index::new::<8>()),
         (Index::new::<1>(), Index::new::<9>()),
@@ -98,12 +101,14 @@ impl MatchupGenerator {
         (Index::new::<7>(), Index::new::<15>()),
     ];
 
+    /// Build a matchup generator for the next round of a tournament.
     pub fn new(ss: &SwissSystem) -> Self {
         Self {
             matchups: match ss.rounds_complete {
                 // First round is matched up differently (initial seeds 1-9, 2-10, 3-11 etc.)
                 0 => Matchups::Range(Self::FIRST_ROUND_MATCHUPS.into_iter()),
-                // Second round is trivial to match
+                // Second round has two 8-team groups and no possible rematches,
+                // so the lookup table can be applied immediately.
                 1 => {
                     let teams = ss.seed_teams();
                     let mut matchups = ArrayVec::new();
@@ -126,7 +131,9 @@ impl MatchupGenerator {
         }
     }
 
-    /// Apply a matchup priority lookup table to a group and return an iterator of matchups.
+    /// Apply a matchup priority table to a record group.
+    ///
+    /// The first priority row with no rematches is returned.
     fn apply_priority<const N: usize, const M: usize>(
         opponents: &[Set],
         priority: [[(usize, usize); M]; N],
@@ -187,7 +194,9 @@ impl Iterator for MatchupGenerator {
                 } else if *team_index < teams.len() {
                     *matchup_index = 0;
 
-                    // Chunk into groups of win-loss diff.
+                    // Chunk the sorted teams into a group with the same
+                    // win-loss differential. In rounds 3-5 these valid group
+                    // sizes are 4, 6, or 8.
                     let start = *team_index;
                     let group_diff = self.diffs[teams[start].to_usize()];
                     *team_index += 1;
@@ -198,7 +207,8 @@ impl Iterator for MatchupGenerator {
                         *team_index += 1;
                     }
 
-                    // Apply matchup priority to group and extend matchups.
+                    // Apply the priority table for the group size. Each table
+                    // is ordered from most preferred to least preferred pairing.
                     match *team_index - start {
                         4 => {
                             *matchups = Self::apply_priority(

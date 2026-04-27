@@ -6,18 +6,25 @@ use crate::{
     simulation::{Simulation, SwissSystem},
 };
 
+/// Running distribution statistics for one team.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct DistributionStats {
+    /// Mean opponent rating.
     pub r_mean: f32,
+    /// Sum of squared rating differences for variance calculation.
     pub r_ds: f32,
+    /// Mean BO1 win probability against opponents faced.
     pub p_mean: f32,
+    /// Sum of squared probability differences for variance calculation.
     pub p_ds: f32,
+    /// Number of opponent observations.
     pub n: u64,
 }
 
 /// Report to record relative strength of opponents faced for each team.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct StrengthReport {
+    /// Per-team opponent strength statistics, indexed by initial seed index.
     pub stats: [DistributionStats; 16],
 }
 
@@ -35,17 +42,17 @@ impl Add for StrengthReport {
                 let nb = b.n as f32;
                 let n = na + nb;
 
-                // Combine ratings stats
+                // Merge two Welford accumulators for opponent rating stats.
                 let r_delta = a.r_mean - b.r_mean;
                 a.r_mean = nb.mul_add(b.r_mean, na * a.r_mean) / n;
                 a.r_ds += (r_delta * r_delta).mul_add(na * nb / n, b.r_ds);
 
-                // Combine probability stats
+                // Merge two Welford accumulators for win-probability stats.
                 let p_delta = a.p_mean - b.p_mean;
                 a.p_mean = nb.mul_add(b.p_mean, na * a.p_mean) / n;
                 a.p_ds += (p_delta * p_delta).mul_add(na * nb / n, b.p_ds);
 
-                // Combine count
+                // Combine count after both means use the previous counts.
                 a.n += b.n;
             }
         }
@@ -64,17 +71,19 @@ impl Report for StrengthReport {
     fn update(&mut self, ss: &SwissSystem) {
         for (seed, result) in self.stats.iter_mut().enumerate() {
             for opponent in ss.opponents[seed].iter() {
-                // Update count
+                // Welford's online algorithm keeps variance stable while
+                // accumulating many parallel simulation samples.
                 result.n += 1;
 
-                // Update ratings stats
+                // Update rating distribution.
                 let r = ss.ratings[opponent.to_usize()].to_f32();
                 let r_delta1 = r - result.r_mean;
                 result.r_mean += r_delta1 / result.n as f32;
                 let r_delta2 = r - result.r_mean;
                 result.r_ds = r_delta1.mul_add(r_delta2, result.r_ds);
 
-                // Update probability stats
+                // Update distribution of this team's BO1 win probabilities
+                // against the opponents it actually drew.
                 let p = ss.probabilities_bo1[seed][opponent.to_usize()] * 100.0;
                 let p_delta1 = p - result.p_mean;
                 result.p_mean += p_delta1 / result.n as f32;
@@ -97,7 +106,7 @@ impl Report for StrengthReport {
             .sum::<f32>()
             / 16.0;
 
-        // Probability calculation
+        // Probability calculation.
         let mut results = vec![];
 
         for (seed, stats) in self.stats.iter().enumerate() {
@@ -110,7 +119,7 @@ impl Report for StrengthReport {
             results.push((name, mean, std_deviation));
         }
 
-        // Sort by the mean decending
+        // Sort by the mean descending.
         results.sort_by_key(|(_, mean, _)| (*mean * -100.0) as i32);
 
         // Print table header
@@ -130,7 +139,7 @@ impl Report for StrengthReport {
             ));
         }
 
-        // Difficulty calculation
+        // Difficulty calculation.
         let mut results = vec![];
 
         for (seed, stats) in self.stats.iter().enumerate() {
@@ -143,7 +152,7 @@ impl Report for StrengthReport {
             results.push((name, mean, std_deviation));
         }
 
-        // Sort by the mean decending
+        // Sort by the mean descending.
         results.sort_by_key(|(_, mean, _)| (*mean * -100.0) as i32);
 
         // Print table header
