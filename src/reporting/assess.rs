@@ -1,10 +1,11 @@
-use std::{iter::Sum, ops::Add, path::PathBuf};
+use std::{iter::Sum, ops::Add};
 
 use anyhow::anyhow;
 
 use crate::{
-    data::{TeamSeed, parse_toml},
-    simulate::{Simulation, SwissSystem, TeamSet, reporting::Report},
+    reporting::Report,
+    simulation::{Simulation, SwissSystem},
+    datatypes::{Seed, Set, Teams},
 };
 
 /// Report for selecting optimal picks from basic statistics.
@@ -14,16 +15,16 @@ pub struct AssessReport {
     pub ds: f32,
     pub success: u64,
     pub n: u64,
-    pub three_zero_picks: TeamSet,
-    pub advancing_picks: TeamSet,
-    pub zero_three_picks: TeamSet,
+    pub three_zero_picks: Set,
+    pub advancing_picks: Set,
+    pub zero_three_picks: Set,
 }
 
 impl AssessReport {
     pub fn new<
-        I1: IntoIterator<Item = TeamSeed>,
-        I2: IntoIterator<Item = TeamSeed>,
-        I3: IntoIterator<Item = TeamSeed>,
+        I1: IntoIterator<Item = Seed>,
+        I2: IntoIterator<Item = Seed>,
+        I3: IntoIterator<Item = Seed>,
     >(
         three_zero_picks: I1,
         advanced_picks: I2,
@@ -41,44 +42,45 @@ impl AssessReport {
     }
 
     pub fn try_from_args(
-        file: PathBuf,
+        teams: &Teams,
         three_zero_str: &[String; 2],
         advancing_str: &[String; 6],
         zero_three_str: &[String; 2],
     ) -> anyhow::Result<Self> {
-        let (names, _) = parse_toml(file)?;
-
         let mut three_zero_picks = Vec::new();
         let mut advancing_picks = Vec::new();
         let mut zero_three_picks = Vec::new();
 
         for s in three_zero_str {
             three_zero_picks.push(
-                names
+                teams
+                    .names
                     .iter()
                     .position(|name| name.to_lowercase() == s.to_lowercase())
                     .ok_or_else(|| anyhow!("failed to find team \"{s}\" in the input file"))?
-                    as TeamSeed,
+                    as Seed,
             );
         }
 
         for s in advancing_str {
             advancing_picks.push(
-                names
+                teams
+                    .names
                     .iter()
                     .position(|name| name.to_lowercase() == s.to_lowercase())
                     .ok_or_else(|| anyhow!("failed to find team \"{s}\" in the input file"))?
-                    as TeamSeed,
+                    as Seed,
             );
         }
 
         for s in zero_three_str {
             zero_three_picks.push(
-                names
+                teams
+                    .names
                     .iter()
                     .position(|name| name.to_lowercase() == s.to_lowercase())
                     .ok_or_else(|| anyhow!("failed to find team \"{s}\" in the input file"))?
-                    as TeamSeed,
+                    as Seed,
             );
         }
 

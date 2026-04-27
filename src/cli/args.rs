@@ -50,7 +50,7 @@ pub enum Args {
         file: PathBuf,
         sigma: f32,
         iterations: u64,
-        report: ReportType,
+        report_type: ReportType,
         extra_args: Option<Box<ExtraArgs>>,
     },
     Inspect {
@@ -169,9 +169,9 @@ impl Args {
         let matches = Self::cmd().get_matches();
 
         if let Some(sim) = matches.subcommand_matches("simulate") {
-            let report = *sim.get_one::<ReportType>("report")?;
+            let report_type = *sim.get_one::<ReportType>("report")?;
 
-            let extra_args = if report == ReportType::Assess {
+            let extra_args = if report_type == ReportType::Assess {
                 Some(Box::new(ExtraArgs::Assess {
                     three_zero: sim.get_many("three-zero")?.cloned().collect_array()?,
                     advancing: sim.get_many("advancing")?.cloned().collect_array()?,
@@ -185,7 +185,7 @@ impl Args {
                 file: sim.get_one::<PathBuf>("file")?.clone(),
                 sigma: *sim.get_one::<f32>("sigma")?,
                 iterations: *sim.get_one::<u64>("iterations")?,
-                report,
+                report_type,
                 extra_args,
             });
         } else if let Some(data) = matches.subcommand_matches("data") {

@@ -12,7 +12,7 @@ use ratatui::{
 };
 use ratatui_textarea::{Input, Key, TextArea};
 
-use crate::data::{TeamData, TeamDataMap, TeamSeed};
+use pickems::datatypes::{Map, Seed, Team};
 
 /// Footer content to render when in browse mode.
 const BROWSE_FOOTER: [&str; 2] = [
@@ -27,7 +27,7 @@ const EDITOR_FOOTER: &str = "(Esc) cancel edit | (Enter) commit edit";
 pub struct Wizard<'a> {
     save: bool,
     cancel: bool,
-    teams: Vec<(String, TeamData)>,
+    teams: Vec<(String, Team)>,
     problems: Vec<String>,
     state: TableState,
     editor: Option<TextArea<'a>>,
@@ -35,7 +35,7 @@ pub struct Wizard<'a> {
 
 impl Wizard<'_> {
     /// Run an instance of the wizard to completion, handling ratatui and returning a vector of teams.
-    pub fn run() -> anyhow::Result<Option<TeamDataMap>> {
+    pub fn run() -> anyhow::Result<Option<Map>> {
         let mut wizard = Self {
             save: false,
             cancel: false,
@@ -62,7 +62,7 @@ impl Wizard<'_> {
         ratatui::restore();
 
         if wizard.save {
-            Ok(Some(TeamDataMap::from(wizard.teams)))
+            Ok(Some(Map::from(wizard.teams)))
         } else {
             Ok(None)
         }
@@ -137,14 +137,14 @@ impl Wizard<'_> {
     }
 
     /// Attempt to parse current editor contents into a valid team.
-    fn parse_edit(&self) -> anyhow::Result<(String, TeamData)> {
+    fn parse_edit(&self) -> anyhow::Result<(String, Team)> {
         if let Some((row, col)) = self.state.selected_cell() {
             let (mut name, mut data) = self.teams[row].clone();
 
             if let Some(editor) = &self.editor {
                 match col {
                     0 => {
-                        let seed = editor.lines()[0].parse::<TeamSeed>()?;
+                        let seed = editor.lines()[0].parse::<Seed>()?;
 
                         if (1..=16).contains(&seed) {
                             data.seed = seed;
@@ -258,7 +258,7 @@ impl Wizard<'_> {
             .unwrap_or_else(|| seeds.last().map_or(1, |seed| seed + 1));
 
         self.teams
-            .push((format!("Team {seed}"), TeamData { seed, rating: 0 }));
+            .push((format!("Team {seed}"), Team { seed, rating: 0 }));
 
         self.on_teams_change();
 

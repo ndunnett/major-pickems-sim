@@ -7,16 +7,14 @@ use std::{
 use itertools::Itertools;
 
 use crate::{
-    data::TeamSeed,
-    simulate::{
-        Simulation, SwissSystem,
-        reporting::{AssessReport, BasicReport, Report},
-    },
+    reporting::{AssessReport, BasicReport, Report},
+    simulation::{Simulation, SwissSystem},
+    datatypes::Seed,
 };
 
 #[derive(Debug, Clone, Copy)]
 struct Candidate {
-    seed: TeamSeed,
+    seed: Seed,
     probability: f32,
 }
 
@@ -81,7 +79,7 @@ impl Report for PicksReport {
                 .iter()
                 .enumerate()
                 .map(|(i, p)| Candidate {
-                    seed: i as TeamSeed,
+                    seed: i as Seed,
                     probability: *p,
                 })
                 .collect::<BinaryHeap<_>>()
@@ -177,7 +175,7 @@ impl Report for PicksReport {
         let format_picks = |out: &mut Vec<String>, picks: &HashSet<Candidate>| {
             for (i, (name, p)) in picks
                 .iter()
-                .map(|i| (&sim.names[i.seed as usize], i.probability * 100.0))
+                .map(|i| (&sim.teams.names[i.seed as usize], i.probability * 100.0))
                 .sorted_by(|(_, a), (_, b)| b.total_cmp(a))
                 .enumerate()
             {

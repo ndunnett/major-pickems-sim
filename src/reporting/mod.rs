@@ -1,6 +1,6 @@
 use std::{iter::Sum, ops::Add};
 
-use crate::simulate::{Simulation, SwissSystem};
+use crate::simulation::{Simulation, SwissSystem};
 
 mod assess;
 mod basic;

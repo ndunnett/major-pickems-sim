@@ -1,29 +1,31 @@
 use std::simd::Simd;
 
-use crate::data::TeamSeed;
+use crate::datatypes::Seed;
 
 /// High performance set, specifically for teams.
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub struct TeamSet {
+pub struct Set {
     data: u16,
 }
 
-impl TeamSet {
+impl Set {
     /// Constructs a new empty set.
     #[inline]
+    #[must_use]
     pub const fn new() -> Self {
         Self { data: 0 }
     }
 
     /// Constructs a new full set.
     #[inline]
+    #[must_use]
     pub const fn full() -> Self {
         Self { data: u16::MAX }
     }
 
     /// Inserts index into the set.
     #[inline]
-    pub const fn insert(&mut self, index: TeamSeed) -> bool {
+    pub const fn insert(&mut self, index: Seed) -> bool {
         let old = self.data;
         self.data |= 1 << index;
         old != self.data
@@ -31,7 +33,7 @@ impl TeamSet {
 
     /// Removes index from the set.
     #[inline]
-    pub const fn remove(&mut self, index: TeamSeed) -> bool {
+    pub const fn remove(&mut self, index: Seed) -> bool {
         let old = self.data;
         self.data &= !(1 << index);
         old != self.data
@@ -39,43 +41,47 @@ impl TeamSet {
 
     /// Tests if the set contains index.
     #[inline]
-    pub const fn contains(self, index: TeamSeed) -> bool {
+    #[must_use]
+    pub const fn contains(self, index: Seed) -> bool {
         (self.data & (1 << index)) != 0
     }
 
     /// Tests if the set is empty.
     #[inline]
+    #[must_use]
     pub const fn is_empty(self) -> bool {
         self.data == 0
     }
 
-    /// Returns an iterator of `TeamSeed`s (copied) contained within the set.
+    /// Returns an iterator of `Seed`s (copied) contained within the set.
     #[inline]
-    pub const fn iter(self) -> TeamSetIter {
-        TeamSetIter { set: self }
+    #[must_use]
+    pub const fn iter(self) -> SetIter {
+        SetIter { set: self }
     }
 
     // Constructs a new SIMD vector with all elements set to the current state of the set.
     #[inline]
+    #[must_use]
     pub const fn splat<const N: usize>(self) -> Simd<u16, N> {
         Simd::splat(self.data)
     }
 }
 
-impl Default for TeamSet {
+impl Default for Set {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl std::fmt::Debug for TeamSet {
+impl std::fmt::Debug for Set {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_set().entries(self.iter()).finish()
     }
 }
 
-impl FromIterator<TeamSeed> for TeamSet {
-    fn from_iter<I: IntoIterator<Item = TeamSeed>>(seeds: I) -> Self {
+impl FromIterator<Seed> for Set {
+    fn from_iter<I: IntoIterator<Item = Seed>>(seeds: I) -> Self {
         let mut set = Self::new();
 
         for seed in seeds {
@@ -86,20 +92,20 @@ impl FromIterator<TeamSeed> for TeamSet {
     }
 }
 
-/// Struct to iterate `TeamSeed`s contained within a `TeamSet`.
-pub struct TeamSetIter {
-    set: TeamSet,
+/// Struct to iterate `Seed`s contained within a `TeamSet`.
+pub struct SetIter {
+    set: Set,
 }
 
-impl Iterator for TeamSetIter {
-    type Item = TeamSeed;
+impl Iterator for SetIter {
+    type Item = Seed;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         if self.set.is_empty() {
             None
         } else {
-            let next = self.set.data.trailing_zeros() as TeamSeed;
+            let next = self.set.data.trailing_zeros() as Seed;
             self.set.data &= self.set.data - 1;
             Some(next)
         }
@@ -125,7 +131,7 @@ mod tests {
 
         for sample in samples {
             let mut reference = HashSet::new();
-            let mut set = TeamSet::new();
+            let mut set = Set::new();
 
             assert_eq!(set.is_empty(), reference.is_empty());
 

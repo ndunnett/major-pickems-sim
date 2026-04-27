@@ -5,7 +5,10 @@ use std::{
 
 use itertools::Itertools;
 
-use crate::simulate::{Simulation, SwissSystem, reporting::Report};
+use crate::{
+    reporting::Report,
+    simulation::{Simulation, SwissSystem},
+};
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct BasicStats {
@@ -92,6 +95,7 @@ impl Report for BasicReport {
 
             // Sort results from highest to lowest.
             let sorted_results = sim
+                .teams
                 .names
                 .iter()
                 .zip(probabilities[index])

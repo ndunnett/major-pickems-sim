@@ -1,10 +1,11 @@
 use criterion::{Criterion, criterion_group, criterion_main};
-use pickems::{NullReport, Simulation};
+
+use pickems::{reporting::NullReport, simulation::Simulation};
 
 fn bench(c: &mut Criterion) {
-    let sim = Simulation::dummy(100_000);
+    let sim = Simulation::dummy(1_000_000);
     let mut group = c.benchmark_group("Simulation");
-    group.sample_size(10);
+    group.sample_size(100);
     group.bench_function("run", |b| b.iter(|| sim.clone().run(NullReport)));
     group.finish();
 }

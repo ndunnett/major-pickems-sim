@@ -3,21 +3,21 @@ use std::{iter::Zip, ops::Range};
 use arrayvec::ArrayVec;
 
 use crate::{
-    data::TeamSeed,
-    simulate::{SwissSystem, TeamSet},
+    simulation::SwissSystem,
+    datatypes::{Seed, Set},
 };
 
 /// Different representations of seeded matchups.
 #[derive(Debug)]
 enum Matchups {
-    Range(Zip<Range<TeamSeed>, Range<TeamSeed>>),
+    Range(Zip<Range<Seed>, Range<Seed>>),
     Vec {
-        matchups: ArrayVec<(TeamSeed, TeamSeed), 8>,
+        matchups: ArrayVec<(Seed, Seed), 8>,
         index: usize,
     },
     Iterative {
-        teams: ArrayVec<TeamSeed, 16>,
-        matchups: ArrayVec<(TeamSeed, TeamSeed), 8>,
+        teams: ArrayVec<Seed, 16>,
+        matchups: ArrayVec<(Seed, Seed), 8>,
         team_index: usize,
         matchup_index: usize,
     },
@@ -27,7 +27,7 @@ enum Matchups {
 #[derive(Debug)]
 pub struct MatchupGenerator {
     matchups: Matchups,
-    opponents: [TeamSet; 16],
+    opponents: [Set; 16],
     diffs: [i8; 16],
 }
 
@@ -119,10 +119,10 @@ impl MatchupGenerator {
 
     /// Apply a matchup priority lookup table to a group and return an iterator of matchups.
     fn apply_priority<const N: usize, const M: usize>(
-        opponents: &[TeamSet],
+        opponents: &[Set],
         priority: [[(usize, usize); M]; N],
-        group: &[TeamSeed],
-    ) -> ArrayVec<(TeamSeed, TeamSeed), 8> {
+        group: &[Seed],
+    ) -> ArrayVec<(Seed, Seed), 8> {
         'outer: for indices in priority {
             for (ia, ib) in indices {
                 if opponents[group[ia] as usize].contains(group[ib]) {
@@ -144,7 +144,7 @@ impl MatchupGenerator {
 }
 
 impl Iterator for MatchupGenerator {
-    type Item = (TeamSeed, TeamSeed);
+    type Item = (Seed, Seed);
 
     /// Group team indices by record and arrange matchups, highest seed vs lowest seed.
     ///

@@ -1,22 +1,13 @@
-use std::{path::PathBuf, time::Instant};
-
-use itertools::Itertools;
 use rand::prelude::*;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
-use crate::data::parse_toml;
+use crate::{reporting::Report, datatypes::Teams};
 
 mod matching;
-mod reporting;
 mod swiss_system;
-mod team_set;
 
 use matching::MatchupGenerator;
-pub use reporting::{
-    AssessReport, BasicReport, NullReport, PicksReport, Report, ReportAll, StrengthReport,
-};
-use swiss_system::SwissSystem;
-use team_set::TeamSet;
+pub use swiss_system::SwissSystem;
 
 pub type RngType = rand_chacha::ChaCha8Rng;
 
@@ -35,18 +26,16 @@ pub fn make_deterministic_rng() -> RngType {
 /// Instance of a simulation, to parse team data and run tournament iterations.
 #[derive(Debug, Clone)]
 pub struct Simulation {
-    pub names: [String; 16],
-    pub ratings: [i16; 16],
+    pub teams: Teams,
     pub sigma: f32,
     pub iterations: u64,
 }
 
 impl Simulation {
     #[must_use]
-    pub const fn new(names: [String; 16], ratings: [i16; 16], sigma: f32, iterations: u64) -> Self {
+    pub const fn new(teams: Teams, sigma: f32, iterations: u64) -> Self {
         Self {
-            names,
-            ratings,
+            teams,
             sigma,
             iterations,
         }
@@ -56,11 +45,7 @@ impl Simulation {
     #[must_use]
     pub fn dummy(iterations: u64) -> Self {
         Self {
-            names: (0..16)
-                .map(|i| format!("Team {}", i + 1))
-                .collect_array()
-                .unwrap(),
-            ratings: (0..16).map(|i| 2000 - 50 * i).collect_array().unwrap(),
+            teams: Teams::dummy(),
             sigma: 800.0,
             iterations,
         }
@@ -69,7 +54,7 @@ impl Simulation {
     /// Run single-threaded bench test for profiling/benchmarking purposes.
     pub fn bench_test<R: Report>(iterations: u64, mut report: R) -> R {
         let sim = Self::dummy(iterations);
-        let fresh_ss = SwissSystem::new(sim.ratings, sim.sigma);
+        let fresh_ss = SwissSystem::new(sim.teams.ratings, sim.sigma);
         let mut rng = make_deterministic_rng();
 
         for _ in 0..iterations {
@@ -83,7 +68,7 @@ impl Simulation {
 
     /// Run a tournament simulation to completion and return a report.
     pub fn run<R: Report>(&self, fresh_report: R) -> R {
-        let fresh_ss = SwissSystem::new(self.ratings, self.sigma);
+        let fresh_ss = SwissSystem::new(self.teams.ratings, self.sigma);
 
         (0..self.iterations)
             .into_par_iter()
@@ -101,42 +86,11 @@ impl Simulation {
     }
 }
 
-/// Run a tournament simulation and print the report.
-pub fn simulate<R: Report>(
-    file: PathBuf,
-    sigma: f32,
-    iterations: u64,
-    report: R,
-) -> anyhow::Result<()> {
-    let now = Instant::now();
-    let (names, ratings) = parse_toml(file)?;
-    let sim = Simulation::new(names, ratings, sigma, iterations);
-    let report = sim.run(report);
-
-    // Format number of iterations into a string, with thousands separated by commas.
-    let formatted_iterations = sim
-        .iterations
-        .to_string()
-        .as_bytes()
-        .rchunks(3)
-        .rev()
-        .map(str::from_utf8)
-        .collect::<Result<Vec<_>, _>>()
-        .unwrap()
-        .join(",");
-
-    println!(
-        "RESULTS FROM {formatted_iterations} TOURNAMENT SIMULATIONS\n{}\n\nRun time: {} seconds",
-        report.format(&sim),
-        now.elapsed().as_millis() as f32 / 1000.0
-    );
-
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use crate::reporting::BasicReport;
 
     /// Quick sanity test to check that things are generally working.
     #[test]

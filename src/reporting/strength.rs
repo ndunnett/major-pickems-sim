@@ -1,6 +1,9 @@
 use std::{iter::Sum, ops::Add};
 
-use crate::simulate::{Simulation, SwissSystem, reporting::Report};
+use crate::{
+    reporting::Report,
+    simulation::{Simulation, SwissSystem},
+};
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct DistributionStats {
@@ -84,14 +87,21 @@ impl Report for StrengthReport {
         let mut out = Vec::new();
 
         // Get mean rating of teams
-        let baseline = sim.ratings.iter().copied().map(f32::from).sum::<f32>() / 16.0;
+        let baseline = sim
+            .teams
+            .ratings
+            .iter()
+            .copied()
+            .map(f32::from)
+            .sum::<f32>()
+            / 16.0;
 
         // Probability calculation
         let mut results = vec![];
 
         for (seed, stats) in self.stats.iter().enumerate() {
             let n = if stats.n > 0 { stats.n as f32 } else { 1.0 };
-            let name = &sim.names[seed];
+            let name = &sim.teams.names[seed];
             let mean = stats.p_mean;
             let variance = stats.p_ds / n;
             let std_deviation = variance.sqrt();
@@ -124,7 +134,7 @@ impl Report for StrengthReport {
 
         for (seed, stats) in self.stats.iter().enumerate() {
             let n = if stats.n > 0 { stats.n as f32 } else { 1.0 };
-            let name = &sim.names[seed];
+            let name = &sim.teams.names[seed];
             let mean = (stats.r_mean - baseline) / baseline * 100.0;
             let variance = stats.r_ds / n;
             let std_deviation = variance.sqrt() / baseline * 100.0;

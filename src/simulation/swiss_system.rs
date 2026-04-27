@@ -5,22 +5,22 @@ use rand::prelude::*;
 use std::simd::prelude::*;
 
 use crate::{
-    data::TeamSeed,
-    simulate::{MatchupGenerator, RngType, TeamSet},
+    simulation::{MatchupGenerator, RngType},
+    datatypes::{Seed, Set, Rating},
 };
 
 /// Instance of a single swiss system iteration.
 #[derive(Debug, Clone, Copy)]
 pub struct SwissSystem {
-    pub(super) wins: [u8; 16],
-    pub(super) losses: [u8; 16],
-    pub(super) diffs: [i8; 16],
-    pub(super) opponents: [TeamSet; 16],
-    pub(super) probabilities_bo1: [[f32; 16]; 16],
-    pub(super) probabilities_bo3: [[f32; 16]; 16],
-    pub(super) ratings: [i16; 16],
-    pub(super) remaining: TeamSet,
-    pub(super) rounds_complete: u8,
+    pub wins: [u8; 16],
+    pub losses: [u8; 16],
+    pub diffs: [i8; 16],
+    pub opponents: [Set; 16],
+    pub probabilities_bo1: [[f32; 16]; 16],
+    pub probabilities_bo3: [[f32; 16]; 16],
+    pub ratings: [Rating; 16],
+    pub remaining: Set,
+    pub rounds_complete: u8,
 }
 
 impl SwissSystem {
@@ -37,7 +37,8 @@ impl SwissSystem {
     };
 
     #[allow(clippy::many_single_char_names)]
-    pub fn new(ratings: [i16; 16], sigma: f32) -> Self {
+    #[must_use]
+    pub fn new(ratings: [Rating; 16], sigma: f32) -> Self {
         const ONE: Simd<f32, 16> = Simd::splat(1.0);
         const TWO: Simd<f32, 16> = Simd::splat(2.0);
         let mut r = [0.0_f32; 16];
@@ -85,7 +86,7 @@ impl SwissSystem {
         let wins = [0; 16];
         let losses = [0; 16];
         let diffs = [0; 16];
-        let opponents = [TeamSet::new(); 16];
+        let opponents = [Set::new(); 16];
 
         Self {
             wins,
@@ -95,7 +96,7 @@ impl SwissSystem {
             probabilities_bo1,
             probabilities_bo3,
             ratings,
-            remaining: TeamSet::full(),
+            remaining: Set::full(),
             rounds_complete: 0,
         }
     }
@@ -106,13 +107,13 @@ impl SwissSystem {
         self.wins = [0; 16];
         self.losses = [0; 16];
         self.diffs = [0; 16];
-        self.opponents = [TeamSet::new(); 16];
-        self.remaining = TeamSet::full();
+        self.opponents = [Set::new(); 16];
+        self.remaining = Set::full();
         self.rounds_complete = 0;
     }
 
     /// Return the Buchholz difficulty score for a given team.
-    fn buchholz(&self, team: TeamSeed) -> i8 {
+    fn buchholz(&self, team: Seed) -> i8 {
         const ONE: Simd<u16, 16> = Simd::splat(1);
 
         let mask = {
@@ -130,7 +131,7 @@ impl SwissSystem {
     /// 3. Initial seeding
     ///
     /// [Rules and Regs - Mid-stage Seed Calculation](https://github.com/ValveSoftware/counter-strike_rules_and_regs/blob/main/major-supplemental-rulebook.md#Mid-Stage-Seed-Calculation)
-    pub(super) fn seed_teams(&self) -> ArrayVec<TeamSeed, 16> {
+    pub(super) fn seed_teams(&self) -> ArrayVec<Seed, 16> {
         // Bitpack seeding information into a 16 bit unsigned integer:
         // [15] [14 13 12 11 10] [9 8 7 6 5] [4 3 2 1 0]
         //  --   --------------   ---------   ----------
@@ -138,7 +139,7 @@ impl SwissSystem {
         // Spare bit    |    Buchholz difficulty   |
         //          Win-loss                 Initial seed
         const FIFTEEN: Simd<i8, 16> = Simd::splat(15);
-        let buchholz_array = std::array::from_fn(|i| self.buchholz(i as TeamSeed));
+        let buchholz_array = std::array::from_fn(|i| self.buchholz(i as Seed));
         let buchholz = (FIFTEEN - Simd::from_array(buchholz_array)).cast::<u16>();
         let diffs = (FIFTEEN - Simd::from_array(self.diffs)).cast::<u16>();
         let packed = (diffs << 10 | buchholz << 5 | Self::SEED_LANES).to_array();
@@ -147,7 +148,7 @@ impl SwissSystem {
         let mut seeding = ArrayVec::<_, 16>::new();
 
         for seed in self.remaining.iter() {
-            seeding.push(packed[seed as usize] as TeamSeed);
+            seeding.push(packed[seed as usize] as Seed);
         }
 
         seeding.sort_unstable();
@@ -161,7 +162,7 @@ impl SwissSystem {
     }
 
     /// Simulate independent match.
-    fn simulate_match(&mut self, rng: &mut RngType, seed_a: TeamSeed, seed_b: TeamSeed) {
+    fn simulate_match(&mut self, rng: &mut RngType, seed_a: Seed, seed_b: Seed) {
         let r = rng.random();
         let a = seed_a as usize;
         let b = seed_b as usize;
@@ -227,13 +228,13 @@ impl SwissSystem {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::simulate::{Simulation, make_deterministic_rng};
+    use crate::simulation::{Simulation, make_deterministic_rng};
 
     /// Regression test, will break if the seeding algorithm changes.
     #[test]
     fn regression_test() {
         let sim = Simulation::dummy(1);
-        let mut ss = SwissSystem::new(sim.ratings, sim.sigma);
+        let mut ss = SwissSystem::new(sim.teams.ratings, sim.sigma);
         ss.simulate_tournament(&mut make_deterministic_rng());
 
         assert_eq!(ss.wins, [3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 3, 1, 0, 0, 1, 1]);
