@@ -4,17 +4,17 @@ This is a basic program to simulate tournament stage outcomes for Counter-Strike
 
 Each team's [regional standings](https://github.com/ValveSoftware/counter-strike_regional_standings) global ranking points are used to approximate a win probability for each head to head match up. This is by no means an exhaustive or accurate analysis but may give insight to some teams which have higher probability of facing weaker teams to get their 3 wins, or vice versa.
 
-### Installation
+## Installation
 
-Download the binary from the latest [release](https://github.com/ndunnett/major-pickems-sim/releases), or install from source using cargo:
+Download the binary from the latest [release](https://github.com/ndunnett/major-pickems-sim/releases), or install from source using cargo with the nightly toolchain:
 
 ```shell
-cargo install major-pickems-sim
+cargo +nightly install major-pickems-sim
 ```
 
-### Command line interface
+## Command line interface
 
-#### Simulate tournament outcomes
+### Simulate tournament outcomes
 
 ```text
 Usage: pickems simulate [OPTIONS] --file <FILE>
@@ -26,7 +26,7 @@ Options:
   -h, --help                     Print help
 ```
 
-#### Use the data wizard to create an input data file
+### Use the data wizard to create an input data file
 
 ```text
 Usage: pickems data wizard --file <FILE>
@@ -36,7 +36,7 @@ Options:
   -h, --help         Print help
 ```
 
-#### Inspect input data file
+### Inspect input data file
 
 ```text
 Usage: pickems data inspect --file <FILE>
@@ -46,7 +46,7 @@ Options:
   -h, --help         Print help
 ```
 
-### TOML input data format
+## TOML input data format
 
 The input data file uses the TOML format, with a section for each team containing the initial seed and global ranking points for that team. Each data file is expected to contain exactly 16 teams.
 
@@ -56,7 +56,11 @@ seed = {integer: initial seed for tournament stage}
 rating = {integer: current global ranking points}
 ```
 
-### Latest Output: StarLadder Budapest Major 2025 - Stage 3
+## Latest Output: StarLadder Budapest Major 2025 - Stage 3
+
+```shell
+pickems simulate --file data/2025_budapest_stage_3.toml
+```
 
 ```text
 RESULTS FROM 1,000,000 TOURNAMENT SIMULATIONS
@@ -116,6 +120,10 @@ Most likely to 0-3:
 16. FURIA                  0.7%
 
 Run time: 0.093 seconds
+```
+
+```shell
+pickems simulate --file data/2025_budapest_stage_3.toml --report picks
 ```
 
 ```text
