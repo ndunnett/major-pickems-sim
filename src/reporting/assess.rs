@@ -3,9 +3,9 @@ use std::{iter::Sum, ops::Add};
 use anyhow::anyhow;
 
 use crate::{
+    datatypes::{Index, Name, Set, Teams},
     reporting::Report,
     simulation::{Simulation, SwissSystem},
-    datatypes::{Seed, Set, Teams},
 };
 
 /// Report for selecting optimal picks from basic statistics.
@@ -22,9 +22,9 @@ pub struct AssessReport {
 
 impl AssessReport {
     pub fn new<
-        I1: IntoIterator<Item = Seed>,
-        I2: IntoIterator<Item = Seed>,
-        I3: IntoIterator<Item = Seed>,
+        I1: IntoIterator<Item = Index>,
+        I2: IntoIterator<Item = Index>,
+        I3: IntoIterator<Item = Index>,
     >(
         three_zero_picks: I1,
         advanced_picks: I2,
@@ -43,45 +43,45 @@ impl AssessReport {
 
     pub fn try_from_args(
         teams: &Teams,
-        three_zero_str: &[String; 2],
-        advancing_str: &[String; 6],
-        zero_three_str: &[String; 2],
+        three_zero_str: &[Name; 2],
+        advancing_str: &[Name; 6],
+        zero_three_str: &[Name; 2],
     ) -> anyhow::Result<Self> {
         let mut three_zero_picks = Vec::new();
         let mut advancing_picks = Vec::new();
         let mut zero_three_picks = Vec::new();
 
         for s in three_zero_str {
-            three_zero_picks.push(
+            three_zero_picks.push(Index::try_new(
                 teams
                     .names
                     .iter()
-                    .position(|name| name.to_lowercase() == s.to_lowercase())
+                    .position(|name| name == s)
                     .ok_or_else(|| anyhow!("failed to find team \"{s}\" in the input file"))?
-                    as Seed,
-            );
+                    as u16,
+            )?);
         }
 
         for s in advancing_str {
-            advancing_picks.push(
+            advancing_picks.push(Index::try_new(
                 teams
                     .names
                     .iter()
-                    .position(|name| name.to_lowercase() == s.to_lowercase())
+                    .position(|name| name == s)
                     .ok_or_else(|| anyhow!("failed to find team \"{s}\" in the input file"))?
-                    as Seed,
-            );
+                    as u16,
+            )?);
         }
 
         for s in zero_three_str {
-            zero_three_picks.push(
+            zero_three_picks.push(Index::try_new(
                 teams
                     .names
                     .iter()
-                    .position(|name| name.to_lowercase() == s.to_lowercase())
+                    .position(|name| name == s)
                     .ok_or_else(|| anyhow!("failed to find team \"{s}\" in the input file"))?
-                    as Seed,
-            );
+                    as u16,
+            )?);
         }
 
         Ok(Self::new(
@@ -130,17 +130,19 @@ impl Report for AssessReport {
         let stars = {
             self.three_zero_picks
                 .iter()
-                .filter(|&pick| ss.wins[pick as usize] == 3 && ss.losses[pick as usize] == 0)
+                .filter(|&pick| ss.wins[pick.to_usize()] == 3 && ss.losses[pick.to_usize()] == 0)
                 .count()
                 + self
                     .advancing_picks
                     .iter()
-                    .filter(|&pick| ss.wins[pick as usize] == 3 && ss.losses[pick as usize] > 0)
+                    .filter(|&pick| ss.wins[pick.to_usize()] == 3 && ss.losses[pick.to_usize()] > 0)
                     .count()
                 + self
                     .zero_three_picks
                     .iter()
-                    .filter(|&pick| ss.wins[pick as usize] == 0 && ss.losses[pick as usize] == 3)
+                    .filter(|&pick| {
+                        ss.wins[pick.to_usize()] == 0 && ss.losses[pick.to_usize()] == 3
+                    })
                     .count()
         };
 

@@ -25,6 +25,7 @@ anyhow = "1.0"
 arrayvec = "0.7"
 clap = "4.6"
 itertools = "0.14"
+nutype = { version = "0.7", features = ["serde"] }
 rand = "0.10"
 rand_chacha = "0.10"
 ratatui = "0.30"

@@ -1,7 +1,7 @@
 use rand::prelude::*;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
-use crate::{reporting::Report, datatypes::Teams};
+use crate::{datatypes::Teams, reporting::Report};
 
 mod matching;
 mod swiss_system;

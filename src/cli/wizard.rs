@@ -12,7 +12,7 @@ use ratatui::{
 };
 use ratatui_textarea::{Input, Key, TextArea};
 
-use pickems::datatypes::{Map, Seed, Team};
+use pickems::datatypes::{Map, Name, Rating, Seed, Team};
 
 /// Footer content to render when in browse mode.
 const BROWSE_FOOTER: [&str; 2] = [
@@ -27,7 +27,7 @@ const EDITOR_FOOTER: &str = "(Esc) cancel edit | (Enter) commit edit";
 pub struct Wizard<'a> {
     save: bool,
     cancel: bool,
-    teams: Vec<(String, Team)>,
+    teams: Vec<(Name, Team)>,
     problems: Vec<String>,
     state: TableState,
     editor: Option<TextArea<'a>>,
@@ -45,7 +45,10 @@ impl Wizard<'_> {
             editor: None,
         };
 
-        wizard.add_new_team();
+        for _ in 0..16 {
+            wizard.add_new_team();
+        }
+
         let mut terminal = ratatui::init();
 
         while !(wizard.cancel || wizard.save) {
@@ -137,44 +140,30 @@ impl Wizard<'_> {
     }
 
     /// Attempt to parse current editor contents into a valid team.
-    fn parse_edit(&self) -> anyhow::Result<(String, Team)> {
+    fn parse_edit(&self) -> anyhow::Result<(Name, Team)> {
         if let Some((row, col)) = self.state.selected_cell() {
             let (mut name, mut data) = self.teams[row].clone();
 
             if let Some(editor) = &self.editor {
                 match col {
                     0 => {
-                        let seed = editor.lines()[0].parse::<Seed>()?;
-
-                        if (1..=16).contains(&seed) {
-                            data.seed = seed;
-                            Ok((name, data))
-                        } else {
-                            Err(anyhow!("invalid seed, must be within range 1-16"))
-                        }
+                        let seed = Seed::try_new(editor.lines()[0].parse::<u16>()?)?;
+                        data.seed = seed;
+                        Ok((name, data))
                     }
                     1 => {
-                        if self
-                            .teams
-                            .iter()
-                            .map(|(name, _)| name)
-                            .contains(&editor.lines()[0])
-                        {
+                        let new_name = Name::try_new(&editor.lines()[0])?;
+
+                        if self.teams.iter().map(|(name, _)| name).contains(&new_name) {
                             Err(anyhow!("name already exists, must be unique"))
                         } else {
-                            name.clone_from(&editor.lines()[0]);
+                            name.clone_from(&new_name);
                             Ok((name, data))
                         }
                     }
                     2 => {
-                        let rating = editor.lines()[0].parse::<i16>()?;
-
-                        if rating > 0 {
-                            data.rating = rating;
-                            Ok((name, data))
-                        } else {
-                            Err(anyhow!("rating must be positive"))
-                        }
+                        data.rating = Rating::try_new(editor.lines()[0].parse::<u16>()?)?;
+                        Ok((name, data))
                     }
                     _ => unreachable!(),
                 }
@@ -253,12 +242,13 @@ impl Wizard<'_> {
             .map(|(_, data)| data.seed)
             .collect::<Vec<_>>();
 
-        let seed = (1..=16)
-            .find(|n| !seeds.contains(n))
-            .unwrap_or_else(|| seeds.last().map_or(1, |seed| seed + 1));
+        let Some(seed) = Seed::iter_all().find(|n| !seeds.contains(n)) else {
+            return;
+        };
 
-        self.teams
-            .push((format!("Team {seed}"), Team { seed, rating: 0 }));
+        let name = Name::try_new(format!("Team {seed}")).unwrap();
+        let rating = Rating::try_new(1000).unwrap();
+        self.teams.push((name, Team { seed, rating }));
 
         self.on_teams_change();
 
@@ -300,32 +290,22 @@ impl Wizard<'_> {
             .collect::<Vec<_>>();
 
         for seed in &seeds {
-            if !(1..=16).contains(seed) {
+            if !Seed::iter_all().contains(seed) {
                 self.problems.push(format!("Invalid seed ({seed})"));
             }
         }
 
-        for i in 1..=16 {
+        for i in Seed::iter_all() {
             if seeds.iter().filter(|&&seed| seed == i).count() > 1 {
                 self.problems.push(format!("Duplicate seed ({i})"));
             }
         }
 
-        let names = self
-            .teams
-            .iter()
-            .map(|(name, _)| name.as_str())
-            .collect::<Vec<_>>();
+        let names = self.teams.iter().map(|(name, _)| name).collect::<Vec<_>>();
 
         for name_a in names.iter().unique() {
             if names.iter().filter(|&name_b| name_a == name_b).count() > 1 {
                 self.problems.push(format!("Duplicate name ({name_a})"));
-            }
-        }
-
-        for (name, data) in &self.teams {
-            if data.rating == 0 {
-                self.problems.push(format!("Rating not set ({name})"));
             }
         }
     }
@@ -424,7 +404,7 @@ impl Wizard<'_> {
         let rows = self.teams.iter().map(|(name, data)| {
             let item = [
                 format!(" {}.", data.seed),
-                name.to_owned(),
+                name.to_string(),
                 format!("{}", data.rating),
             ];
 

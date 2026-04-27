@@ -5,8 +5,8 @@ use rand::prelude::*;
 use std::simd::prelude::*;
 
 use crate::{
+    datatypes::{Index, Rating, Set},
     simulation::{MatchupGenerator, RngType},
-    datatypes::{Seed, Set, Rating},
 };
 
 /// Instance of a single swiss system iteration.
@@ -44,7 +44,7 @@ impl SwissSystem {
         let mut r = [0.0_f32; 16];
 
         for i in 0..16 {
-            r[i] = ratings[i] as f32;
+            r[i] = ratings[i].to_f32();
         }
 
         // Precalculate matrix of independent map win probabilities for all possible matchups using SIMD.
@@ -113,11 +113,11 @@ impl SwissSystem {
     }
 
     /// Return the Buchholz difficulty score for a given team.
-    fn buchholz(&self, team: Seed) -> i8 {
+    fn buchholz(&self, team: Index) -> i8 {
         const ONE: Simd<u16, 16> = Simd::splat(1);
 
         let mask = {
-            let shifted = self.opponents[team as usize].splat() >> Self::SEED_LANES;
+            let shifted = self.opponents[team.to_usize()].splat() >> Self::SEED_LANES;
             (shifted & ONE).cast::<i8>().neg()
         };
 
@@ -131,7 +131,7 @@ impl SwissSystem {
     /// 3. Initial seeding
     ///
     /// [Rules and Regs - Mid-stage Seed Calculation](https://github.com/ValveSoftware/counter-strike_rules_and_regs/blob/main/major-supplemental-rulebook.md#Mid-Stage-Seed-Calculation)
-    pub(super) fn seed_teams(&self) -> ArrayVec<Seed, 16> {
+    pub(super) fn seed_teams(&self) -> ArrayVec<Index, 16> {
         // Bitpack seeding information into a 16 bit unsigned integer:
         // [15] [14 13 12 11 10] [9 8 7 6 5] [4 3 2 1 0]
         //  --   --------------   ---------   ----------
@@ -139,16 +139,17 @@ impl SwissSystem {
         // Spare bit    |    Buchholz difficulty   |
         //          Win-loss                 Initial seed
         const FIFTEEN: Simd<i8, 16> = Simd::splat(15);
-        let buchholz_array = std::array::from_fn(|i| self.buchholz(i as Seed));
+        let buchholz_array =
+            std::array::from_fn(|i| self.buchholz(unsafe { Index::from_usize(i) }));
         let buchholz = (FIFTEEN - Simd::from_array(buchholz_array)).cast::<u16>();
         let diffs = (FIFTEEN - Simd::from_array(self.diffs)).cast::<u16>();
         let packed = (diffs << 10 | buchholz << 5 | Self::SEED_LANES).to_array();
 
         // Select only teams that remain in the tournament.
-        let mut seeding = ArrayVec::<_, 16>::new();
+        let mut seeding = ArrayVec::<u16, 16>::new();
 
         for seed in self.remaining.iter() {
-            seeding.push(packed[seed as usize] as Seed);
+            seeding.push(packed[seed.to_usize()]);
         }
 
         seeding.sort_unstable();
@@ -158,14 +159,15 @@ impl SwissSystem {
             *seed &= 0x1F;
         }
 
-        seeding
+        // `Index` is a transparent newtype of `u16` and we have ensured it doesn't violate the invariants.
+        unsafe { std::mem::transmute(seeding) }
     }
 
     /// Simulate independent match.
-    fn simulate_match(&mut self, rng: &mut RngType, seed_a: Seed, seed_b: Seed) {
+    fn simulate_match(&mut self, rng: &mut RngType, seed_a: Index, seed_b: Index) {
         let r = rng.random();
-        let a = seed_a as usize;
-        let b = seed_b as usize;
+        let a = seed_a.to_usize();
+        let b = seed_b.to_usize();
 
         // BO3 if match is for advancement/elimination.
         let is_bo3 = self.wins[a] == 2 || self.losses[a] == 2;
@@ -230,6 +232,12 @@ mod tests {
     use super::*;
     use crate::simulation::{Simulation, make_deterministic_rng};
 
+    macro_rules! i {
+        ($n:expr) => {
+            Index::new::<$n>()
+        };
+    }
+
     /// Regression test, will break if the seeding algorithm changes.
     #[test]
     fn regression_test() {
@@ -242,22 +250,22 @@ mod tests {
         assert_eq!(
             ss.opponents,
             [
-                [6, 7, 8].into_iter().collect(),
-                [2, 6, 8, 9, 11].into_iter().collect(),
-                [1, 4, 5, 10].into_iter().collect(),
-                [4, 7, 9, 11].into_iter().collect(),
-                [2, 3, 12].into_iter().collect(),
-                [2, 7, 10, 11, 13].into_iter().collect(),
-                [0, 1, 10, 14].into_iter().collect(),
-                [0, 3, 5, 8, 15].into_iter().collect(),
-                [0, 1, 7, 14, 15].into_iter().collect(),
-                [1, 3, 10, 14, 15].into_iter().collect(),
-                [2, 5, 6, 9, 13].into_iter().collect(),
-                [1, 3, 5, 12].into_iter().collect(),
-                [4, 11, 15].into_iter().collect(),
-                [5, 10, 14].into_iter().collect(),
-                [6, 8, 9, 13].into_iter().collect(),
-                [7, 8, 9, 12].into_iter().collect(),
+                [i!(6), i!(7), i!(8)].into_iter().collect(),
+                [i!(2), i!(6), i!(8), i!(9), i!(11)].into_iter().collect(),
+                [i!(1), i!(4), i!(5), i!(10)].into_iter().collect(),
+                [i!(4), i!(7), i!(9), i!(11)].into_iter().collect(),
+                [i!(2), i!(3), i!(12)].into_iter().collect(),
+                [i!(2), i!(7), i!(10), i!(11), i!(13)].into_iter().collect(),
+                [i!(0), i!(1), i!(10), i!(14)].into_iter().collect(),
+                [i!(0), i!(3), i!(5), i!(8), i!(15)].into_iter().collect(),
+                [i!(0), i!(1), i!(7), i!(14), i!(15)].into_iter().collect(),
+                [i!(1), i!(3), i!(10), i!(14), i!(15)].into_iter().collect(),
+                [i!(2), i!(5), i!(6), i!(9), i!(13)].into_iter().collect(),
+                [i!(1), i!(3), i!(5), i!(12)].into_iter().collect(),
+                [i!(4), i!(11), i!(15)].into_iter().collect(),
+                [i!(5), i!(10), i!(14)].into_iter().collect(),
+                [i!(6), i!(8), i!(9), i!(13)].into_iter().collect(),
+                [i!(7), i!(8), i!(9), i!(12)].into_iter().collect(),
             ]
         );
     }

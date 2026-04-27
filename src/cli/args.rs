@@ -3,6 +3,8 @@ use std::path::PathBuf;
 use clap::{Arg, Command, ValueEnum, builder::PossibleValue, value_parser};
 use itertools::Itertools;
 
+use pickems::datatypes::Name;
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum ReportType {
     All,
@@ -36,12 +38,16 @@ impl ValueEnum for ReportType {
     }
 }
 
+fn name_parser(s: &str) -> Result<Name, String> {
+    Name::try_new(s).map_err(|e| format!("{e}"))
+}
+
 #[derive(Clone)]
 pub enum ExtraArgs {
     Assess {
-        three_zero: [String; 2],
-        advancing: [String; 6],
-        zero_three: [String; 2],
+        three_zero: [Name; 2],
+        advancing: [Name; 6],
+        zero_three: [Name; 2],
     },
 }
 
@@ -114,7 +120,7 @@ impl Args {
                             .required_if_eq("report", "assess")
                             .num_args(2)
                             .help("3-0 picks")
-                            .value_parser(value_parser!(String)),
+                            .value_parser(name_parser),
                     )
                     .arg(
                         Arg::new("advancing")
@@ -122,7 +128,7 @@ impl Args {
                             .required_if_eq("report", "assess")
                             .num_args(6)
                             .help("3-1/3-2 picks")
-                            .value_parser(value_parser!(String)),
+                            .value_parser(name_parser),
                     )
                     .arg(
                         Arg::new("zero-three")
@@ -130,7 +136,7 @@ impl Args {
                             .required_if_eq("report", "assess")
                             .num_args(2)
                             .help("0-3 picks")
-                            .value_parser(value_parser!(String)),
+                            .value_parser(name_parser),
                     ),
             )
             .subcommand(

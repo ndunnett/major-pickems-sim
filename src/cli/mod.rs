@@ -2,9 +2,9 @@ use std::{path::PathBuf, time::Instant};
 
 use anyhow::anyhow;
 use pickems::{
+    datatypes::Teams,
     reporting::{AssessReport, BasicReport, PicksReport, Report, ReportAll, StrengthReport},
     simulation::Simulation,
-    datatypes::Teams,
 };
 
 pub mod args;

@@ -6,6 +6,6 @@ mod teams;
 
 pub use name::Name;
 pub use rating::Rating;
-pub use seed::Seed;
+pub use seed::{Index, Seed};
 pub use set::Set;
 pub use teams::{Map, Team, Teams};

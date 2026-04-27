@@ -1,6 +1,7 @@
 use std::{iter::Sum, ops::Add};
 
 use crate::{
+    datatypes::Rating,
     reporting::Report,
     simulation::{Simulation, SwissSystem},
 };
@@ -67,14 +68,14 @@ impl Report for StrengthReport {
                 result.n += 1;
 
                 // Update ratings stats
-                let r = ss.ratings[opponent as usize] as f32;
+                let r = ss.ratings[opponent.to_usize()].to_f32();
                 let r_delta1 = r - result.r_mean;
                 result.r_mean += r_delta1 / result.n as f32;
                 let r_delta2 = r - result.r_mean;
                 result.r_ds = r_delta1.mul_add(r_delta2, result.r_ds);
 
                 // Update probability stats
-                let p = ss.probabilities_bo1[seed][opponent as usize] * 100.0;
+                let p = ss.probabilities_bo1[seed][opponent.to_usize()] * 100.0;
                 let p_delta1 = p - result.p_mean;
                 result.p_mean += p_delta1 / result.n as f32;
                 let p_delta2 = p - result.p_mean;
@@ -92,7 +93,7 @@ impl Report for StrengthReport {
             .ratings
             .iter()
             .copied()
-            .map(f32::from)
+            .map(Rating::to_f32)
             .sum::<f32>()
             / 16.0;
 

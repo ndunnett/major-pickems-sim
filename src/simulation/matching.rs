@@ -1,23 +1,21 @@
-use std::{iter::Zip, ops::Range};
-
 use arrayvec::ArrayVec;
 
 use crate::{
+    datatypes::{Index, Set},
     simulation::SwissSystem,
-    datatypes::{Seed, Set},
 };
 
 /// Different representations of seeded matchups.
 #[derive(Debug)]
 enum Matchups {
-    Range(Zip<Range<Seed>, Range<Seed>>),
+    Range(std::array::IntoIter<(Index, Index), 8>),
     Vec {
-        matchups: ArrayVec<(Seed, Seed), 8>,
+        matchups: ArrayVec<(Index, Index), 8>,
         index: usize,
     },
     Iterative {
-        teams: ArrayVec<Seed, 16>,
-        matchups: ArrayVec<(Seed, Seed), 8>,
+        teams: ArrayVec<Index, 16>,
+        matchups: ArrayVec<(Index, Index), 8>,
         team_index: usize,
         matchup_index: usize,
     },
@@ -89,11 +87,22 @@ impl MatchupGenerator {
         (11, 12),
     ];
 
+    const FIRST_ROUND_MATCHUPS: [(Index, Index); 8] = [
+        (Index::new::<0>(), Index::new::<8>()),
+        (Index::new::<1>(), Index::new::<9>()),
+        (Index::new::<2>(), Index::new::<10>()),
+        (Index::new::<3>(), Index::new::<11>()),
+        (Index::new::<4>(), Index::new::<12>()),
+        (Index::new::<5>(), Index::new::<13>()),
+        (Index::new::<6>(), Index::new::<14>()),
+        (Index::new::<7>(), Index::new::<15>()),
+    ];
+
     pub fn new(ss: &SwissSystem) -> Self {
         Self {
             matchups: match ss.rounds_complete {
-                // First round is matched up differently (1-9, 2-10, 3-11 etc.)
-                0 => Matchups::Range((0..8).zip(8..16)),
+                // First round is matched up differently (initial seeds 1-9, 2-10, 3-11 etc.)
+                0 => Matchups::Range(Self::FIRST_ROUND_MATCHUPS.into_iter()),
                 // Second round is trivial to match
                 1 => {
                     let teams = ss.seed_teams();
@@ -121,11 +130,11 @@ impl MatchupGenerator {
     fn apply_priority<const N: usize, const M: usize>(
         opponents: &[Set],
         priority: [[(usize, usize); M]; N],
-        group: &[Seed],
-    ) -> ArrayVec<(Seed, Seed), 8> {
+        group: &[Index],
+    ) -> ArrayVec<(Index, Index), 8> {
         'outer: for indices in priority {
             for (ia, ib) in indices {
-                if opponents[group[ia] as usize].contains(group[ib]) {
+                if opponents[group[ia].to_usize()].contains(group[ib]) {
                     continue 'outer;
                 }
             }
@@ -144,7 +153,7 @@ impl MatchupGenerator {
 }
 
 impl Iterator for MatchupGenerator {
-    type Item = (Seed, Seed);
+    type Item = (Index, Index);
 
     /// Group team indices by record and arrange matchups, highest seed vs lowest seed.
     ///
@@ -180,11 +189,11 @@ impl Iterator for MatchupGenerator {
 
                     // Chunk into groups of win-loss diff.
                     let start = *team_index;
-                    let group_diff = self.diffs[teams[start] as usize];
+                    let group_diff = self.diffs[teams[start].to_usize()];
                     *team_index += 1;
 
                     while *team_index < teams.len()
-                        && self.diffs[teams[*team_index] as usize] == group_diff
+                        && self.diffs[teams[*team_index].to_usize()] == group_diff
                     {
                         *team_index += 1;
                     }

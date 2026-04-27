@@ -1,6 +1,6 @@
 use std::simd::Simd;
 
-use crate::datatypes::Seed;
+use crate::datatypes::Index;
 
 /// High performance set, specifically for teams.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -25,25 +25,25 @@ impl Set {
 
     /// Inserts index into the set.
     #[inline]
-    pub const fn insert(&mut self, index: Seed) -> bool {
+    pub const fn insert(&mut self, index: Index) -> bool {
         let old = self.data;
-        self.data |= 1 << index;
+        self.data |= index.bit_select();
         old != self.data
     }
 
     /// Removes index from the set.
     #[inline]
-    pub const fn remove(&mut self, index: Seed) -> bool {
+    pub const fn remove(&mut self, index: Index) -> bool {
         let old = self.data;
-        self.data &= !(1 << index);
+        self.data &= !index.bit_select();
         old != self.data
     }
 
     /// Tests if the set contains index.
     #[inline]
     #[must_use]
-    pub const fn contains(self, index: Seed) -> bool {
-        (self.data & (1 << index)) != 0
+    pub const fn contains(self, index: Index) -> bool {
+        (self.data & index.bit_select()) != 0
     }
 
     /// Tests if the set is empty.
@@ -53,7 +53,7 @@ impl Set {
         self.data == 0
     }
 
-    /// Returns an iterator of `Seed`s (copied) contained within the set.
+    /// Returns an iterator of `Index`s (copied) contained within the set.
     #[inline]
     #[must_use]
     pub const fn iter(self) -> SetIter {
@@ -80,32 +80,32 @@ impl std::fmt::Debug for Set {
     }
 }
 
-impl FromIterator<Seed> for Set {
-    fn from_iter<I: IntoIterator<Item = Seed>>(seeds: I) -> Self {
+impl FromIterator<Index> for Set {
+    fn from_iter<I: IntoIterator<Item = Index>>(indices: I) -> Self {
         let mut set = Self::new();
 
-        for seed in seeds {
-            set.insert(seed);
+        for index in indices {
+            set.insert(index);
         }
 
         set
     }
 }
 
-/// Struct to iterate `Seed`s contained within a `TeamSet`.
+/// Struct to iterate `Index`s contained within a `TeamSet`.
 pub struct SetIter {
     set: Set,
 }
 
 impl Iterator for SetIter {
-    type Item = Seed;
+    type Item = Index;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         if self.set.is_empty() {
             None
         } else {
-            let next = self.set.data.trailing_zeros() as Seed;
+            let next = unsafe { Index::from_u32(self.set.data.trailing_zeros()) };
             self.set.data &= self.set.data - 1;
             Some(next)
         }
@@ -116,18 +116,67 @@ impl Iterator for SetIter {
 mod tests {
     use super::*;
 
+    use crate::datatypes::Index;
+
     /// Compares functionality to `std::collections::HashSet`.
     #[test]
     fn compare_std_hashset() {
         use std::collections::HashSet;
 
-        let samples = [
-            vec![0, 1, 2, 3],
-            vec![15, 14, 13, 12],
-            vec![0, 2, 4, 6, 8, 10, 12, 14],
-            vec![1, 3, 5, 7, 9, 11, 13, 15],
-            vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-        ];
+        let samples = unsafe {
+            [
+                vec![
+                    Index::from_u16(0),
+                    Index::from_u16(1),
+                    Index::from_u16(2),
+                    Index::from_u16(3),
+                ],
+                vec![
+                    Index::from_u16(15),
+                    Index::from_u16(14),
+                    Index::from_u16(13),
+                    Index::from_u16(12),
+                ],
+                vec![
+                    Index::from_u16(0),
+                    Index::from_u16(2),
+                    Index::from_u16(4),
+                    Index::from_u16(6),
+                    Index::from_u16(8),
+                    Index::from_u16(10),
+                    Index::from_u16(12),
+                    Index::from_u16(14),
+                ],
+                vec![
+                    Index::from_u16(1),
+                    Index::from_u16(3),
+                    Index::from_u16(5),
+                    Index::from_u16(7),
+                    Index::from_u16(9),
+                    Index::from_u16(11),
+                    Index::from_u16(13),
+                    Index::from_u16(15),
+                ],
+                vec![
+                    Index::from_u16(0),
+                    Index::from_u16(1),
+                    Index::from_u16(2),
+                    Index::from_u16(3),
+                    Index::from_u16(4),
+                    Index::from_u16(5),
+                    Index::from_u16(6),
+                    Index::from_u16(7),
+                    Index::from_u16(8),
+                    Index::from_u16(9),
+                    Index::from_u16(10),
+                    Index::from_u16(11),
+                    Index::from_u16(12),
+                    Index::from_u16(13),
+                    Index::from_u16(14),
+                    Index::from_u16(15),
+                ],
+            ]
+        };
 
         for sample in samples {
             let mut reference = HashSet::new();
@@ -139,7 +188,7 @@ mod tests {
                 assert_eq!(set.insert(*i), reference.insert(*i));
             }
 
-            for i in 0..16 {
+            for i in (0..16).map(|n| unsafe { Index::from_u16(n) }) {
                 assert_eq!(set.contains(i), reference.contains(&i));
             }
 
@@ -150,7 +199,7 @@ mod tests {
                 assert_eq!(set.remove(*i), reference.remove(i));
             }
 
-            for i in 0..16 {
+            for i in (0..16).map(|n| unsafe { Index::from_u16(n) }) {
                 assert_eq!(set.contains(i), reference.contains(&i));
             }
 

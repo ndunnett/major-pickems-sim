@@ -7,20 +7,20 @@ use std::{
 use itertools::Itertools;
 
 use crate::{
+    datatypes::Index,
     reporting::{AssessReport, BasicReport, Report},
     simulation::{Simulation, SwissSystem},
-    datatypes::Seed,
 };
 
 #[derive(Debug, Clone, Copy)]
 struct Candidate {
-    seed: Seed,
+    index: Index,
     probability: f32,
 }
 
 impl std::hash::Hash for Candidate {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.seed.hash(state);
+        self.index.hash(state);
     }
 }
 
@@ -28,7 +28,7 @@ impl Eq for Candidate {}
 
 impl PartialEq for Candidate {
     fn eq(&self, other: &Self) -> bool {
-        self.seed == other.seed
+        self.index == other.index
     }
 }
 
@@ -79,7 +79,7 @@ impl Report for PicksReport {
                 .iter()
                 .enumerate()
                 .map(|(i, p)| Candidate {
-                    seed: i as Seed,
+                    index: unsafe { Index::from_usize(i) },
                     probability: *p,
                 })
                 .collect::<BinaryHeap<_>>()
@@ -166,16 +166,16 @@ impl Report for PicksReport {
 
         // Assess picks through simulation
         let assessment = sim.run(AssessReport::new(
-            three_zero_picks.iter().map(|c| c.seed),
-            advancing_picks.iter().map(|c| c.seed),
-            zero_three_picks.iter().map(|c| c.seed),
+            three_zero_picks.iter().map(|c| c.index),
+            advancing_picks.iter().map(|c| c.index),
+            zero_three_picks.iter().map(|c| c.index),
         ));
 
         // Format results into a string
         let format_picks = |out: &mut Vec<String>, picks: &HashSet<Candidate>| {
             for (i, (name, p)) in picks
                 .iter()
-                .map(|i| (&sim.teams.names[i.seed as usize], i.probability * 100.0))
+                .map(|i| (&sim.teams.names[i.index.to_usize()], i.probability * 100.0))
                 .sorted_by(|(_, a), (_, b)| b.total_cmp(a))
                 .enumerate()
             {
