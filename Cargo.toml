@@ -71,7 +71,7 @@ codegen-units = 256
 
 [profile.release]
 codegen-units = 1
-lto = "fat"
+lto = true
 opt-level = 3
 panic = "abort"
 strip = true
@@ -85,4 +85,13 @@ codegen-units = 256
 inherits = "release"
 strip = false
 debug = true
-rustflags = ["-C", "link-arg=-Wl,--no-rosegment"]
+rustflags = [
+    "-C",
+    "target-cpu=native",
+    "-C",
+    "link-arg=-Wl,--no-rosegment",
+    "-C",
+    "force-frame-pointers=yes",
+    "-C",
+    "symbol-mangling-version=v0",
+]
