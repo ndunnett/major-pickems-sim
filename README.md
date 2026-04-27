@@ -26,6 +26,16 @@ Options:
   -h, --help                     Print help
 ```
 
+### Update input data files from this repository
+
+```text
+Usage: pickems data update --path <path>
+
+Options:
+  -p, --path <path>  Path to the directory containing input data files
+  -h, --help         Print help
+```
+
 ### Use the data wizard to create an input data file
 
 ```text

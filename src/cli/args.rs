@@ -65,9 +65,13 @@ pub enum Args {
     Wizard {
         file: PathBuf,
     },
+    Update {
+        path: PathBuf,
+    },
 }
 
 impl Args {
+    #[allow(clippy::too_many_lines)]
     fn cmd() -> Command {
         Command::new("pickems")
             .version(env!("CARGO_PKG_VERSION"))
@@ -167,6 +171,18 @@ impl Args {
                                     .required(true)
                                     .value_parser(value_parser!(PathBuf)),
                             ),
+                    )
+                    .subcommand(
+                        Command::new("update")
+                            .about("Retrieve new data files from the repository")
+                            .arg(
+                                Arg::new("path")
+                                    .short('p')
+                                    .long("path")
+                                    .help("Path to the directory containing input data files")
+                                    .required(true)
+                                    .value_parser(value_parser!(PathBuf)),
+                            ),
                     ),
             )
     }
@@ -202,6 +218,10 @@ impl Args {
             } else if let Some(wizard) = data.subcommand_matches("wizard") {
                 return Some(Self::Wizard {
                     file: wizard.get_one::<PathBuf>("file")?.clone(),
+                });
+            } else if let Some(update) = data.subcommand_matches("update") {
+                return Some(Self::Update {
+                    path: update.get_one::<PathBuf>("path")?.clone(),
                 });
             }
         }

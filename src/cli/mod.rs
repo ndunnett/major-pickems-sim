@@ -8,6 +8,7 @@ use pickems::{
 };
 
 pub mod args;
+mod update;
 mod wizard;
 
 use args::{Args, ExtraArgs, ReportType};
@@ -23,6 +24,7 @@ pub fn run(args: Args) -> anyhow::Result<()> {
         } => run_simulation(file, sigma, iterations, report_type, extra_args.as_deref()),
         Args::Inspect { file } => run_inspect(file),
         Args::Wizard { file } => run_wizard(file),
+        Args::Update { path } => update::run(&path),
     }
 }
 
