@@ -80,13 +80,6 @@ impl TryFrom<Map> for Teams {
     type Error = anyhow::Error;
 
     fn try_from(teams_map: Map) -> Result<Self, Self::Error> {
-        if teams_map.0.len() != 16 {
-            return Err(anyhow!(
-                "there must be exactly 16 teams ({} teams recognised)",
-                teams_map.0.len(),
-            ));
-        }
-
         let set = teams_map
             .0
             .values()
@@ -96,7 +89,7 @@ impl TryFrom<Map> for Teams {
         if set != Set::full() {
             for i in Index::iter_all() {
                 if !set.contains(i) {
-                    return Err(anyhow!("missing seed: {i}"));
+                    return Err(anyhow!("missing seed: {}", Seed::from(i)));
                 }
             }
 
@@ -108,9 +101,16 @@ impl TryFrom<Map> for Teams {
 
             for i in Index::iter_all() {
                 if indices.iter().filter(|&&index| index == i).count() > 1 {
-                    return Err(anyhow!("duplicate seed: {i}"));
+                    return Err(anyhow!("duplicate seed: {}", Seed::from(i)));
                 }
             }
+        }
+
+        if teams_map.0.len() != 16 {
+            return Err(anyhow!(
+                "there must be exactly 16 teams ({} teams recognised)",
+                teams_map.0.len(),
+            ));
         }
 
         let teams = teams_map

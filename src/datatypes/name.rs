@@ -1,10 +1,10 @@
-use std::hash::Hash;
+use std::{cmp::Ordering, hash::Hash};
 
 /// Represents a team name.
 #[nutype::nutype(
     sanitize(trim),
     validate(not_empty, len_char_max = 30),
-    derive(Debug, Display, Clone, Serialize, Deserialize, PartialOrd, Ord, Eq)
+    derive(Debug, Display, Clone, Serialize, Deserialize)
 )]
 pub struct Name(String);
 
@@ -23,6 +23,25 @@ impl PartialEq for Name {
         a.make_ascii_lowercase();
         b.make_ascii_lowercase();
         a == b
+    }
+}
+
+impl Eq for Name {}
+
+/// Case insensitive ordering.
+impl Ord for Name {
+    fn cmp(&self, other: &Self) -> Ordering {
+        let mut a = self.clone().into_inner();
+        let mut b = other.clone().into_inner();
+        a.make_ascii_lowercase();
+        b.make_ascii_lowercase();
+        a.cmp(&b)
+    }
+}
+
+impl PartialOrd for Name {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 

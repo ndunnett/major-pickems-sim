@@ -1,4 +1,4 @@
-use std::{ffi::OsString, fmt::Write, path::PathBuf};
+use std::{ffi::OsString, fmt::Write as _, io::Write as _, path::PathBuf};
 
 use anyhow::anyhow;
 use serde::Deserialize;
@@ -103,8 +103,10 @@ fn download_file(path: &PathBuf, url: &str) -> anyhow::Result<()> {
         .write(true)
         .open(path)?;
 
-    let mut remote_file = ureq::get(url).call()?;
-    let mut reader = remote_file.body_mut().as_reader();
-    std::io::copy(&mut reader, &mut local_file)?;
+    let mut response = ureq::get(url).call()?;
+    let mut reader = response.body_mut().as_reader();
+    let mut buffer = Vec::new();
+    std::io::copy(&mut reader, &mut buffer)?;
+    local_file.write_all(&buffer)?;
     Ok(())
 }

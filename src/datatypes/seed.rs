@@ -17,13 +17,15 @@
 pub struct Seed(u16);
 
 impl Seed {
-    pub fn increment(self) -> Result<Self, SeedError> {
-        let n = unsafe { std::mem::transmute::<Self, u16>(self) };
-        Self::try_new(n + 1)
-    }
-
     pub fn iter_all() -> impl Iterator<Item = Self> {
         (1..=16).map(|i| Self::try_new(i).unwrap())
+    }
+}
+
+#[allow(clippy::fallible_impl_from)]
+impl From<Index> for Seed {
+    fn from(index: Index) -> Self {
+        Self::try_new(index.0 + 1).unwrap()
     }
 }
 
@@ -53,6 +55,12 @@ impl Index {
     #[must_use]
     pub const fn to_usize(self) -> usize {
         self.0 as usize
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn to_seed(self) -> Seed {
+        Seed::try_new(self.0 + 1).unwrap()
     }
 
     #[inline]
