@@ -61,9 +61,12 @@ impl Teams {
     /// Produce dummy data for testing purposes.
     #[must_use]
     pub fn dummy() -> Self {
-        Self {
-            names: std::array::from_fn(|i| Name::try_new(format!("Team {}", i + 1)).unwrap()),
-            ratings: std::array::from_fn(|i| Rating::try_new(2000 - 50 * i as u16).unwrap()),
+        // Safety: names and ratings produced are all valid
+        unsafe {
+            Self {
+                names: std::array::from_fn(|i| Name::new_unchecked(format!("Team {}", i + 1))),
+                ratings: std::array::from_fn(|i| Rating::new_unchecked(2000 - 50 * i as u16)),
+            }
         }
     }
 

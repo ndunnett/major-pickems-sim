@@ -1,34 +1,46 @@
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
 /// Initial tournament seed of a team.
 ///
 /// Seeds are one-based and valid in the inclusive range `1..=16`.
-#[nutype::nutype(
-    validate(greater_or_equal = 1, less_or_equal = 16),
-    derive(
-        Debug,
-        Display,
-        Clone,
-        Copy,
-        Serialize,
-        Deserialize,
-        PartialOrd,
-        Ord,
-        PartialEq,
-        Eq
-    )
-)]
+#[derive(Debug, Clone, Copy, PartialOrd, Ord, PartialEq, Eq)]
 pub struct Seed(u16);
 
 impl Seed {
+    pub fn try_new(seed: u16) -> anyhow::Result<Self> {
+        if !(1..=16).contains(&seed) {
+            anyhow::bail!("invalid seed: must be between 1 and 16");
+        }
+
+        Ok(Self(seed))
+    }
+
+    #[must_use]
+    pub fn new(seed: u16) -> Self {
+        Self::try_new(seed).unwrap()
+    }
+
     /// Iterate through all valid initial seeds in ascending order.
     pub fn iter_all() -> impl Iterator<Item = Self> {
         (1..=16).map(|i| Self::try_new(i).unwrap())
     }
 }
 
-#[allow(clippy::fallible_impl_from)]
-impl From<Index> for Seed {
-    fn from(index: Index) -> Self {
-        Self::try_new(index.0 + 1).unwrap()
+impl std::fmt::Display for Seed {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl Serialize for Seed {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_u16(self.0)
+    }
+}
+
+impl<'de> Deserialize<'de> for Seed {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Self::try_new(u16::deserialize(deserializer)?).map_err(serde::de::Error::custom)
     }
 }
 
@@ -119,16 +131,51 @@ impl Index {
     }
 }
 
+impl std::fmt::Display for Index {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl From<Index> for Seed {
+    fn from(index: Index) -> Self {
+        // `Index` is guaranteed to be in 0..16, so adding one preserves the
+        // `Seed` invariant of 1..=16.
+        Self(index.0 + 1)
+    }
+}
+
 impl From<Seed> for Index {
     fn from(seed: Seed) -> Self {
         // `Seed` is guaranteed to be in 1..=16, so subtracting one preserves the
         // `Index` invariant of 0..16.
-        Self(unsafe { std::mem::transmute::<Seed, u16>(seed) } - 1)
+        Self(seed.0 - 1)
     }
 }
 
-impl std::fmt::Display for Index {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(Deserialize)]
+    struct Input {
+        seed: Seed,
+    }
+
+    #[test]
+    fn validates_seeds() {
+        assert!(Seed::try_new(1).is_ok());
+        assert!(Seed::try_new(16).is_ok());
+        assert!(Seed::try_new(0).is_err());
+        assert!(Seed::try_new(17).is_err());
+    }
+
+    #[test]
+    fn rejects_invalid_deserialized_seeds() {
+        let input: Input = toml::from_str("seed = 16").unwrap();
+
+        assert_eq!(input.seed.to_string(), "16");
+        assert!(toml::from_str::<Input>("seed = 0").is_err());
+        assert!(toml::from_str::<Input>("seed = 17").is_err());
     }
 }

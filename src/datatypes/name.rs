@@ -1,34 +1,64 @@
 use std::{cmp::Ordering, hash::Hash};
 
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
 /// Team name used in TOML input and CLI pick arguments.
 ///
-/// Names are trimmed, limited to 30 Unicode scalar values, and compared,
+/// Names are trimmed, limited to 30 characters, and compared,
 /// ordered, and hashed case-insensitively.
-#[nutype::nutype(
-    sanitize(trim),
-    validate(not_empty, len_char_max = 30),
-    derive(Debug, Display, Clone, Serialize, Deserialize)
-)]
+#[derive(Debug, Clone)]
 pub struct Name(String);
+
+impl Name {
+    pub fn try_new(name: impl AsRef<str>) -> anyhow::Result<Self> {
+        let name = name.as_ref().trim();
+
+        if name.is_empty() {
+            anyhow::bail!("invalid name: cannot be empty");
+        }
+
+        if name.chars().count() > 30 {
+            anyhow::bail!("invalid name: cannot be longer than 30 characters");
+        }
+
+        Ok(Self(name.to_string()))
+    }
+
+    pub fn new(name: impl AsRef<str>) -> Self {
+        Self::try_new(name).unwrap()
+    }
+
+    /// # Safety
+    /// Must ensure that `name` is less than 30 characters and has whitespace trimmed.
+    #[inline]
+    #[must_use]
+    pub const unsafe fn new_unchecked(name: String) -> Self {
+        Self(name)
+    }
+}
+
+impl std::fmt::Display for Name {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl Serialize for Name {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.0)
+    }
+}
+
+impl<'de> Deserialize<'de> for Name {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Self::try_new(String::deserialize(deserializer)?).map_err(serde::de::Error::custom)
+    }
+}
 
 /// Case-insensitive name comparison.
 impl PartialEq for Name {
     fn eq(&self, other: &Self) -> bool {
-        // `nutype` stores the validated string transparently but does not expose
-        // borrowed access, so this avoids allocating for the common exact-match
-        // path before falling back to lowercase owned strings.
-        let a = unsafe { &*std::ptr::from_ref(self).cast::<String>() };
-        let b = unsafe { &*std::ptr::from_ref(other).cast::<String>() };
-
-        if a == b {
-            return true;
-        }
-
-        let mut a = self.clone().into_inner();
-        let mut b = other.clone().into_inner();
-        a.make_ascii_lowercase();
-        b.make_ascii_lowercase();
-        a == b
+        self.0.eq_ignore_ascii_case(&other.0)
     }
 }
 
@@ -37,11 +67,10 @@ impl Eq for Name {}
 /// Case-insensitive ordering.
 impl Ord for Name {
     fn cmp(&self, other: &Self) -> Ordering {
-        let mut a = self.clone().into_inner();
-        let mut b = other.clone().into_inner();
-        a.make_ascii_lowercase();
-        b.make_ascii_lowercase();
-        a.cmp(&b)
+        self.0
+            .chars()
+            .map(|c| c.to_ascii_lowercase())
+            .cmp(other.0.chars().map(|c| c.to_ascii_lowercase()))
     }
 }
 
@@ -54,11 +83,39 @@ impl PartialOrd for Name {
 /// Case-insensitive hashing.
 impl Hash for Name {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        // Hashing must follow the same case-insensitive semantics as `Eq`.
-        let s = unsafe { &*std::ptr::from_ref(self).cast::<String>() };
-
-        for c in s.chars() {
+        for c in self.0.chars() {
             c.to_ascii_lowercase().hash(state);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn validates_and_trims_names() {
+        assert_eq!(Name::new("  Vitality  ").to_string(), "Vitality");
+        assert!(Name::try_new("   ").is_err());
+        assert!(Name::try_new("1234567890123456789012345678901").is_err());
+    }
+
+    #[test]
+    fn compares_and_hashes_case_insensitively() {
+        use std::collections::{BTreeSet, HashSet};
+
+        let name = Name::new("NAVI");
+        let lowercase = Name::new("navi");
+
+        assert_eq!(name, lowercase);
+
+        let mut hash_set = HashSet::new();
+        hash_set.insert(name.clone());
+        assert!(hash_set.contains(&lowercase));
+
+        let mut tree_set = BTreeSet::new();
+        tree_set.insert(name);
+        tree_set.insert(lowercase);
+        assert_eq!(tree_set.len(), 1);
     }
 }
