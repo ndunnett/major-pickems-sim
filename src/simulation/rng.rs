@@ -1,6 +1,6 @@
 use rand::prelude::*;
 
-pub type RngType = rand_chacha::ChaCha8Rng;
+pub type RngType = rand::rngs::Xoshiro256PlusPlus;
 
 const SEED: u64 = 7_355_608;
 
