@@ -14,9 +14,13 @@
 @check:
     cargo clippy --quiet --all-targets --all-features -- -D warnings
 
+# Generate profile data for pprof
+@generate-profile-data:
+    cargo run --profile=pprof --features=pprof
+
 # Run pprof to profile the simulation hot path
 @profile:
-    cargo run --profile=pprof --features=pprof && pprof -http=localhost:8080 target/profile.pb
+    just generate-profile-data && pprof -http=localhost:8080 target/profile.pb
 
 # Use criterion to benchmark the simulation hot path
 @bench:
