@@ -43,11 +43,11 @@ impl Simulation {
 
     /// Run single-threaded bench test for profiling/benchmarking purposes.
     pub fn bench_test<R: Report>(&self, mut report: R) -> R {
-        let fresh_ss = SwissSystem::new(self.teams.ratings, self.sigma);
+        let mut ss = SwissSystem::new(self.teams.ratings, self.sigma);
         let mut rng = rng::deterministic();
 
         for _ in 0..self.iterations {
-            let mut ss = fresh_ss;
+            ss.reset();
             ss.simulate_tournament(&mut rng);
             report.update(&ss);
         }
