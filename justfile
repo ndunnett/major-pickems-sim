@@ -20,7 +20,7 @@
 
 # Use criterion to benchmark the simulation hot path
 @bench:
-    cargo bench
+    cargo bench --quiet
 
 # Run simulation
 @simulate report="basic":
