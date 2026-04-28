@@ -4,8 +4,6 @@ use std::{
     ops::Add,
 };
 
-use itertools::Itertools;
-
 use crate::{
     datatypes::Index,
     reporting::{AssessReport, BasicReport, Report},
@@ -183,12 +181,14 @@ impl Report for PicksReport {
 
         // Format results into a string.
         let format_picks = |out: &mut Vec<String>, picks: &HashSet<Candidate>| {
-            for (i, (name, p)) in picks
+            let mut picks = picks
                 .iter()
                 .map(|i| (&sim.teams.names[i.index.to_usize()], i.probability * 100.0))
-                .sorted_by(|(_, a), (_, b)| b.total_cmp(a))
-                .enumerate()
-            {
+                .collect::<Vec<_>>();
+
+            picks.sort_by(|(_, a), (_, b)| b.total_cmp(a));
+
+            for (i, (name, p)) in picks.into_iter().enumerate() {
                 out.push(format!(
                     "{num:<4}{name:<20}{p:>6.1}%",
                     num = format!("{}.", i + 1),

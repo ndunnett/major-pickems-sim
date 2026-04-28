@@ -1314,7 +1314,6 @@ dependencies = [
  "arrayvec",
  "clap",
  "criterion",
- "itertools 0.14.0",
  "nutype",
  "pprof",
  "rand 0.10.1",

@@ -1,5 +1,4 @@
 use anyhow::anyhow;
-use itertools::Itertools;
 use ratatui::{
     Frame,
     crossterm::event,
@@ -154,7 +153,7 @@ impl Wizard<'_> {
                     1 => {
                         let new_name = Name::try_new(&editor.lines()[0])?;
 
-                        if self.teams.iter().map(|(name, _)| name).contains(&new_name) {
+                        if self.teams.iter().any(|(name, _)| name == &new_name) {
                             Err(anyhow!("name already exists, must be unique"))
                         } else {
                             name.clone_from(&new_name);
@@ -292,7 +291,7 @@ impl Wizard<'_> {
             .collect::<Vec<_>>();
 
         for seed in &seeds {
-            if !Seed::iter_all().contains(seed) {
+            if !Seed::iter_all().any(|valid_seed| valid_seed == *seed) {
                 self.problems.push(format!("Invalid seed ({seed})"));
             }
         }
@@ -303,13 +302,16 @@ impl Wizard<'_> {
             }
         }
 
-        let names = self.teams.iter().map(|(name, _)| name).collect::<Vec<_>>();
-
         // `Name` equality is case-insensitive, so this catches names that only
         // differ by case as duplicates too.
-        for name_a in names.iter().unique() {
-            if names.iter().filter(|&name_b| name_a == name_b).count() > 1 {
-                self.problems.push(format!("Duplicate name ({name_a})"));
+        for (i, (name, _)) in self.teams.iter().enumerate() {
+            if self
+                .teams
+                .iter()
+                .skip(i + 1)
+                .any(|(other_name, _)| name == other_name)
+            {
+                self.problems.push(format!("Duplicate name ({name})"));
             }
         }
     }

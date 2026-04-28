@@ -3,8 +3,6 @@ use std::{
     ops::{Add, AddAssign},
 };
 
-use itertools::Itertools;
-
 use crate::{
     reporting::Report,
     simulation::{Simulation, SwissSystem},
@@ -99,17 +97,17 @@ impl Report for BasicReport {
         for (index, title) in fields {
             out.push(format!("\nMost likely to {title}:"));
 
-            // Sort results from highest to lowest.
-            let sorted_results = sim
+            let mut results = sim
                 .teams
                 .names
                 .iter()
                 .zip(probabilities[index])
-                .sorted_by(|(_, a), (_, b)| b.total_cmp(a))
-                .enumerate();
+                .collect::<Vec<_>>();
+
+            results.sort_by(|(_, a), (_, b)| b.total_cmp(a));
 
             // Format each result into a string.
-            for (i, (name, result)) in sorted_results {
+            for (i, (name, result)) in results.into_iter().enumerate() {
                 out.push(format!(
                     "{num:<4}{name:<20}{percent:>6.1}%",
                     num = format!("{}.", i + 1),

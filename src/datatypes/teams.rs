@@ -2,7 +2,6 @@ use std::collections::BTreeMap;
 use std::{fs::read_to_string, io::Write, path::PathBuf};
 
 use anyhow::anyhow;
-use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use crate::datatypes::{Index, Name, Rating, Seed, Set};
@@ -63,14 +62,8 @@ impl Teams {
     #[must_use]
     pub fn dummy() -> Self {
         Self {
-            names: (0..16)
-                .map(|i| Name::try_new(format!("Team {}", i + 1)).unwrap())
-                .collect_array()
-                .unwrap(),
-            ratings: (0..16)
-                .map(|i| Rating::try_new(2000 - 50 * i).unwrap())
-                .collect_array()
-                .unwrap(),
+            names: std::array::from_fn(|i| Name::try_new(format!("Team {}", i + 1)).unwrap()),
+            ratings: std::array::from_fn(|i| Rating::try_new(2000 - 50 * i as u16).unwrap()),
         }
     }
 
@@ -129,24 +122,27 @@ impl TryFrom<Map> for Teams {
 
         // Sorting here establishes the central invariant for `Teams`: every
         // parallel array is indexed by zero-based initial seed.
-        let teams = teams_map
-            .0
+        let mut teams = teams_map.0.into_iter().collect::<Vec<_>>();
+        teams.sort_by_key(|(_, data)| data.seed);
+
+        let teams = teams
             .into_iter()
-            .sorted_by(|(_, a), (_, b)| a.seed.cmp(&b.seed))
             .map(|(name, data)| (name, data.rating))
             .collect::<Vec<_>>();
 
         let ratings = teams
             .iter()
             .map(|(_, rating)| *rating)
-            .collect_array()
-            .ok_or_else(|| anyhow!("failed to allocate array"))?;
+            .collect::<Vec<_>>()
+            .try_into()
+            .map_err(|_| anyhow!("failed to allocate array"))?;
 
         let names = teams
             .into_iter()
             .map(|(name, _)| name)
-            .collect_array()
-            .ok_or_else(|| anyhow!("failed to allocate array"))?;
+            .collect::<Vec<_>>()
+            .try_into()
+            .map_err(|_| anyhow!("failed to allocate array"))?;
 
         Ok(Self { names, ratings })
     }

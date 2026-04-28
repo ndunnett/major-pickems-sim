@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 
 use clap::{Arg, Command, ValueEnum, builder::PossibleValue, value_parser};
-use itertools::Itertools;
 
 use pickems::datatypes::Name;
 
@@ -207,9 +206,24 @@ impl Args {
             // collect into fixed arrays so downstream code can rely on counts.
             let extra_args = if report_type == ReportType::Assess {
                 Some(Box::new(ExtraArgs::Assess {
-                    three_zero: sim.get_many("three-zero")?.cloned().collect_array()?,
-                    advancing: sim.get_many("advancing")?.cloned().collect_array()?,
-                    zero_three: sim.get_many("zero-three")?.cloned().collect_array()?,
+                    three_zero: sim
+                        .get_many::<Name>("three-zero")?
+                        .cloned()
+                        .collect::<Vec<_>>()
+                        .try_into()
+                        .ok()?,
+                    advancing: sim
+                        .get_many::<Name>("advancing")?
+                        .cloned()
+                        .collect::<Vec<_>>()
+                        .try_into()
+                        .ok()?,
+                    zero_three: sim
+                        .get_many::<Name>("zero-three")?
+                        .cloned()
+                        .collect::<Vec<_>>()
+                        .try_into()
+                        .ok()?,
                 }))
             } else {
                 None
