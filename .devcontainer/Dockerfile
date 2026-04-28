@@ -45,5 +45,8 @@ ENV PATH="/home/$USERNAME/.local/bin:$CARGO_HOME/bin:/home/$USERNAME/go/bin:/usr
 # install pprof
 RUN set -eux; go install github.com/google/pprof@latest
 
+# install just and nextest
+RUN set -eux; cargo install --locked just just-lsp cargo-nextest
+
 # replace entrypoint
 CMD sleep infinity
