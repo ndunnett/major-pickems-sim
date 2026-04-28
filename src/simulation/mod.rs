@@ -1,27 +1,13 @@
-use rand::prelude::*;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 use crate::{datatypes::Teams, reporting::Report};
 
 mod matching;
+mod rng;
 mod swiss_system;
 
 use matching::MatchupGenerator;
 pub use swiss_system::SwissSystem;
-
-pub type RngType = rand_chacha::ChaCha8Rng;
-
-/// Random number generator for normal use.
-#[must_use]
-pub fn make_rng() -> RngType {
-    RngType::from_rng(&mut rand::rng())
-}
-
-/// Deterministic random number generator for testing/benchmarking.
-#[must_use]
-pub fn make_deterministic_rng() -> RngType {
-    RngType::seed_from_u64(7_355_608)
-}
 
 /// Configuration for running repeated tournament simulations.
 #[derive(Debug, Clone)]
@@ -58,7 +44,7 @@ impl Simulation {
     /// Run single-threaded bench test for profiling/benchmarking purposes.
     pub fn bench_test<R: Report>(&self, mut report: R) -> R {
         let fresh_ss = SwissSystem::new(self.teams.ratings, self.sigma);
-        let mut rng = make_deterministic_rng();
+        let mut rng = rng::deterministic();
 
         for _ in 0..self.iterations {
             let mut ss = fresh_ss;
@@ -76,7 +62,7 @@ impl Simulation {
         (0..self.iterations)
             .into_par_iter()
             .map_init(
-                || (fresh_ss, make_rng()),
+                || (fresh_ss, rng::random()),
                 |(ss, rng), _| {
                     // Reuse the precomputed probability matrices per worker and
                     // reset only the mutable tournament state each iteration.

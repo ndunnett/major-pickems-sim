@@ -6,7 +6,7 @@ use std::simd::prelude::*;
 
 use crate::{
     datatypes::{Index, Rating, Set},
-    simulation::{MatchupGenerator, RngType},
+    simulation::MatchupGenerator,
 };
 
 /// Mutable state for one Swiss-system tournament iteration.
@@ -192,7 +192,7 @@ impl SwissSystem {
 
     /// Simulate one independent match and update records, opponents, and status.
     #[cfg_attr(feature = "pprof", inline(never))]
-    fn simulate_match(&mut self, rng: &mut RngType, seed_a: Index, seed_b: Index) {
+    fn simulate_match<R: rand::Rng>(&mut self, rng: &mut R, seed_a: Index, seed_b: Index) {
         let r = rng.random();
         let a = seed_a.to_usize();
         let b = seed_b.to_usize();
@@ -241,7 +241,7 @@ impl SwissSystem {
     /// Simulate one tournament round.
     #[cfg_attr(feature = "pprof", inline(never))]
     #[cfg_attr(not(feature = "pprof"), inline)]
-    fn simulate_round(&mut self, rng: &mut RngType) {
+    fn simulate_round<R: rand::Rng>(&mut self, rng: &mut R) {
         for (a, b) in MatchupGenerator::new(&*self) {
             self.simulate_match(rng, a, b);
         }
@@ -252,7 +252,7 @@ impl SwissSystem {
     /// Simulate all five Swiss rounds.
     #[cfg_attr(feature = "pprof", inline(never))]
     #[cfg_attr(not(feature = "pprof"), inline)]
-    pub fn simulate_tournament(&mut self, rng: &mut RngType) {
+    pub fn simulate_tournament<R: rand::Rng>(&mut self, rng: &mut R) {
         while self.rounds_complete < 5 {
             self.simulate_round(rng);
         }
@@ -261,44 +261,107 @@ impl SwissSystem {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::simulation::{Simulation, make_deterministic_rng};
+    use std::ops::{AddAssign, Div, Sub};
 
-    macro_rules! i {
-        ($n:expr) => {
-            Index::new::<$n>()
+    use super::*;
+
+    use crate::{datatypes::Teams, simulation::rng};
+
+    macro_rules! set {
+        ($($n:expr),*) => {
+            [$(Index::new::<$n>(),)*].into_iter().collect()
         };
     }
 
-    /// Regression test, will break if the seeding algorithm changes.
+    /// Exact regression test, will break if the seeding algorithm changes.
+    /// Uses fake RNG to isolate algorithmic changes from micro statistical changes.
     #[test]
-    fn regression_test() {
-        let sim = Simulation::dummy(1);
-        let mut ss = SwissSystem::new(sim.teams.ratings, sim.sigma);
-        ss.simulate_tournament(&mut make_deterministic_rng());
+    fn exact_regression_test() {
+        let mut ss = SwissSystem::new(Teams::dummy().ratings, 800.0);
+        ss.simulate_tournament(&mut rng::HalfRng);
 
-        assert_eq!(ss.wins, [3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 3, 1, 0, 0, 1, 1]);
-        assert_eq!(ss.losses, [0, 2, 1, 1, 0, 2, 1, 3, 3, 3, 2, 3, 3, 3, 3, 3]);
+        assert_eq!(ss.wins, [3, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 1, 1, 1, 0, 0]);
+        assert_eq!(ss.losses, [0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3]);
         assert_eq!(
             ss.opponents,
             [
-                [i!(6), i!(7), i!(8)].into_iter().collect(),
-                [i!(2), i!(6), i!(8), i!(9), i!(11)].into_iter().collect(),
-                [i!(1), i!(4), i!(5), i!(10)].into_iter().collect(),
-                [i!(4), i!(7), i!(9), i!(11)].into_iter().collect(),
-                [i!(2), i!(3), i!(12)].into_iter().collect(),
-                [i!(2), i!(7), i!(10), i!(11), i!(13)].into_iter().collect(),
-                [i!(0), i!(1), i!(10), i!(14)].into_iter().collect(),
-                [i!(0), i!(3), i!(5), i!(8), i!(15)].into_iter().collect(),
-                [i!(0), i!(1), i!(7), i!(14), i!(15)].into_iter().collect(),
-                [i!(1), i!(3), i!(10), i!(14), i!(15)].into_iter().collect(),
-                [i!(2), i!(5), i!(6), i!(9), i!(13)].into_iter().collect(),
-                [i!(1), i!(3), i!(5), i!(12)].into_iter().collect(),
-                [i!(4), i!(11), i!(15)].into_iter().collect(),
-                [i!(5), i!(10), i!(14)].into_iter().collect(),
-                [i!(6), i!(8), i!(9), i!(13)].into_iter().collect(),
-                [i!(7), i!(8), i!(9), i!(12)].into_iter().collect(),
+                set!(3, 7, 8),
+                set!(2, 6, 9),
+                set!(1, 5, 7, 10),
+                set!(0, 4, 6, 11),
+                set!(3, 5, 11, 12),
+                set!(2, 4, 9, 10, 13),
+                set!(1, 3, 8, 9, 14),
+                set!(0, 2, 8, 10, 15),
+                set!(0, 6, 7, 13, 15),
+                set!(1, 5, 6, 12, 14),
+                set!(2, 5, 7, 11, 13),
+                set!(3, 4, 10, 12),
+                set!(4, 9, 11, 15),
+                set!(5, 8, 10, 14),
+                set!(6, 9, 13),
+                set!(7, 8, 12),
             ]
         );
+    }
+
+    /// Statistical regression test, will break on material distribution changes.
+    #[test]
+    #[allow(clippy::cast_sign_loss, clippy::unreadable_literal)]
+    fn statistical_regression_test() {
+        const ITERATIONS: usize = 100_000;
+        const ITER_SPLAT: Simd<f32, 16> = Simd::splat(ITERATIONS as f32);
+        const TOLERANCE: Simd<f32, 16> = Simd::splat(0.005);
+        const THREE: Simd<u8, 16> = Simd::splat(3);
+        const ZERO: Simd<u8, 16> = Simd::splat(0);
+
+        let fresh_ss = SwissSystem::new(Teams::dummy().ratings, 800.0);
+        let mut rng = rng::deterministic();
+        let mut total_three_zero: Simd<u64, 16> = Simd::splat(0);
+        let mut total_advancing: Simd<u64, 16> = Simd::splat(0);
+        let mut total_zero_three: Simd<u64, 16> = Simd::splat(0);
+
+        for _ in 0..ITERATIONS {
+            let mut ss = fresh_ss;
+            ss.simulate_tournament(&mut rng);
+
+            let wins = Simd::from_array(ss.wins);
+            let losses = Simd::from_array(ss.losses);
+
+            let three_wins = wins.simd_eq(THREE);
+            let zero_wins = wins.simd_eq(ZERO);
+            let three_losses = losses.simd_eq(THREE);
+            let zero_losses = losses.simd_eq(ZERO);
+
+            total_three_zero.add_assign((three_wins & zero_losses).to_simd().abs().cast());
+            total_advancing.add_assign((three_wins & !zero_losses).to_simd().abs().cast());
+            total_zero_three.add_assign((zero_wins & three_losses).to_simd().abs().cast());
+        }
+
+        let expected_three_zero = Simd::from_array([
+            0.467134, 0.381915, 0.30356, 0.239474, 0.18577, 0.141047, 0.106158, 0.077854, 0.029252,
+            0.022126, 0.016032, 0.010871, 0.007562, 0.005146, 0.003569, 0.00253,
+        ]);
+
+        let expected_advancing = Simd::from_array([
+            0.482817, 0.542122, 0.585634, 0.604685, 0.604085, 0.584402, 0.547824, 0.497656,
+            0.394673, 0.324406, 0.258943, 0.199543, 0.148371, 0.105615, 0.071796, 0.047428,
+        ]);
+
+        let expected_zero_three = Simd::from_array([
+            0.002564, 0.003679, 0.005201, 0.007576, 0.010758, 0.01579, 0.021963, 0.029273, 0.07803,
+            0.105759, 0.141881, 0.18603, 0.238006, 0.303477, 0.383103, 0.46691,
+        ]);
+
+        for (actual, expected) in [
+            (total_three_zero.cast().div(ITER_SPLAT), expected_three_zero),
+            (total_advancing.cast().div(ITER_SPLAT), expected_advancing),
+            (total_zero_three.cast().div(ITER_SPLAT), expected_zero_three),
+        ] {
+            assert!(
+                actual.sub(expected).abs().simd_lt(TOLERANCE).all(),
+                "Actual: {actual:#?}\n\nExpected: {expected:#?}"
+            );
+        }
     }
 }
