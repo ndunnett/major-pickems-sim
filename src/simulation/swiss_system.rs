@@ -6,7 +6,7 @@ use std::simd::prelude::*;
 
 use crate::{
     datatypes::{Index, Rating, Set},
-    simulation::MatchupGenerator,
+    simulation::Matchups,
 };
 
 /// Mutable state for one Swiss-system tournament iteration.
@@ -242,7 +242,7 @@ impl SwissSystem {
     #[cfg_attr(feature = "pprof", inline(never))]
     #[cfg_attr(not(feature = "pprof"), inline)]
     fn simulate_round<R: rand::Rng>(&mut self, rng: &mut R) {
-        for (a, b) in MatchupGenerator::new(&*self) {
+        for (a, b) in Matchups::new(self) {
             self.simulate_match(rng, a, b);
         }
 

@@ -6,7 +6,7 @@ mod matching;
 mod rng;
 mod swiss_system;
 
-use matching::MatchupGenerator;
+use matching::Matchups;
 pub use swiss_system::SwissSystem;
 
 /// Configuration for running repeated tournament simulations.

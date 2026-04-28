@@ -5,36 +5,20 @@ use crate::{
     simulation::SwissSystem,
 };
 
+type PriorityTable = &'static [&'static [(usize, usize)]];
+
 /// Backing state for generated matchups in the current tournament round.
-#[derive(Debug)]
-enum Matchups {
-    Range(std::array::IntoIter<(Index, Index), 8>),
-    Vec {
-        matchups: ArrayVec<(Index, Index), 8>,
-        index: usize,
-    },
-    Iterative {
-        teams: ArrayVec<Index, 16>,
-        matchups: ArrayVec<(Index, Index), 8>,
-        team_index: usize,
-        matchup_index: usize,
-    },
+#[derive(Debug, Clone)]
+pub struct Matchups {
+    pairs: ArrayVec<(Index, Index), 8>,
 }
 
-/// Iterator that yields Swiss-system matchups for the current round.
-#[derive(Debug)]
-pub struct MatchupGenerator {
-    matchups: Matchups,
-    opponents: [Set; 16],
-    diffs: [i8; 16],
-}
-
-impl MatchupGenerator {
+impl Matchups {
     /// Pre-determined matchup priority for a group size of 4.
-    const MATCHUP_PRIORITY_4: [[(usize, usize); 2]; 3] = [
-        [(0, 3), (1, 2)], // first priority
-        [(0, 2), (1, 3)],
-        [(0, 1), (2, 3)],
+    const PRIORITY_4: PriorityTable = &[
+        &[(0, 3), (1, 2)], // first priority
+        &[(0, 2), (1, 3)],
+        &[(0, 1), (2, 3)],
     ];
 
     /// Pre-determined matchup priority for a group size of 6.
@@ -42,55 +26,40 @@ impl MatchupGenerator {
     /// 0 -> lowest seeded team in the group, 5 -> highest seeded team in the group
     ///
     /// [Rules and Regs - Swiss Bracket](https://github.com/ValveSoftware/counter-strike_rules_and_regs/blob/main/major-supplemental-rulebook.md#swiss-bracket)
-    const MATCHUP_PRIORITY_6: [[(usize, usize); 3]; 15] = [
-        [(0, 5), (1, 4), (2, 3)], // first priority
-        [(0, 5), (1, 3), (2, 4)],
-        [(0, 4), (1, 5), (2, 3)],
-        [(0, 4), (1, 3), (2, 5)],
-        [(0, 3), (1, 5), (2, 4)],
-        [(0, 3), (1, 4), (2, 5)],
-        [(0, 5), (1, 2), (3, 4)],
-        [(0, 4), (1, 2), (3, 5)],
-        [(0, 2), (1, 5), (3, 4)],
-        [(0, 2), (1, 4), (3, 5)],
-        [(0, 3), (1, 2), (4, 5)],
-        [(0, 2), (1, 3), (4, 5)],
-        [(0, 1), (2, 5), (3, 4)],
-        [(0, 1), (2, 4), (3, 5)],
-        [(0, 1), (2, 3), (4, 5)], // last priority
+    const PRIORITY_6: PriorityTable = &[
+        &[(0, 5), (1, 4), (2, 3)], // first priority
+        &[(0, 5), (1, 3), (2, 4)],
+        &[(0, 4), (1, 5), (2, 3)],
+        &[(0, 4), (1, 3), (2, 5)],
+        &[(0, 3), (1, 5), (2, 4)],
+        &[(0, 3), (1, 4), (2, 5)],
+        &[(0, 5), (1, 2), (3, 4)],
+        &[(0, 4), (1, 2), (3, 5)],
+        &[(0, 2), (1, 5), (3, 4)],
+        &[(0, 2), (1, 4), (3, 5)],
+        &[(0, 3), (1, 2), (4, 5)],
+        &[(0, 2), (1, 3), (4, 5)],
+        &[(0, 1), (2, 5), (3, 4)],
+        &[(0, 1), (2, 4), (3, 5)],
+        &[(0, 1), (2, 3), (4, 5)], // last priority
     ];
 
     /// Pre-determined matchup priority for a group size of 8.
     ///
     /// Determined by matching highest seed teams first with lowest seed teams.
     /// No need to explore every permutation, only the first 3 options for each team.
-    const MATCHUP_PRIORITY_8: [[(usize, usize); 4]; 7] = [
-        [(0, 7), (1, 6), (2, 5), (3, 4)], // first priority
-        [(0, 6), (1, 7), (2, 5), (3, 4)],
-        [(0, 5), (1, 7), (2, 6), (3, 4)],
-        [(0, 7), (1, 5), (2, 6), (3, 4)],
-        [(0, 7), (1, 4), (2, 6), (3, 5)],
-        [(0, 7), (1, 6), (2, 4), (3, 5)],
-        [(0, 7), (1, 6), (2, 3), (4, 5)], // last priority
-    ];
-
-    /// Pre-determined matchups for second round.
-    ///
-    /// Highest vs. lowest mid-stage seed for each group, groups being 0-7 and
-    /// 8-15.
-    const SECOND_ROUND_MATCHUPS: [(usize, usize); 8] = [
-        (0, 7),
-        (1, 6),
-        (2, 5),
-        (3, 4),
-        (8, 15),
-        (9, 14),
-        (10, 13),
-        (11, 12),
+    const PRIORITY_8: PriorityTable = &[
+        &[(0, 7), (1, 6), (2, 5), (3, 4)], // first priority
+        &[(0, 6), (1, 7), (2, 5), (3, 4)],
+        &[(0, 5), (1, 7), (2, 6), (3, 4)],
+        &[(0, 7), (1, 5), (2, 6), (3, 4)],
+        &[(0, 7), (1, 4), (2, 6), (3, 5)],
+        &[(0, 7), (1, 6), (2, 4), (3, 5)],
+        &[(0, 7), (1, 6), (2, 3), (4, 5)], // last priority
     ];
 
     /// Fixed first-round pairings by initial seed index.
-    const FIRST_ROUND_MATCHUPS: [(Index, Index); 8] = [
+    const FIRST_ROUND: [(Index, Index); 8] = [
         (Index::new::<0>(), Index::new::<8>()),
         (Index::new::<1>(), Index::new::<9>()),
         (Index::new::<2>(), Index::new::<10>()),
@@ -101,145 +70,129 @@ impl MatchupGenerator {
         (Index::new::<7>(), Index::new::<15>()),
     ];
 
-    /// Build a matchup generator for the next round of a tournament.
+    /// Pre-determined matchups for second round.
+    ///
+    /// Highest vs. lowest mid-stage seed for each group, groups being 0-7 and
+    /// 8-15.
+    const SECOND_ROUND: [(usize, usize); 8] = [
+        (0, 7),
+        (1, 6),
+        (2, 5),
+        (3, 4),
+        (8, 15),
+        (9, 14),
+        (10, 13),
+        (11, 12),
+    ];
+
     #[cfg_attr(feature = "pprof", inline(never))]
     pub fn new(ss: &SwissSystem) -> Self {
-        Self {
-            matchups: match ss.rounds_complete {
-                // First round is matched up differently (initial seeds 1-9, 2-10, 3-11 etc.)
-                0 => Matchups::Range(Self::FIRST_ROUND_MATCHUPS.into_iter()),
-                // Second round has two 8-team groups and no possible rematches,
-                // so the lookup table can be applied immediately.
-                1 => {
-                    let teams = ss.seed_teams();
-                    let mut matchups = ArrayVec::new();
+        let mut matchups = Self {
+            pairs: ArrayVec::new(),
+        };
 
-                    for (ia, ib) in Self::SECOND_ROUND_MATCHUPS {
-                        matchups.push((teams[ia], teams[ib]));
+        match ss.rounds_complete {
+            // First round is matched up differently (initial seeds 1-9, 2-10, 3-11 etc.)
+            0 => {
+                matchups.pairs.extend(Self::FIRST_ROUND);
+            }
+            // Second round has two 8-team groups and no possible rematches,
+            // so the lookup table can be applied immediately.
+            1 => {
+                let mut winners = [Index::new::<0>(); 8];
+                let mut losers = [Index::new::<0>(); 8];
+                let mut winner_count = 0;
+                let mut loser_count = 0;
+
+                for index in Index::iter_all() {
+                    if ss.wins[index.to_usize()] == 1 {
+                        winners[winner_count] = index;
+                        winner_count += 1;
+                    } else {
+                        losers[loser_count] = index;
+                        loser_count += 1;
+                    }
+                }
+
+                for &(ia, ib) in &Self::SECOND_ROUND[..4] {
+                    matchups.pairs.push((winners[ia], winners[ib]));
+                }
+
+                for &(ia, ib) in &Self::SECOND_ROUND[4..] {
+                    matchups.pairs.push((losers[ia - 8], losers[ib - 8]));
+                }
+            }
+            _ => {
+                let teams = ss.seed_teams();
+                let mut team_index = 0;
+
+                // Chunk the sorted teams into groups with the same win-loss
+                // differential. In rounds 3-5 these valid group sizes are 4,
+                // 6, or 8.
+                while team_index < teams.len() {
+                    let start = team_index;
+                    let group_diff = ss.diffs[teams[start].to_usize()];
+                    team_index += 1;
+
+                    while team_index < teams.len()
+                        && ss.diffs[teams[team_index].to_usize()] == group_diff
+                    {
+                        team_index += 1;
                     }
 
-                    Matchups::Vec { matchups, index: 0 }
+                    let group = &teams[start..team_index];
+
+                    // Apply the priority table for the group size. Each table
+                    // is ordered from most preferred to least preferred pairing.
+                    match group.len() {
+                        4 => matchups.apply_priority(ss, Self::PRIORITY_4, group),
+                        6 => matchups.apply_priority(ss, Self::PRIORITY_6, group),
+                        8 => matchups.apply_priority(ss, Self::PRIORITY_8, group),
+                        _ => unreachable!("malformed group"),
+                    }
                 }
-                _ => Matchups::Iterative {
-                    teams: ss.seed_teams(),
-                    matchups: ArrayVec::new(),
-                    team_index: 0,
-                    matchup_index: 0,
-                },
-            },
-            opponents: ss.opponents,
-            diffs: ss.diffs,
+            }
         }
+
+        matchups
     }
 
     /// Apply a matchup priority table to a record group.
     ///
-    /// The first priority row with no rematches is returned.
+    /// The first priority row with no rematches is pushed into the round buffer.
     #[cfg_attr(feature = "pprof", inline(never))]
-    fn apply_priority<const N: usize, const M: usize>(
-        opponents: &[Set],
-        priority: [[(usize, usize); M]; N],
-        group: &[Index],
-    ) -> ArrayVec<(Index, Index), 8> {
-        'outer: for indices in priority {
-            for (ia, ib) in indices {
-                if opponents[group[ia].to_usize()].contains(group[ib]) {
+    #[cfg_attr(not(feature = "pprof"), inline)]
+    fn apply_priority(&mut self, ss: &SwissSystem, priority: PriorityTable, group: &[Index]) {
+        let mut opponents = ArrayVec::<Set, 8>::new();
+
+        for &team in group {
+            opponents.push(ss.opponents[team.to_usize()]);
+        }
+
+        'outer: for &indices in priority {
+            for &(ia, ib) in indices {
+                if opponents[ia].contains(group[ib]) {
                     continue 'outer;
                 }
             }
 
-            let mut matchups = ArrayVec::new();
-
-            for (ia, ib) in indices {
-                matchups.push((group[ia], group[ib]));
+            for &(ia, ib) in indices {
+                self.pairs.push((group[ia], group[ib]));
             }
 
-            return matchups;
+            return;
         }
 
         unreachable!("matchups without rematch not possible")
     }
 }
 
-impl Iterator for MatchupGenerator {
+impl IntoIterator for Matchups {
     type Item = (Index, Index);
+    type IntoIter = <ArrayVec<Self::Item, 8> as IntoIterator>::IntoIter;
 
-    /// Group team indices by record and arrange matchups, highest seed vs lowest seed.
-    ///
-    /// Rearrange to avoid rematches:
-    ///   - in rounds 2 and 3 (group sizes of 4 or 8), the highest seeded team faces the lowest seeded team that doesn't result in a rematch
-    ///   - in rounds 4 and 5 (group sizes of 6), follow pre-determined highest priority matchup that doesn't result in a rematch
-    ///
-    /// [Rules and Regs - Swiss Bracket](https://github.com/ValveSoftware/counter-strike_rules_and_regs/blob/main/major-supplemental-rulebook.md#swiss-bracket)
     #[cfg_attr(feature = "pprof", inline(never))]
-    fn next(&mut self) -> Option<Self::Item> {
-        match &mut self.matchups {
-            Matchups::Range(range) => range.next(),
-            Matchups::Vec { matchups, index } => {
-                if *index < matchups.len() {
-                    let next = matchups[*index];
-                    *index += 1;
-                    Some(next)
-                } else {
-                    None
-                }
-            }
-            Matchups::Iterative {
-                teams,
-                matchups,
-                team_index,
-                matchup_index,
-            } => loop {
-                if *matchup_index < matchups.len() {
-                    let next = matchups[*matchup_index];
-                    *matchup_index += 1;
-                    return Some(next);
-                } else if *team_index < teams.len() {
-                    *matchup_index = 0;
-
-                    // Chunk the sorted teams into a group with the same
-                    // win-loss differential. In rounds 3-5 these valid group
-                    // sizes are 4, 6, or 8.
-                    let start = *team_index;
-                    let group_diff = self.diffs[teams[start].to_usize()];
-                    *team_index += 1;
-
-                    while *team_index < teams.len()
-                        && self.diffs[teams[*team_index].to_usize()] == group_diff
-                    {
-                        *team_index += 1;
-                    }
-
-                    // Apply the priority table for the group size. Each table
-                    // is ordered from most preferred to least preferred pairing.
-                    match *team_index - start {
-                        4 => {
-                            *matchups = Self::apply_priority(
-                                &self.opponents,
-                                Self::MATCHUP_PRIORITY_4,
-                                &teams[start..*team_index],
-                            );
-                        }
-                        6 => {
-                            *matchups = Self::apply_priority(
-                                &self.opponents,
-                                Self::MATCHUP_PRIORITY_6,
-                                &teams[start..*team_index],
-                            );
-                        }
-                        8 => {
-                            *matchups = Self::apply_priority(
-                                &self.opponents,
-                                Self::MATCHUP_PRIORITY_8,
-                                &teams[start..*team_index],
-                            );
-                        }
-                        _ => unreachable!("malformed group"),
-                    }
-                } else {
-                    return None;
-                }
-            },
-        }
+    fn into_iter(self) -> Self::IntoIter {
+        self.pairs.into_iter()
     }
 }
