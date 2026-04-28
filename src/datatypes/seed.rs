@@ -61,6 +61,13 @@ impl Index {
         }
     }
 
+    /// Return this index as a raw `u16`.
+    #[inline]
+    #[must_use]
+    pub const fn to_u16(self) -> u16 {
+        self.0
+    }
+
     /// Return this index as a `usize` for array indexing.
     #[inline]
     #[must_use]

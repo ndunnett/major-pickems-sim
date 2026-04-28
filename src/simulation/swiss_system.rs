@@ -46,6 +46,9 @@ impl SwissSystem {
         Simd::from_array(seeds)
     };
 
+    // Mask for the initial seed portion of a packed seeding `u16`.
+    const INITIAL_SEED_MASK: u16 = 0x1F;
+
     #[allow(clippy::many_single_char_names)]
     #[must_use]
     #[cfg_attr(feature = "pprof", inline(never))]
@@ -149,44 +152,44 @@ impl SwissSystem {
 
     /// Return remaining team indices sorted by mid-stage seed calculation.
     ///
-    /// 1. Current win-loss record
-    /// 2. Buchholz difficulty score (sum of win-loss record for each opponent faced)
+    /// 1. Current win-loss record (higher -> lower seed)
+    /// 2. Buchholz difficulty score (sum of win-loss record for each opponent faced, higher -> lower seed)
     /// 3. Initial seeding
     ///
     /// [Rules and Regs - Mid-stage Seed Calculation](https://github.com/ValveSoftware/counter-strike_rules_and_regs/blob/main/major-supplemental-rulebook.md#Mid-Stage-Seed-Calculation)
+    #[allow(clippy::cast_sign_loss)]
     #[cfg_attr(feature = "pprof", inline(never))]
     pub(super) fn seed_teams(&self) -> ArrayVec<Index, 16> {
-        // Bit-pack seeding information into a 16-bit unsigned integer so one
-        // unstable integer sort applies every tiebreak in priority order:
-        // [15] [14 13 12 11 10] [9 8 7 6 5] [4 3 2 1 0]
-        //  --   --------------   ---------   ----------
-        //   |          |             |            |
-        // Spare bit    |    Buchholz difficulty   |
-        //          Win-loss                 Initial seed
-        const FIFTEEN: Simd<i8, 16> = Simd::splat(15);
-        let buchholz_array =
-            std::array::from_fn(|i| self.buchholz(unsafe { Index::from_usize(i) }));
-        let buchholz = (FIFTEEN - Simd::from_array(buchholz_array)).cast::<u16>();
-        let diffs = (FIFTEEN - Simd::from_array(self.diffs)).cast::<u16>();
-        let packed = (diffs << 10 | buchholz << 5 | Self::SEED_LANES).to_array();
-
-        // Select only teams that remain in the tournament; teams already at
-        // three wins or three losses are no longer paired.
         let mut seeding = ArrayVec::<u16, 16>::new();
 
-        for seed in self.remaining.iter() {
-            seeding.push(packed[seed.to_usize()]);
+        // Match only teams that remain in the tournament.
+        for index in self.remaining.iter() {
+            // Win-loss and Buchholz difficulty must be inverted and encoded into unsigned integers.
+            let diff = (15 - self.diffs[index.to_usize()]) as u16;
+            let buchholz = (15 - self.buchholz(index)) as u16;
+
+            // Each piece of seeding information is small enough to fit into 5 bits.
+            // Bit-pack each piece into a 16-bit unsigned integer so that one
+            // unstable integer sort applies every tiebreak in priority order:
+            //
+            // [15] [14 13 12 11 10] [9 8 7 6 5] [4 3 2 1 0]
+            //  --   --------------   ---------   ---------
+            //   |          |             |           |
+            // Spare        |    2. Buchholz diff.    |
+            //         1. Win-loss             3. Initial seed
+            //
+            seeding.push(diff << 10 | buchholz << 5 | index.to_u16());
         }
 
         seeding.sort_unstable();
 
         // Strip back down to just the zero-based initial seed.
-        for seed in &mut seeding {
-            *seed &= 0x1F;
+        for packed_seed in &mut seeding {
+            *packed_seed &= Self::INITIAL_SEED_MASK;
         }
 
-        // `Index` is a transparent newtype of `u16`; masking with 0x1F leaves
-        // only original seed lanes, which are known to be in 0..16.
+        // `Index` is a transparent newtype of `u16`, `packed_seed` has been masked
+        // down to only the intial seed which is known to be in `0..16`.
         unsafe { std::mem::transmute(seeding) }
     }
 
