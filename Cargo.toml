@@ -60,18 +60,6 @@ name = "criterion"
 path = "src/criterion.rs"
 harness = false
 
-[profile.dev]
-lto = "off"
-opt-level = 0
-panic = "abort"
-
-[profile.dev.package."*"]
-opt-level = 2
-
-[profile.dev.build-override]
-opt-level = 0
-codegen-units = 256
-
 [profile.release]
 codegen-units = 1
 lto = true
@@ -79,10 +67,6 @@ opt-level = 3
 panic = "abort"
 strip = true
 rustflags = ["-C", "target-cpu=native"]
-
-[profile.release.build-override]
-opt-level = 0
-codegen-units = 256
 
 [profile.pprof]
 inherits = "release"
@@ -97,4 +81,8 @@ rustflags = [
     "force-frame-pointers=yes",
     "-C",
     "symbol-mangling-version=v0",
+    "-C",
+    "llvm-args=--inline-threshold=0",
+    "-Z",
+    "inline-mir=no",
 ]

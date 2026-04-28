@@ -7,7 +7,7 @@ use pickems::{reporting::NullReport, simulation::Simulation};
 pub fn run() {
     let now = Instant::now();
     let guard = pprof::ProfilerGuard::new(1000).unwrap();
-    _ = Simulation::bench_test(1_000_000, NullReport);
+    _ = Simulation::dummy(1_000_000).bench_test(NullReport);
 
     println!(
         "Run time: {} seconds",

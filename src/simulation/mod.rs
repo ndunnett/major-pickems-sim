@@ -56,12 +56,11 @@ impl Simulation {
     }
 
     /// Run single-threaded bench test for profiling/benchmarking purposes.
-    pub fn bench_test<R: Report>(iterations: u64, mut report: R) -> R {
-        let sim = Self::dummy(iterations);
-        let fresh_ss = SwissSystem::new(sim.teams.ratings, sim.sigma);
+    pub fn bench_test<R: Report>(&self, mut report: R) -> R {
+        let fresh_ss = SwissSystem::new(self.teams.ratings, self.sigma);
         let mut rng = make_deterministic_rng();
 
-        for _ in 0..iterations {
+        for _ in 0..self.iterations {
             let mut ss = fresh_ss;
             ss.simulate_tournament(&mut rng);
             report.update(&ss);
@@ -102,7 +101,7 @@ mod tests {
     #[test]
     fn sanity_test() {
         let iterations = 1000;
-        let report = Simulation::bench_test(iterations, BasicReport::default());
+        let report = Simulation::dummy(iterations).bench_test(BasicReport::default());
 
         // Total 3-0 stats should sum to 2 per iteration
         assert_eq!(

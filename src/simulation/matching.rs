@@ -102,6 +102,7 @@ impl MatchupGenerator {
     ];
 
     /// Build a matchup generator for the next round of a tournament.
+    #[cfg_attr(feature = "pprof", inline(never))]
     pub fn new(ss: &SwissSystem) -> Self {
         Self {
             matchups: match ss.rounds_complete {
@@ -134,6 +135,7 @@ impl MatchupGenerator {
     /// Apply a matchup priority table to a record group.
     ///
     /// The first priority row with no rematches is returned.
+    #[cfg_attr(feature = "pprof", inline(never))]
     fn apply_priority<const N: usize, const M: usize>(
         opponents: &[Set],
         priority: [[(usize, usize); M]; N],
@@ -169,6 +171,7 @@ impl Iterator for MatchupGenerator {
     ///   - in rounds 4 and 5 (group sizes of 6), follow pre-determined highest priority matchup that doesn't result in a rematch
     ///
     /// [Rules and Regs - Swiss Bracket](https://github.com/ValveSoftware/counter-strike_rules_and_regs/blob/main/major-supplemental-rulebook.md#swiss-bracket)
+    #[cfg_attr(feature = "pprof", inline(never))]
     fn next(&mut self) -> Option<Self::Item> {
         match &mut self.matchups {
             Matchups::Range(range) => range.next(),

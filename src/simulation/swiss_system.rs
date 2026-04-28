@@ -48,6 +48,7 @@ impl SwissSystem {
 
     #[allow(clippy::many_single_char_names)]
     #[must_use]
+    #[cfg_attr(feature = "pprof", inline(never))]
     /// Create a fresh tournament state and precompute matchup probabilities.
     pub fn new(ratings: [Rating; 16], sigma: f32) -> Self {
         const ONE: Simd<f32, 16> = Simd::splat(1.0);
@@ -119,7 +120,8 @@ impl SwissSystem {
     }
 
     /// Reset Swiss System state to restart tournament.
-    #[inline]
+    #[cfg_attr(feature = "pprof", inline(never))]
+    #[cfg_attr(not(feature = "pprof"), inline)]
     pub const fn reset(&mut self) {
         self.wins = [0; 16];
         self.losses = [0; 16];
@@ -130,6 +132,7 @@ impl SwissSystem {
     }
 
     /// Return the Buchholz difficulty score for a given team.
+    #[cfg_attr(feature = "pprof", inline(never))]
     fn buchholz(&self, team: Index) -> i8 {
         const ONE: Simd<u16, 16> = Simd::splat(1);
 
@@ -151,6 +154,7 @@ impl SwissSystem {
     /// 3. Initial seeding
     ///
     /// [Rules and Regs - Mid-stage Seed Calculation](https://github.com/ValveSoftware/counter-strike_rules_and_regs/blob/main/major-supplemental-rulebook.md#Mid-Stage-Seed-Calculation)
+    #[cfg_attr(feature = "pprof", inline(never))]
     pub(super) fn seed_teams(&self) -> ArrayVec<Index, 16> {
         // Bit-pack seeding information into a 16-bit unsigned integer so one
         // unstable integer sort applies every tiebreak in priority order:
@@ -187,6 +191,7 @@ impl SwissSystem {
     }
 
     /// Simulate one independent match and update records, opponents, and status.
+    #[cfg_attr(feature = "pprof", inline(never))]
     fn simulate_match(&mut self, rng: &mut RngType, seed_a: Index, seed_b: Index) {
         let r = rng.random();
         let a = seed_a.to_usize();
@@ -234,7 +239,8 @@ impl SwissSystem {
     }
 
     /// Simulate one tournament round.
-    #[inline]
+    #[cfg_attr(feature = "pprof", inline(never))]
+    #[cfg_attr(not(feature = "pprof"), inline)]
     fn simulate_round(&mut self, rng: &mut RngType) {
         for (a, b) in MatchupGenerator::new(&*self) {
             self.simulate_match(rng, a, b);
@@ -244,6 +250,8 @@ impl SwissSystem {
     }
 
     /// Simulate all five Swiss rounds.
+    #[cfg_attr(feature = "pprof", inline(never))]
+    #[cfg_attr(not(feature = "pprof"), inline)]
     pub fn simulate_tournament(&mut self, rng: &mut RngType) {
         while self.rounds_complete < 5 {
             self.simulate_round(rng);

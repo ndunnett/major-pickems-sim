@@ -12,21 +12,24 @@ pub struct Set {
 
 impl Set {
     /// Construct a new empty set.
-    #[inline]
+    #[cfg_attr(feature = "pprof", inline(never))]
+    #[cfg_attr(not(feature = "pprof"), inline)]
     #[must_use]
     pub const fn new() -> Self {
         Self { data: 0 }
     }
 
     /// Construct a set containing all 16 valid indices.
-    #[inline]
+    #[cfg_attr(feature = "pprof", inline(never))]
+    #[cfg_attr(not(feature = "pprof"), inline)]
     #[must_use]
     pub const fn full() -> Self {
         Self { data: u16::MAX }
     }
 
     /// Insert an index into the set, returning whether the set changed.
-    #[inline]
+    #[cfg_attr(feature = "pprof", inline(never))]
+    #[cfg_attr(not(feature = "pprof"), inline)]
     pub const fn insert(&mut self, index: Index) -> bool {
         let old = self.data;
         self.data |= index.bit_select();
@@ -34,7 +37,8 @@ impl Set {
     }
 
     /// Remove an index from the set, returning whether the set changed.
-    #[inline]
+    #[cfg_attr(feature = "pprof", inline(never))]
+    #[cfg_attr(not(feature = "pprof"), inline)]
     pub const fn remove(&mut self, index: Index) -> bool {
         let old = self.data;
         self.data &= !index.bit_select();
@@ -42,28 +46,32 @@ impl Set {
     }
 
     /// Test whether the set contains an index.
-    #[inline]
+    #[cfg_attr(feature = "pprof", inline(never))]
+    #[cfg_attr(not(feature = "pprof"), inline)]
     #[must_use]
     pub const fn contains(self, index: Index) -> bool {
         (self.data & index.bit_select()) != 0
     }
 
     /// Test whether the set is empty.
-    #[inline]
+    #[cfg_attr(feature = "pprof", inline(never))]
+    #[cfg_attr(not(feature = "pprof"), inline)]
     #[must_use]
     pub const fn is_empty(self) -> bool {
         self.data == 0
     }
 
     /// Return an iterator of contained indices in ascending order.
-    #[inline]
+    #[cfg_attr(feature = "pprof", inline(never))]
+    #[cfg_attr(not(feature = "pprof"), inline)]
     #[must_use]
     pub const fn iter(self) -> SetIter {
         SetIter { set: self }
     }
 
     /// Construct a SIMD vector with every lane set to the raw bitset value.
-    #[inline]
+    #[cfg_attr(feature = "pprof", inline(never))]
+    #[cfg_attr(not(feature = "pprof"), inline)]
     #[must_use]
     pub const fn splat<const N: usize>(self) -> Simd<u16, N> {
         Simd::splat(self.data)
@@ -83,6 +91,7 @@ impl std::fmt::Debug for Set {
 }
 
 impl FromIterator<Index> for Set {
+    #[cfg_attr(feature = "pprof", inline(never))]
     fn from_iter<I: IntoIterator<Item = Index>>(indices: I) -> Self {
         let mut set = Self::new();
 
@@ -102,7 +111,7 @@ pub struct SetIter {
 impl Iterator for SetIter {
     type Item = Index;
 
-    #[inline]
+    #[cfg_attr(feature = "pprof", inline(never))]
     fn next(&mut self) -> Option<Self::Item> {
         if self.set.is_empty() {
             None
