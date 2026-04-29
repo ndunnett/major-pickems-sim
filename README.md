@@ -1,6 +1,6 @@
 # Major Pick'ems Simulator
 
-This is a basic program to simulate tournament stage outcomes for Counter-Strike major tournaments, used to assist decision making for pick'ems. The swiss system follows the seeding rules and format [documented by Valve](https://github.com/ValveSoftware/counter-strike/blob/main/major-supplemental-rulebook.md#seeding), and the tournament rounds are progressed with randomised match outcomes.
+Simulate tournament stage outcomes for Counter-Strike major tournaments, to assist decision making for pick'ems. The swiss system follows the seeding rules and format [documented by Valve](https://github.com/ValveSoftware/counter-strike/blob/main/major-supplemental-rulebook.md#seeding), and the tournament rounds are progressed with randomised match outcomes.
 
 Each team's [regional standings](https://github.com/ValveSoftware/counter-strike_regional_standings) global ranking points are used to approximate a win probability for each head to head match up. This is by no means an exhaustive or accurate analysis but may give insight to some teams which have higher probability of facing weaker teams to get their 3 wins, or vice versa.
 
@@ -12,53 +12,50 @@ Download the binary from the latest [release](https://github.com/ndunnett/major-
 cargo +nightly install major-pickems-sim
 ```
 
-## Command line interface
+## Common commands
 
-### Simulate tournament outcomes
+### Run a basic simulation
 
-```text
-Usage: pickems simulate [OPTIONS] --file <FILE>
-
-Options:
-  -f, --file <FILE>              Path to load input data from (.toml)
-  -n, --iterations <ITERATIONS>  Number of iterations to run [default: 1000000]
-  -s, --sigma <SIGMA>            Sigma value to use for win probability [default: 800]
-  -h, --help                     Print help
+```shell
+pickems simulate --file data/2025_budapest_stage_3.toml
 ```
 
-### Update input data files from this repository
+### Run the picks report
 
-```text
-Usage: pickems data update --path <path>
-
-Options:
-  -p, --path <path>  Path to the directory containing input data files
-  -h, --help         Print help
+```shell
+pickems simulate --file data/2025_budapest_stage_3.toml --report picks
 ```
 
-### Use the data wizard to create an input data file
+### Assess a set of picks
 
-```text
-Usage: pickems data wizard --file <FILE>
-
-Options:
-  -f, --file <FILE>  Path to save input data to (.toml)
-  -h, --help         Print help
+```shell
+pickems simulate --file data/2025_budapest_stage_3.toml --report assess \
+  --three-zero FURIA G2 \
+  --advancing MOUZ Falcons Vitality "The MongolZ" "Team Spirit" Liquid \
+  --zero-three Imperial "Passion UA"
 ```
 
-### Inspect input data file
+### Update local data files from this repository
 
-```text
-Usage: pickems data inspect --file <FILE>
+```shell
+pickems data update --path data
+```
 
-Options:
-  -f, --file <FILE>  Path to load input data from (.toml)
-  -h, --help         Print help
+### Create an input file with the data wizard
+
+```shell
+pickems data wizard --file data/custom_stage.toml
+```
+
+### Inspect an input file
+
+```shell
+pickems data inspect --file data/2025_budapest_stage_3.toml
 ```
 
 ## TOML input data format
 
-The input data file uses the TOML format, with a section for each team containing the initial seed and global ranking points for that team. Each data file is expected to contain exactly 16 teams.
+Input files contain exactly 16 teams. Each team has an initial seed and rating.
 
 ```toml
 ["{string: team name}"]
