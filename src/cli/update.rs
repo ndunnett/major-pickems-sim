@@ -96,12 +96,14 @@ fn get_remote_records() -> anyhow::Result<Vec<RemoteRecord>> {
 }
 
 fn download_file(path: &PathBuf, url: &str) -> anyhow::Result<()> {
+    let response = get(url)?;
+
     std::fs::OpenOptions::new()
         .create(true)
         .truncate(true)
         .write(true)
         .open(path)?
-        .write_all(get(url)?.as_bytes())?;
+        .write_all(response.as_bytes())?;
 
     Ok(())
 }
