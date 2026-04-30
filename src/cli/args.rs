@@ -47,6 +47,26 @@ fn name_parser(s: &str) -> Result<Name, String> {
     Name::try_new(s).map_err(|e| format!("{e}"))
 }
 
+fn iterations_parser(s: &str) -> Result<u64, String> {
+    let iterations = s.parse::<u64>().map_err(|e| format!("{e}"))?;
+
+    if iterations == 0 {
+        Err(String::from("iterations must be greater than 0"))
+    } else {
+        Ok(iterations)
+    }
+}
+
+fn sigma_parser(s: &str) -> Result<f32, String> {
+    let sigma = s.parse::<f32>().map_err(|e| format!("{e}"))?;
+
+    if sigma.is_finite() && sigma > 0.0 {
+        Ok(sigma)
+    } else {
+        Err(String::from("sigma must be finite and greater than 0"))
+    }
+}
+
 /// Additional command arguments that only apply to specific report modes.
 #[derive(Clone)]
 pub enum ExtraArgs {
@@ -103,7 +123,7 @@ impl Args {
                             .long("iterations")
                             .default_value("1000000")
                             .help("Number of iterations to run")
-                            .value_parser(value_parser!(u64)),
+                            .value_parser(iterations_parser),
                     )
                     .arg(
                         Arg::new("sigma")
@@ -111,7 +131,7 @@ impl Args {
                             .long("sigma")
                             .default_value("800.0")
                             .help("Sigma value to use for win probability")
-                            .value_parser(value_parser!(f32)),
+                            .value_parser(sigma_parser),
                     )
                     .arg(
                         Arg::new("report")

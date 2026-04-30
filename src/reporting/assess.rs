@@ -93,6 +93,18 @@ impl AssessReport {
             )?);
         }
 
+        let mut seen = Set::new();
+
+        for pick in three_zero_picks
+            .iter()
+            .chain(advancing_picks.iter())
+            .chain(zero_three_picks.iter())
+        {
+            if !seen.insert(*pick) {
+                anyhow::bail!("duplicate pick: {}", teams.names[pick.to_usize()]);
+            }
+        }
+
         Ok(Self::new(
             three_zero_picks,
             advancing_picks,
