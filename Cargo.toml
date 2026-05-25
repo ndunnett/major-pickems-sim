@@ -3,7 +3,7 @@ cargo-features = ["profile-rustflags"]
 [package]
 name = "major-pickems-sim"
 description = "Tool for analysing pick'ems for Counter-Strike major tournaments."
-version = "0.3.0"
+version = "0.4.0-prerelease"
 edition = "2024"
 readme = "README.md"
 license = "MIT"
