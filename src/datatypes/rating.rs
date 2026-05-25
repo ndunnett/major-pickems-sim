@@ -1,7 +1,7 @@
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// Representation of team rating.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialOrd, Ord, PartialEq, Eq)]
 pub struct Rating(u16);
 
 impl Rating {
@@ -29,6 +29,22 @@ impl Rating {
     #[must_use]
     pub fn to_f32(self) -> f32 {
         f32::from(self.0)
+    }
+}
+
+impl TryFrom<u16> for Rating {
+    type Error = anyhow::Error;
+
+    fn try_from(value: u16) -> Result<Self, Self::Error> {
+        Self::try_new(value)
+    }
+}
+
+impl TryFrom<&str> for Rating {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Self::try_new(value.parse()?)
     }
 }
 

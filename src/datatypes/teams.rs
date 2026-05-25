@@ -1,5 +1,4 @@
-use std::collections::BTreeMap;
-use std::{fs::read_to_string, io::Write, path::PathBuf};
+use std::{collections::BTreeMap, fs::read_to_string, io::Write, ops::Deref, path::PathBuf};
 
 use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
@@ -38,11 +37,24 @@ impl Map {
 
         Ok(())
     }
+
+    /// Iterate over key-value pairs in the team map.
+    pub fn iter(&self) -> impl Iterator<Item = (&Name, &Team)> {
+        self.0.iter()
+    }
 }
 
 impl<I: IntoIterator<Item = (Name, Team)>> From<I> for Map {
     fn from(teams: I) -> Self {
         Self(teams.into_iter().collect())
+    }
+}
+
+impl Deref for Map {
+    type Target = BTreeMap<Name, Team>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 

@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, hash::Hash};
+use std::{cmp::Ordering, hash::Hash, str::FromStr};
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -10,18 +10,22 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 pub struct Name(String);
 
 impl Name {
-    pub fn try_new(name: impl AsRef<str>) -> anyhow::Result<Self> {
-        let name = name.as_ref().trim();
+    pub fn validate(name: &str) -> anyhow::Result<&str> {
+        let name = name.trim();
 
         if name.is_empty() {
             anyhow::bail!("invalid name: cannot be empty");
         }
 
         if name.chars().count() > 30 {
-            anyhow::bail!("invalid name: cannot be longer than 30 characters");
+            anyhow::bail!("invalid name \"{name}\": cannot be longer than 30 characters");
         }
 
-        Ok(Self(name.to_string()))
+        Ok(name)
+    }
+
+    pub fn try_new(name: impl AsRef<str>) -> anyhow::Result<Self> {
+        Ok(Self(Self::validate(name.as_ref())?.to_string()))
     }
 
     pub fn new(name: impl AsRef<str>) -> Self {
@@ -34,6 +38,12 @@ impl Name {
     #[must_use]
     pub const unsafe fn new_unchecked(name: String) -> Self {
         Self(name)
+    }
+
+    #[inline]
+    #[must_use]
+    pub const fn as_str(&self) -> &str {
+        self.0.as_str()
     }
 }
 
@@ -86,6 +96,14 @@ impl Hash for Name {
         for c in self.0.chars() {
             c.to_ascii_lowercase().hash(state);
         }
+    }
+}
+
+impl FromStr for Name {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
     }
 }
 
