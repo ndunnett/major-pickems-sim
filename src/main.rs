@@ -1,12 +1,9 @@
 #[cfg(not(feature = "pprof"))]
-mod cli;
+mod app;
 
 #[cfg(not(feature = "pprof"))]
 fn main() -> anyhow::Result<()> {
-    cli::args::Args::parse().map_or_else(
-        || Err(anyhow::anyhow!("failed to parse CLI arguments")),
-        cli::run,
-    )
+    app::run()
 }
 
 #[cfg(feature = "pprof")]

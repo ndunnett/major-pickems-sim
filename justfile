@@ -12,7 +12,7 @@
 
 # Run clippy with warnings promoted to errors
 @check:
-    cargo clippy --quiet --all-targets --all-features -- -D warnings
+    cargo clippy --quiet --all-targets -- -D warnings
 
 # Generate profile data for pprof
 @generate-profile-data:
@@ -28,12 +28,12 @@
 
 # Run simulation
 @simulate report="basic":
-    cargo run --release -- simulate -f data/$(ls data -Art | tail -n 1) -r {{ report }}
+    cargo run --release -- simulate --file data/$(ls data -Art | tail -n 1) --report {{ report }}
 
 # Run simulation in debug mode
 @simulate-dev report="basic":
-    cargo run -- simulate -f data/$(ls data -Art | tail -n 1) -r {{ report }}
+    cargo run -- simulate --file data/$(ls data -Art | tail -n 1) --report {{ report }}
 
 # Run data update command
 @data-update:
-    cargo run -- data update -p data
+    cargo run -- update

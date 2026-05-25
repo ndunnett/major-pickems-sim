@@ -1,4 +1,4 @@
-use std::{ffi::OsString, fmt::Write as _, io::Write as _, path::PathBuf};
+use std::{ffi::OsString, fmt::Write as _, io::Write as _, path::Path};
 
 use serde::Deserialize;
 use sha1::{Digest, Sha1};
@@ -9,7 +9,6 @@ const USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VE
 #[derive(Debug, Clone)]
 struct LocalRecord {
     name: OsString,
-    path: PathBuf,
     sha: String,
 }
 
@@ -20,33 +19,7 @@ struct RemoteRecord {
     sha: String,
 }
 
-/// Update local TOML data files from the repository data directory.
-pub fn run(path: &PathBuf) -> anyhow::Result<()> {
-    let local_records = get_local_records(path)?;
-    let remote_records = get_remote_records()?;
-
-    for remote in remote_records {
-        if let Some(local) = local_records
-            .iter()
-            .find(|local| local.name.eq_ignore_ascii_case(&remote.name))
-        {
-            if remote.sha != local.sha {
-                println!("Updating {}...", remote.name);
-                download_file(&local.path, &remote.download_url)?;
-            }
-
-            continue;
-        }
-
-        println!("Downloading {}...", remote.name);
-        let new_path = path.join(remote.name);
-        download_file(&new_path, &remote.download_url)?;
-    }
-
-    Ok(())
-}
-
-fn get_local_records(path: &PathBuf) -> anyhow::Result<Vec<LocalRecord>> {
+pub fn data_updater(path: &Path) -> anyhow::Result<impl Iterator<Item = anyhow::Result<String>>> {
     if !path.exists() {
         std::fs::create_dir_all(path)?;
     }
@@ -55,7 +28,7 @@ fn get_local_records(path: &PathBuf) -> anyhow::Result<Vec<LocalRecord>> {
         anyhow::bail!("path exists and is not a directory: {}", path.display());
     }
 
-    let mut records = Vec::new();
+    let mut local_records = Vec::new();
 
     for entry in std::fs::read_dir(path)? {
         let entry = entry?;
@@ -68,8 +41,6 @@ fn get_local_records(path: &PathBuf) -> anyhow::Result<Vec<LocalRecord>> {
             continue;
         }
 
-        // Git blob object IDs hash a header plus contents, not just the raw
-        // file bytes. GitHub's contents API exposes this blob SHA.
         let file = std::fs::read(entry.path())?;
         let mut buffer = format!("blob {}\0", file.len()).into_bytes();
         buffer.extend(file);
@@ -81,21 +52,27 @@ fn get_local_records(path: &PathBuf) -> anyhow::Result<Vec<LocalRecord>> {
             write!(sha, "{byte:02x}")?;
         }
 
-        records.push(LocalRecord {
+        local_records.push(LocalRecord {
             name: entry.file_name(),
-            path: entry.path(),
             sha,
         });
     }
 
-    Ok(records)
+    let remote_records: Vec<RemoteRecord> = get(DATA_URL)?.json()?;
+
+    Ok(remote_records.into_iter().filter_map(move |remote| {
+        if local_records
+            .iter()
+            .any(|local| local.name.eq_ignore_ascii_case(&remote.name) && remote.sha == local.sha)
+        {
+            None
+        } else {
+            Some(download_file(path.join(&remote.name), &remote.download_url).map(|()| remote.name))
+        }
+    }))
 }
 
-fn get_remote_records() -> anyhow::Result<Vec<RemoteRecord>> {
-    Ok(get(DATA_URL)?.json()?)
-}
-
-fn download_file(path: &PathBuf, url: &str) -> anyhow::Result<()> {
+fn download_file<P: AsRef<Path>>(path: P, url: &str) -> anyhow::Result<()> {
     let response = get(url)?;
 
     std::fs::OpenOptions::new()
@@ -111,11 +88,12 @@ fn download_file(path: &PathBuf, url: &str) -> anyhow::Result<()> {
 fn get(url: &str) -> anyhow::Result<minreq::Response> {
     let response = minreq::get(url)
         .with_header("User-Agent", USER_AGENT)
+        .with_timeout(5)
         .send()?;
 
     if !(200..300).contains(&response.status_code) {
         anyhow::bail!(
-            "GET {url} failed with status {} {}",
+            "Request to {url} failed: {} {}",
             response.status_code,
             response.reason_phrase
         );
