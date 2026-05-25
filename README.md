@@ -14,6 +14,12 @@ cargo +nightly install major-pickems-sim
 
 ## Common commands
 
+### Open the interactive TUI
+
+```shell
+pickems tui
+```
+
 ### Run a basic simulation
 
 ```shell
@@ -30,27 +36,21 @@ pickems simulate --file data/2025_budapest_stage_3.toml --report picks
 
 ```shell
 pickems simulate --file data/2025_budapest_stage_3.toml --report assess \
-  --three-zero FURIA G2 \
-  --advancing MOUZ Falcons Vitality "The MongolZ" "Team Spirit" Liquid \
-  --zero-three Imperial "Passion UA"
-```
-
-### Update local data files from this repository
-
-```shell
-pickems data update --path data
-```
-
-### Create an input file with the data wizard
-
-```shell
-pickems data wizard --file data/custom_stage.toml
+  --three-zero "FURIA,G2" \
+  --advance "MOUZ,Falcons,Vitality,The MongolZ,Team Spirit,Liquid" \
+  --zero-three "Imperial,Passion UA"
 ```
 
 ### Inspect an input file
 
 ```shell
-pickems data inspect --file data/2025_budapest_stage_3.toml
+pickems inspect --file data/2025_budapest_stage_3.toml
+```
+
+### Update local data files from this repository
+
+```shell
+pickems update
 ```
 
 ## TOML input data format
@@ -63,97 +63,97 @@ seed = {integer: initial seed for tournament stage}
 rating = {integer: current global ranking points}
 ```
 
-## Latest Output: StarLadder Budapest Major 2025 - Stage 3
+## Latest Output: IEM Cologne 2026 - Stage 1
 
 ```shell
-pickems simulate --file data/2025_budapest_stage_3.toml
+pickems simulate --file data/2026_cologne_stage_1.toml
 ```
 
 ```text
 RESULTS FROM 1,000,000 TOURNAMENT SIMULATIONS
 
 Most likely to 3-0:
-1.  FURIA                 41.5%
-2.  Falcons               33.3%
-3.  Vitality              31.6%
-4.  MOUZ                  20.2%
-5.  The MongolZ           19.6%
-6.  G2                    11.8%
-7.  Team Spirit           10.0%
-8.  Liquid                 7.3%
-9.  Natus Vincere          6.3%
-10. paiN                   4.5%
-11. 3DMAX                  4.2%
-12. B8                     3.4%
-13. FaZe                   3.0%
-14. PARIVISION             1.9%
-15. Passion UA             0.9%
-16. Imperial               0.6%
+1.  GamerLegion           30.5%
+2.  B8                    27.9%
+3.  HEROIC                20.7%
+4.  BetBoom               19.2%
+5.  BIG                   17.4%
+6.  M80                   15.0%
+7.  MIBR                  13.9%
+8.  SINNERS               12.7%
+9.  NRG                    8.3%
+10. TYLOO                  7.2%
+11. Sharks                 6.9%
+12. Gaimin Gladiators      6.2%
+13. Liquid                 4.5%
+14. Lynn Vision            4.0%
+15. THUNDERdOWNUNDER       3.3%
+16. FlyQuest               2.2%
 
 Most likely to 3-1 or 3-2:
-1.  MOUZ                  54.5%
-2.  Falcons               53.9%
-3.  Vitality              53.2%
-4.  The MongolZ           51.7%
-5.  FURIA                 51.1%
-6.  Team Spirit           49.8%
-7.  G2                    47.0%
-8.  Liquid                44.5%
-9.  Natus Vincere         44.5%
-10. paiN                  31.6%
-11. 3DMAX                 29.5%
-12. B8                    29.0%
-13. FaZe                  25.4%
-14. PARIVISION            18.7%
-15. Passion UA             9.2%
-16. Imperial               6.5%
+1.  B8                    51.5%
+2.  GamerLegion           51.3%
+3.  HEROIC                49.6%
+4.  BetBoom               49.1%
+5.  BIG                   47.0%
+6.  M80                   44.5%
+7.  MIBR                  43.2%
+8.  SINNERS               41.2%
+9.  NRG                   38.9%
+10. TYLOO                 35.5%
+11. Sharks                34.0%
+12. Gaimin Gladiators     32.0%
+13. Liquid                25.3%
+14. Lynn Vision           23.0%
+15. THUNDERdOWNUNDER      20.0%
+16. FlyQuest              13.9%
 
 Most likely to 0-3:
-1.  Imperial              40.9%
-2.  Passion UA            36.5%
-3.  PARIVISION            24.0%
-4.  FaZe                  18.5%
-5.  B8                    16.4%
-6.  3DMAX                 15.4%
-7.  paiN                  11.7%
-8.  Natus Vincere          9.4%
-9.  Liquid                 8.8%
-10. Team Spirit            5.3%
-11. G2                     4.6%
-12. The MongolZ            2.6%
-13. MOUZ                   2.5%
-14. Vitality               1.5%
-15. Falcons                1.2%
-16. FURIA                  0.7%
+1.  FlyQuest              32.5%
+2.  THUNDERdOWNUNDER      25.6%
+3.  Lynn Vision           22.5%
+4.  Liquid                20.5%
+5.  Gaimin Gladiators     16.0%
+6.  Sharks                14.6%
+7.  TYLOO                 14.0%
+8.  NRG                   12.2%
+9.  SINNERS                7.8%
+10. MIBR                   7.3%
+11. M80                    6.7%
+12. BIG                    5.6%
+13. BetBoom                4.9%
+14. HEROIC                 4.4%
+15. B8                     2.8%
+16. GamerLegion            2.5%
 
-Run time: 0.093 seconds
+Run time: 0.026 seconds
 ```
 
 ```shell
-pickems simulate --file data/2025_budapest_stage_3.toml --report picks
+pickems simulate --file data/2026_cologne_stage_1.toml --report picks
 ```
 
 ```text
 RESULTS FROM 1,000,000 TOURNAMENT SIMULATIONS
 
 3-0 picks:
-1.  FURIA                 41.6%
-2.  G2                    11.8%
+1.  GamerLegion           30.4%
+2.  MIBR                  13.9%
 
 3-1 or 3-2 picks:
-1.  MOUZ                  54.4%
-2.  Falcons               53.9%
-3.  Vitality              53.2%
-4.  The MongolZ           51.7%
-5.  Team Spirit           49.7%
-6.  Liquid                44.6%
+1.  B8                    51.5%
+2.  HEROIC                49.5%
+3.  BetBoom               49.1%
+4.  BIG                   46.9%
+5.  M80                   44.7%
+6.  SINNERS               41.2%
 
 0-3 picks:
-1.  Imperial              40.8%
-2.  Passion UA            36.5%
+1.  FlyQuest              32.6%
+2.  THUNDERdOWNUNDER      25.6%
 
-Simulated stars earned: 4.384 +/- 1.398
-Expected success (>=5 stars): 46.7%
+Simulated stars earned: 3.852 +/- 1.397
+Expected success (>=5 stars): 31.6%
 
-Run time: 0.197 seconds
+Run time: 0.05 seconds
 ```
