@@ -1,8 +1,8 @@
 use std::path::{Path, PathBuf};
 
 use pickems::{
-    datatypes::Teams,
-    reporting::{BasicReport, PicksReport, Report as _, ReportAll, StrengthReport},
+    datatypes::{Set, Teams},
+    reporting::{AssessReport, BasicReport, PicksReport, Report as _, ReportAll, StrengthReport},
     simulation::Simulation,
 };
 
@@ -46,4 +46,17 @@ pub fn run_simulation(teams: Teams, sigma: f32, iterations: u64, report: ReportT
         ReportType::Picks => sim.run(PicksReport::default()).format(&sim),
         ReportType::All => sim.run(ReportAll::default()).format(&sim),
     }
+}
+
+pub fn assess_picks(
+    teams: Teams,
+    sigma: f32,
+    iterations: u64,
+    three_zero: Set,
+    advanced: Set,
+    zero_three: Set,
+) -> String {
+    let sim = Simulation::new(teams, sigma, iterations);
+    sim.run(AssessReport::new(three_zero, advanced, zero_three))
+        .format(&sim)
 }

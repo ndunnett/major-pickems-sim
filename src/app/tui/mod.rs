@@ -10,7 +10,7 @@ mod tasks;
 
 use app::App;
 use framework::Root as _;
-use pickems::datatypes::{Map, Teams};
+use pickems::datatypes::{Map, Name, Set, Teams};
 
 pub type Msg = framework::Msg<Update, Notify, Task>;
 pub type Context = framework::Context<Update, Notify, Task, State>;
@@ -20,6 +20,7 @@ pub struct State {
     pub path: PathBuf,
     pub opened: Option<PathBuf>,
     pub teams: Option<Map>,
+    pub picks: [Option<Name>; 10],
     pub sigma: f32,
     pub iterations: u64,
     pub report_type: ReportType,
@@ -49,19 +50,19 @@ pub enum Id {
 impl Id {
     pub const fn next(self) -> Self {
         match self {
-            Self::Teams => Self::Picks,
+            Self::Teams => Self::Parameters,
+            Self::Parameters => Self::Picks,
             Self::Picks => Self::Report,
-            Self::Report => Self::Parameters,
-            Self::Parameters => Self::Teams,
+            Self::Report => Self::Teams,
         }
     }
 
     pub const fn prev(self) -> Self {
         match self {
-            Self::Teams => Self::Parameters,
-            Self::Picks => Self::Teams,
+            Self::Teams => Self::Report,
+            Self::Parameters => Self::Teams,
+            Self::Picks => Self::Parameters,
             Self::Report => Self::Picks,
-            Self::Parameters => Self::Report,
         }
     }
 }
@@ -102,7 +103,9 @@ pub enum Update {
     LoadDataFile(PathBuf),
     ReportContent(String),
     DataOrParams,
-    AutoPicks(String),
+    AutoPickAssess(String),
+    ManualPickAssess(String),
+    SetPick { index: usize, name: Name },
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -126,6 +129,14 @@ pub enum Task {
         teams: Box<Teams>,
         sigma: f32,
         iterations: u64,
+    },
+    ManualPicks {
+        teams: Box<Teams>,
+        sigma: f32,
+        iterations: u64,
+        three_zero: Set,
+        advanced: Set,
+        zero_three: Set,
     },
 }
 

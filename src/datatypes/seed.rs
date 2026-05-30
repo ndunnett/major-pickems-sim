@@ -24,6 +24,18 @@ impl Seed {
     pub fn iter_all() -> impl Iterator<Item = Self> {
         (1..=16).map(|i| Self::try_new(i).unwrap())
     }
+
+    /// Increment the seed by 1, wrapping back to 1 if exceeding 16
+    #[must_use]
+    pub const fn wrapping_increment(self) -> Self {
+        Self(self.0 % 16 + 1)
+    }
+
+    /// Decrement the seed by 1, wrapping back to 16 if reaching 0
+    #[must_use]
+    pub const fn wrapping_decrement(self) -> Self {
+        Self((self.0 + 14) % 16 + 1)
+    }
 }
 
 impl TryFrom<u16> for Seed {

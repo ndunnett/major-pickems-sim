@@ -101,7 +101,7 @@ impl Entity<Update, Notify, Task, State> for ReportScreen {
                 self.picks.update(cx, msg);
             }
             Update::ReportContent(..) => self.report.update(cx, msg),
-            Update::AutoPicks(..) => self.picks.update(cx, msg),
+            Update::AutoPickAssess(..) => self.picks.update(cx, msg),
             _ => match cx.report_focus {
                 Id::Teams => self.teams.update(cx, msg),
                 Id::Picks => self.picks.update(cx, msg),
@@ -117,7 +117,7 @@ impl Entity<Update, Notify, Task, State> for ReportScreen {
             Layout::vertical([Constraint::Fill(1), Constraint::Length(1)]).areas(area);
 
         let [top, bottom] =
-            Layout::vertical([Constraint::Length(20), Constraint::Fill(1)]).areas(window);
+            Layout::vertical([Constraint::Length(24), Constraint::Fill(1)]).areas(window);
 
         let [left, _, right] = Layout::horizontal([
             Constraint::Fill(1),
@@ -126,13 +126,13 @@ impl Entity<Update, Notify, Task, State> for ReportScreen {
         ])
         .areas(top);
 
-        let [bottom_upper, bottom_lower] =
-            Layout::vertical([Constraint::Fill(1), Constraint::Length(5)]).areas(bottom);
+        let [left_upper, left_lower] =
+            Layout::vertical([Constraint::Fill(1), Constraint::Length(5)]).areas(left);
 
-        self.teams.render(cx, frame, left);
+        self.teams.render(cx, frame, left_upper);
+        self.parameters.render(cx, frame, left_lower);
         self.picks.render(cx, frame, right);
-        self.report.render(cx, frame, bottom_upper);
-        self.parameters.render(cx, frame, bottom_lower);
+        self.report.render(cx, frame, bottom);
 
         let open = Span::from(format!(
             "{} [{}]",

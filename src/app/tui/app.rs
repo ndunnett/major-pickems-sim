@@ -4,7 +4,7 @@ use ratatui::{
     layout::Rect,
 };
 
-use pickems::datatypes::{Map, Teams};
+use pickems::datatypes::{Index, Map, Name, Set, Teams};
 
 use super::{
     Notify, ReportType, Screen, State, Task, Update, binds,
@@ -16,22 +16,21 @@ use super::{
 type Context = super::framework::Context<Update, Notify, Task, State>;
 type Msg = super::framework::Msg<Update, Notify, Task>;
 
-#[allow(clippy::struct_field_names)]
 pub struct App {
-    open_screen: OpenScreen,
-    report_screen: ReportScreen,
-    active_screen: Screen,
+    open: OpenScreen,
+    report: ReportScreen,
+    active: Screen,
 }
 
 impl App {
     pub fn new() -> Self {
-        let open_screen = OpenScreen::new();
-        let report_screen = ReportScreen::new();
+        let open = OpenScreen::new();
+        let report = ReportScreen::new();
 
         Self {
-            open_screen,
-            report_screen,
-            active_screen: Screen::Open,
+            open,
+            report,
+            active: Screen::Open,
         }
     }
 }
@@ -63,7 +62,20 @@ impl Root<Update, Notify, Task, State> for App {
                 iterations,
             } => {
                 let content = tasks::run_simulation(*teams, sigma, iterations, ReportType::Picks);
-                Some(Msg::Update(Update::AutoPicks(content)))
+                Some(Msg::Update(Update::AutoPickAssess(content)))
+            }
+            Task::ManualPicks {
+                teams,
+                sigma,
+                iterations,
+                three_zero,
+                advanced,
+                zero_three,
+            } => {
+                let content = tasks::assess_picks(
+                    *teams, sigma, iterations, three_zero, advanced, zero_three,
+                );
+                Some(Msg::Update(Update::ManualPickAssess(content)))
             }
         }
     }
@@ -71,9 +83,9 @@ impl Root<Update, Notify, Task, State> for App {
 
 impl Entity<Update, Notify, Task, State> for App {
     fn dispatch_event(&mut self, cx: &mut Context, event: &Event) -> Option<Msg> {
-        match self.active_screen {
-            Screen::Open => self.open_screen.dispatch_event(cx, event),
-            Screen::Report => self.report_screen.dispatch_event(cx, event),
+        match self.active {
+            Screen::Open => self.open.dispatch_event(cx, event),
+            Screen::Report => self.report.dispatch_event(cx, event),
         }
         .map_or_else(|| self.handle_event(cx, event), Some)
     }
@@ -99,16 +111,16 @@ impl Entity<Update, Notify, Task, State> for App {
     }
 
     fn notify(&mut self, cx: &mut Context, msg: Notify) {
-        match self.active_screen {
-            Screen::Open => self.open_screen.notify(cx, msg),
-            Screen::Report => self.report_screen.notify(cx, msg),
+        match self.active {
+            Screen::Open => self.open.notify(cx, msg),
+            Screen::Report => self.report.notify(cx, msg),
         }
     }
 
     fn update(&mut self, cx: &mut Context, msg: Update) {
         match msg {
             Update::ChangeScreen(screen) => {
-                self.active_screen = screen;
+                self.active = screen;
             }
             Update::ChangePath(path) => {
                 cx.path = path;
@@ -134,17 +146,56 @@ impl Entity<Update, Notify, Task, State> for App {
                     cx.notify(Notify::Todo);
                 }
             }
-            Update::ReportContent(..) | Update::DataOrParams | Update::AutoPicks(..) => {
-                self.report_screen.update(cx, msg);
+            Update::SetPick { index, name } => {
+                for pick in &mut cx.picks {
+                    _ = pick.take_if(|pick| pick == &name);
+                }
+
+                cx.picks[index] = Some(name);
+
+                if cx.picks.iter().any(Option::is_none) {
+                    cx.update(Update::ManualPickAssess(String::new()));
+                    return;
+                }
+
+                let Some(teams) = &cx.teams else { return };
+                let Ok(teams_soa) = Teams::try_from(teams.clone()) else {
+                    return;
+                };
+
+                let collect_set = |slice: &[Option<Name>]| {
+                    slice
+                        .iter()
+                        .filter_map(|name| {
+                            let Some(name) = name else { return None };
+                            Some(Index::from(teams[name].seed))
+                        })
+                        .collect::<Set>()
+                };
+
+                cx.task(Task::ManualPicks {
+                    teams: Box::new(teams_soa),
+                    sigma: cx.sigma,
+                    iterations: cx.iterations,
+                    three_zero: collect_set(&cx.picks[..2]),
+                    advanced: collect_set(&cx.picks[2..8]),
+                    zero_three: collect_set(&cx.picks[8..]),
+                });
             }
-            Update::LoadFileList(..) => self.open_screen.update(cx, msg),
+            Update::ReportContent(..)
+            | Update::DataOrParams
+            | Update::AutoPickAssess(..)
+            | Update::ManualPickAssess(..) => {
+                self.report.update(cx, msg);
+            }
+            Update::LoadFileList(..) => self.open.update(cx, msg),
         }
     }
 
     fn render(&mut self, cx: &Context, frame: &mut Frame, area: Rect) {
-        match self.active_screen {
-            Screen::Open => self.open_screen.render(cx, frame, area),
-            Screen::Report => self.report_screen.render(cx, frame, area),
+        match self.active {
+            Screen::Open => self.open.render(cx, frame, area),
+            Screen::Report => self.report.render(cx, frame, area),
         }
     }
 }
