@@ -2,7 +2,7 @@ use arrayvec::ArrayVec;
 
 use crate::{
     datatypes::{Index, Set},
-    simulation::SwissSystem,
+    simulation::{SwissSystem, seed_teams},
 };
 
 type PriorityTable = &'static [&'static [(usize, usize)]];
@@ -86,6 +86,7 @@ impl Matchups {
     ];
 
     #[cfg_attr(feature = "pprof", inline(never))]
+    #[must_use]
     pub fn new(ss: &SwissSystem) -> Self {
         let mut matchups = Self {
             pairs: ArrayVec::new(),
@@ -123,7 +124,7 @@ impl Matchups {
                 }
             }
             _ => {
-                let teams = ss.seed_teams();
+                let teams = seed_teams(ss.remaining, &ss.diffs, &ss.opponents);
                 let mut team_index = 0;
 
                 // Chunk the sorted teams into groups with the same win-loss

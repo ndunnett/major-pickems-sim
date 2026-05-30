@@ -3,10 +3,14 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use crate::{datatypes::Teams, reporting::Report};
 
 mod matching;
+pub mod probabilities;
 mod rng;
+pub mod seeding;
 mod swiss_system;
 
-use matching::Matchups;
+pub use matching::Matchups;
+pub use probabilities::calculate_probabilities;
+pub use seeding::seed_teams;
 pub use swiss_system::SwissSystem;
 
 /// Configuration for running repeated tournament simulations.

@@ -1,5 +1,3 @@
-use std::simd::Simd;
-
 use crate::datatypes::Index;
 
 /// Compact set of team indices backed by a 16-bit bitset.
@@ -61,6 +59,14 @@ impl Set {
         self.data == 0
     }
 
+    /// Returns the number of elements contained in the set.
+    #[cfg_attr(feature = "pprof", inline(never))]
+    #[cfg_attr(not(feature = "pprof"), inline)]
+    #[must_use]
+    pub const fn len(self) -> usize {
+        self.data.count_ones() as usize
+    }
+
     /// Return an iterator of contained indices in ascending order.
     #[cfg_attr(feature = "pprof", inline(never))]
     #[cfg_attr(not(feature = "pprof"), inline)]
@@ -69,12 +75,20 @@ impl Set {
         SetIter { set: self }
     }
 
-    /// Construct a SIMD vector with every lane set to the raw bitset value.
+    /// Return the raw backing bitset.
     #[cfg_attr(feature = "pprof", inline(never))]
     #[cfg_attr(not(feature = "pprof"), inline)]
     #[must_use]
-    pub const fn splat<const N: usize>(self) -> Simd<u16, N> {
-        Simd::splat(self.data)
+    pub const fn to_bits(self) -> u16 {
+        self.data
+    }
+
+    /// Return the raw backing bitset.
+    #[cfg_attr(feature = "pprof", inline(never))]
+    #[cfg_attr(not(feature = "pprof"), inline)]
+    #[must_use]
+    pub const fn inverted(self) -> Self {
+        Self { data: !(self.data) }
     }
 }
 
@@ -87,6 +101,14 @@ impl Default for Set {
 impl std::fmt::Debug for Set {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_set().entries(self.iter()).finish()
+    }
+}
+
+impl From<u16> for Set {
+    #[cfg_attr(feature = "pprof", inline(never))]
+    #[cfg_attr(not(feature = "pprof"), inline)]
+    fn from(data: u16) -> Self {
+        Self { data }
     }
 }
 

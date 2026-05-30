@@ -1,12 +1,8 @@
-use std::{ops::Neg, simd::StdFloat};
-
-use arrayvec::ArrayVec;
 use rand::prelude::*;
-use std::simd::prelude::*;
 
 use crate::{
     datatypes::{Index, Rating, Set},
-    simulation::Matchups,
+    simulation::{Matchups, calculate_probabilities},
 };
 
 /// Mutable state for one Swiss-system tournament iteration.
@@ -33,77 +29,11 @@ pub struct SwissSystem {
 }
 
 impl SwissSystem {
-    // Lane values mirror zero-based seed indices.
-    const SEED_LANES: Simd<u16, 16> = {
-        let mut seeds = [0; 16];
-        let mut i = 1;
-
-        while i < 16 {
-            seeds[i] = i as u16;
-            i += 1;
-        }
-
-        Simd::from_array(seeds)
-    };
-
-    // Mask for the initial seed portion of a packed seeding `u16`.
-    const INITIAL_SEED_MASK: u16 = 0x1F;
-
-    #[allow(clippy::many_single_char_names)]
     #[must_use]
     #[cfg_attr(feature = "pprof", inline(never))]
     /// Create a fresh tournament state and precompute matchup probabilities.
     pub fn new(ratings: [Rating; 16], sigma: f32) -> Self {
-        const ONE: Simd<f32, 16> = Simd::splat(1.0);
-        const TWO: Simd<f32, 16> = Simd::splat(2.0);
-        let mut r = [0.0_f32; 16];
-
-        for i in 0..16 {
-            r[i] = ratings[i].to_f32();
-        }
-
-        // Precalculate independent map win probabilities for every possible
-        // matchup. Each row fixes team A and compares it against all team B
-        // ratings in SIMD lanes.
-        //
-        // let Ra = team A rating,  Rb = team B rating,  P = team A win probablity
-        // P(Ra, Rb) = 1 / (1 + 10^((Rb - Ra) / sigma))
-        //
-        // `powf` in SIMD compatible operations: x^y => exp(ln(x) * y)
-        //
-        // P(Ra, Rb) = recip(1 + exp(ln(10) * (Rb - Ra) / sigma))
-        //           = recip(1 + exp(u * (Rb - Ra))),  where u = ln(10) / sigma
-        let u = Simd::splat(10.0_f32.ln()) / Simd::splat(sigma);
-        let rb = Simd::from_array(r);
-        let mut probabilities_bo1 = [[0.0; 16]; 16];
-
-        for i in 0..16 {
-            let ra = Simd::splat(r[i]);
-            probabilities_bo1[i] = (ONE + (u * (rb - ra)).exp()).recip().to_array();
-        }
-
-        // Precalculate best-of-three series win probabilities from the map
-        // probabilities. A team wins the series by WW, WLW, or LWW.
-        //
-        // let Q = series win probability,  P = map win probability
-        // Q(W) = P
-        // Q(L) = 1 - P
-        // Q(WW-) = P * P
-        // Q(WLW) = Q(LWW) = P * P * (1 - P)
-        //
-        // let a = P * P,  b = 1 - P
-        // Q = Q(WLW) + Q(LWW) + Q(WW-)
-        //   = P * P * (1 - P) + P * P * (1 - P) + P * P
-        //   = 2 * a * b + a
-        let mut probabilities_bo3 = [[0.0; 16]; 16];
-
-        for i in 0..16 {
-            let p = Simd::from_array(probabilities_bo1[i]);
-            let a = p * p;
-            let b = ONE - p;
-            probabilities_bo3[i] = TWO.mul_add(a * b, a).to_array();
-        }
-
+        let [probabilities_bo1, probabilities_bo3] = calculate_probabilities(ratings, sigma);
         let wins = [0; 16];
         let losses = [0; 16];
         let diffs = [0; 16];
@@ -132,65 +62,6 @@ impl SwissSystem {
         self.opponents = [Set::new(); 16];
         self.remaining = Set::full();
         self.rounds_complete = 0;
-    }
-
-    /// Return the Buchholz difficulty score for a given team.
-    #[cfg_attr(feature = "pprof", inline(never))]
-    fn buchholz(&self, team: Index) -> i8 {
-        const ONE: Simd<u16, 16> = Simd::splat(1);
-
-        let mask = {
-            // Shift the opponent bitset by the lane index so each lane's low
-            // bit says whether that seed has been played. Negating 0/1 gives
-            // 0 or -1, which can be used as an all-bits mask for `diffs`.
-            let shifted = self.opponents[team.to_usize()].splat() >> Self::SEED_LANES;
-            (shifted & ONE).cast::<i8>().neg()
-        };
-
-        (Simd::from_array(self.diffs) & mask).reduce_sum()
-    }
-
-    /// Return remaining team indices sorted by mid-stage seed calculation.
-    ///
-    /// 1. Current win-loss record (higher -> lower seed)
-    /// 2. Buchholz difficulty score (sum of win-loss record for each opponent faced, higher -> lower seed)
-    /// 3. Initial seeding
-    ///
-    /// [Rules and Regs - Mid-stage Seed Calculation](https://github.com/ValveSoftware/counter-strike_rules_and_regs/blob/main/major-supplemental-rulebook.md#Mid-Stage-Seed-Calculation)
-    #[allow(clippy::cast_sign_loss)]
-    #[cfg_attr(feature = "pprof", inline(never))]
-    pub(super) fn seed_teams(&self) -> ArrayVec<Index, 16> {
-        let mut seeding = ArrayVec::<u16, 16>::new();
-
-        // Match only teams that remain in the tournament.
-        for index in self.remaining.iter() {
-            // Win-loss and Buchholz difficulty must be inverted and encoded into unsigned integers.
-            let diff = (15 - self.diffs[index.to_usize()]) as u16;
-            let buchholz = (15 - self.buchholz(index)) as u16;
-
-            // Each piece of seeding information is small enough to fit into 5 bits.
-            // Bit-pack each piece into a 16-bit unsigned integer so that one
-            // unstable integer sort applies every tiebreak in priority order:
-            //
-            // [15] [14 13 12 11 10] [9 8 7 6 5] [4 3 2 1 0]
-            //  --   --------------   ---------   ---------
-            //   |          |             |           |
-            // Spare        |    2. Buchholz diff.    |
-            //         1. Win-loss             3. Initial seed
-            //
-            seeding.push(diff << 10 | buchholz << 5 | index.to_u16());
-        }
-
-        seeding.sort_unstable();
-
-        // Strip back down to just the zero-based initial seed.
-        for packed_seed in &mut seeding {
-            *packed_seed &= Self::INITIAL_SEED_MASK;
-        }
-
-        // `Index` is a transparent newtype of `u16`, `packed_seed` has been masked
-        // down to only the intial seed which is known to be in `0..16`.
-        unsafe { std::mem::transmute(seeding) }
     }
 
     /// Simulate one independent match and update records, opponents, and status.
@@ -264,8 +135,6 @@ impl SwissSystem {
 
 #[cfg(test)]
 mod tests {
-    use std::ops::{AddAssign, Div, Sub};
-
     use super::*;
 
     use crate::{datatypes::Teams, simulation::rng};
@@ -310,61 +179,70 @@ mod tests {
 
     /// Statistical regression test, will break on material distribution changes.
     #[test]
-    #[allow(clippy::cast_sign_loss, clippy::unreadable_literal)]
+    #[allow(clippy::cast_precision_loss, clippy::unreadable_literal)]
     fn statistical_regression_test() {
         const ITERATIONS: usize = 100_000;
-        const ITER_SPLAT: Simd<f32, 16> = Simd::splat(ITERATIONS as f32);
-        const TOLERANCE: Simd<f32, 16> = Simd::splat(0.005);
-        const THREE: Simd<u8, 16> = Simd::splat(3);
-        const ZERO: Simd<u8, 16> = Simd::splat(0);
+        const ITERATIONS_F32: f32 = ITERATIONS as f32;
+        const TOLERANCE: f32 = 0.005;
 
         let fresh_ss = SwissSystem::new(Teams::dummy().ratings, 800.0);
         let mut rng = rng::deterministic();
-        let mut total_three_zero: Simd<u64, 16> = Simd::splat(0);
-        let mut total_advancing: Simd<u64, 16> = Simd::splat(0);
-        let mut total_zero_three: Simd<u64, 16> = Simd::splat(0);
+        let mut total_three_zero = [0_u64; 16];
+        let mut total_advancing = [0_u64; 16];
+        let mut total_zero_three = [0_u64; 16];
 
         for _ in 0..ITERATIONS {
             let mut ss = fresh_ss;
             ss.simulate_tournament(&mut rng);
 
-            let wins = Simd::from_array(ss.wins);
-            let losses = Simd::from_array(ss.losses);
+            for seed in 0..16 {
+                let wins = ss.wins[seed];
+                let losses = ss.losses[seed];
 
-            let three_wins = wins.simd_eq(THREE);
-            let zero_wins = wins.simd_eq(ZERO);
-            let three_losses = losses.simd_eq(THREE);
-            let zero_losses = losses.simd_eq(ZERO);
+                if wins == 3 && losses == 0 {
+                    total_three_zero[seed] += 1;
+                }
 
-            total_three_zero.add_assign((three_wins & zero_losses).to_simd().abs().cast());
-            total_advancing.add_assign((three_wins & !zero_losses).to_simd().abs().cast());
-            total_zero_three.add_assign((zero_wins & three_losses).to_simd().abs().cast());
+                if wins == 3 && losses != 0 {
+                    total_advancing[seed] += 1;
+                }
+
+                if wins == 0 && losses == 3 {
+                    total_zero_three[seed] += 1;
+                }
+            }
         }
 
-        let expected_three_zero = Simd::from_array([
+        let expected_three_zero = [
             0.467134, 0.381915, 0.30356, 0.239474, 0.18577, 0.141047, 0.106158, 0.077854, 0.029252,
             0.022126, 0.016032, 0.010871, 0.007562, 0.005146, 0.003569, 0.00253,
-        ]);
+        ];
 
-        let expected_advancing = Simd::from_array([
+        let expected_advancing = [
             0.482817, 0.542122, 0.585634, 0.604685, 0.604085, 0.584402, 0.547824, 0.497656,
             0.394673, 0.324406, 0.258943, 0.199543, 0.148371, 0.105615, 0.071796, 0.047428,
-        ]);
+        ];
 
-        let expected_zero_three = Simd::from_array([
+        let expected_zero_three = [
             0.002564, 0.003679, 0.005201, 0.007576, 0.010758, 0.01579, 0.021963, 0.029273, 0.07803,
             0.105759, 0.141881, 0.18603, 0.238006, 0.303477, 0.383103, 0.46691,
-        ]);
+        ];
 
-        for (actual, expected) in [
-            (total_three_zero.cast().div(ITER_SPLAT), expected_three_zero),
-            (total_advancing.cast().div(ITER_SPLAT), expected_advancing),
-            (total_zero_three.cast().div(ITER_SPLAT), expected_zero_three),
+        for (actual_counts, expected) in [
+            (total_three_zero, expected_three_zero),
+            (total_advancing, expected_advancing),
+            (total_zero_three, expected_zero_three),
         ] {
-            assert!(
-                actual.sub(expected).abs().simd_lt(TOLERANCE).all(),
-                "Actual: {actual:#?}\n\nExpected: {expected:#?}"
-            );
+            let actual = actual_counts.map(|count| count as f32 / ITERATIONS_F32);
+
+            for seed in 0..16 {
+                assert!(
+                    (actual[seed] - expected[seed]).abs() < TOLERANCE,
+                    "seed {seed}: actual {}, expected {}\n\nActual: {actual:#?}\n\nExpected: {expected:#?}",
+                    actual[seed],
+                    expected[seed]
+                );
+            }
         }
     }
 }
