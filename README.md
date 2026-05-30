@@ -6,10 +6,10 @@ Each team's [regional standings](https://github.com/ValveSoftware/counter-strike
 
 ## Installation
 
-Download the binary from the latest [release](https://github.com/ndunnett/major-pickems-sim/releases), or install from source using cargo with the nightly toolchain:
+Download the binary from the latest [release](https://github.com/ndunnett/major-pickems-sim/releases), or install from source using cargo:
 
 ```shell
-cargo +nightly install major-pickems-sim
+cargo install major-pickems-sim
 ```
 
 ## Common commands

@@ -34,7 +34,7 @@ USER "$USERNAME"
 
 # install rust
 ENV CARGO_HOME="/home/$USERNAME/.cargo"
-RUN set -eux; wget -qO - https://sh.rustup.rs | sh -s -- -y --default-toolchain nightly
+RUN set -eux; wget -qO - https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
 
 # install go
 COPY --from=golang:1.24-bookworm --chown="$USERNAME:$USERNAME" /usr/local/go/ /usr/local/go/
