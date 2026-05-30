@@ -93,7 +93,6 @@ fn bench_seeding(c: &mut Criterion) {
             });
         });
 
-        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
         if std::is_x86_feature_detected!("sse2") {
             group.bench_with_input(BenchmarkId::new("sse2", case.name), case, |b, case| {
                 b.iter(|| {
@@ -108,7 +107,6 @@ fn bench_seeding(c: &mut Criterion) {
             });
         }
 
-        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
         if std::is_x86_feature_detected!("avx2") {
             group.bench_with_input(BenchmarkId::new("avx2", case.name), case, |b, case| {
                 b.iter(|| {
@@ -127,45 +125,6 @@ fn bench_seeding(c: &mut Criterion) {
     group.finish();
 }
 
-struct ProbabilitiesCase {
-    name: &'static str,
-    ratings: [Rating; 16],
-    sigma: f32,
-}
-
-fn ratings(values: [u16; 16]) -> [Rating; 16] {
-    values.map(Rating::new)
-}
-
-fn probabilities_cases() -> [ProbabilitiesCase; 3] {
-    [
-        ProbabilitiesCase {
-            name: "spread",
-            ratings: ratings([
-                1_100, 1_180, 1_260, 1_340, 1_420, 1_500, 1_580, 1_660, 1_740, 1_820, 1_900, 1_980,
-                2_060, 2_140, 2_220, 2_300,
-            ]),
-            sigma: 800.0,
-        },
-        ProbabilitiesCase {
-            name: "mixed",
-            ratings: ratings([
-                1_850, 1_120, 2_040, 1_530, 1_760, 2_270, 1_390, 1_970, 1_210, 2_130, 1_680, 1_470,
-                2_360, 1_590, 1_910, 1_300,
-            ]),
-            sigma: 800.0,
-        },
-        ProbabilitiesCase {
-            name: "close",
-            ratings: ratings([
-                1_600, 1_600, 1_610, 1_610, 1_620, 1_620, 1_630, 1_630, 1_640, 1_640, 1_650, 1_650,
-                1_660, 1_660, 1_670, 1_670,
-            ]),
-            sigma: 400.0,
-        },
-    ]
-}
-
 fn bench_probabilities(c: &mut Criterion) {
     let mut group = c.benchmark_group("probabilities");
 
@@ -173,43 +132,42 @@ fn bench_probabilities(c: &mut Criterion) {
         .warm_up_time(Duration::from_millis(500))
         .measurement_time(Duration::from_secs(2));
 
-    for case in &probabilities_cases() {
-        group.bench_with_input(BenchmarkId::new("scalar", case.name), case, |b, case| {
+    let case = &(
+        [
+            1_850, 1_120, 2_040, 1_530, 1_760, 2_270, 1_390, 1_970, 1_210, 2_130, 1_680, 1_470,
+            2_360, 1_590, 1_910, 1_300,
+        ]
+        .map(Rating::new),
+        800.0,
+    );
+
+    group.bench_with_input("scalar", case, |b, &(ratings, sigma)| {
+        b.iter(|| {
+            black_box(probabilities::scalar_impl(
+                black_box(ratings),
+                black_box(sigma),
+            ));
+        });
+    });
+
+    if std::is_x86_feature_detected!("sse2") {
+        group.bench_with_input("sse2", case, |b, &(ratings, sigma)| {
             b.iter(|| {
-                black_box(probabilities::scalar_impl(
-                    black_box(case.ratings),
-                    black_box(case.sigma),
-                ));
+                black_box(unsafe {
+                    probabilities::x86_64::sse2_impl(black_box(ratings), black_box(sigma))
+                });
             });
         });
+    }
 
-        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-        if std::is_x86_feature_detected!("sse2") {
-            group.bench_with_input(BenchmarkId::new("sse2", case.name), case, |b, case| {
-                b.iter(|| {
-                    black_box(unsafe {
-                        probabilities::x86_64::sse2_impl(
-                            black_box(case.ratings),
-                            black_box(case.sigma),
-                        )
-                    });
+    if std::is_x86_feature_detected!("avx2") {
+        group.bench_with_input("avx2", case, |b, &(ratings, sigma)| {
+            b.iter(|| {
+                black_box(unsafe {
+                    probabilities::x86_64::avx2_impl(black_box(ratings), black_box(sigma))
                 });
             });
-        }
-
-        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-        if std::is_x86_feature_detected!("avx2") {
-            group.bench_with_input(BenchmarkId::new("avx2", case.name), case, |b, case| {
-                b.iter(|| {
-                    black_box(unsafe {
-                        probabilities::x86_64::avx2_impl(
-                            black_box(case.ratings),
-                            black_box(case.sigma),
-                        )
-                    });
-                });
-            });
-        }
+        });
     }
 
     group.finish();
