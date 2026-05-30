@@ -70,7 +70,7 @@ impl Sum for StrengthReport {
 impl Report for StrengthReport {
     fn update(&mut self, ss: &SwissSystem) {
         for (seed, result) in self.stats.iter_mut().enumerate() {
-            for opponent in ss.opponents[seed].iter() {
+            for opponent in ss.opponents[seed] {
                 // Welford's online algorithm keeps variance stable while
                 // accumulating many parallel simulation samples.
                 result.n += 1;

@@ -103,6 +103,17 @@ impl FromIterator<Index> for Set {
     }
 }
 
+impl IntoIterator for Set {
+    type Item = Index;
+    type IntoIter = SetIter;
+
+    #[cfg_attr(feature = "pprof", inline(never))]
+    #[cfg_attr(not(feature = "pprof"), inline)]
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
 /// Iterator over indices contained in a [`Set`].
 pub struct SetIter {
     set: Set,
