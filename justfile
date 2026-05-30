@@ -14,9 +14,11 @@
 @check:
     cargo clippy --quiet --all-targets -- -D warnings
 
+PROFILING_RUSTFLAGS := "-C link-arg=-Wl,--no-rosegment -C force-frame-pointers=yes -C symbol-mangling-version=v0 -C llvm-args=--inline-threshold=0 -Z inline-mir=no"
+
 # Generate profile data for pprof
 @generate-profile-data:
-    cargo run --profile=pprof --features=pprof
+    RUSTFLAGS='{{ PROFILING_RUSTFLAGS }}' cargo run --profile=pprof --features=pprof
 
 # Run pprof to profile the simulation hot path
 @profile:
