@@ -1,10 +1,13 @@
+PROFILING_RUSTFLAGS := "-C link-arg=-Wl,--no-rosegment -C force-frame-pointers=yes -C symbol-mangling-version=v0 -C llvm-args=--inline-threshold=0"
+TESTING_RUSTFLAGS := "-C target-cpu=native"
+
 [private]
 @default:
     just --list
 
 # Run tests with optional filter
 @test filter="":
-    cargo nextest run --cargo-quiet {{ filter }}
+    RUSTFLAGS='{{ TESTING_RUSTFLAGS }}' cargo nextest run --cargo-quiet {{ filter }}
 
 # Run formatter on all files
 @fmt:
@@ -13,8 +16,6 @@
 # Run clippy with warnings promoted to errors
 @check:
     cargo clippy --quiet --all-targets -- -D warnings
-
-PROFILING_RUSTFLAGS := "-C link-arg=-Wl,--no-rosegment -C force-frame-pointers=yes -C symbol-mangling-version=v0 -C llvm-args=--inline-threshold=0 -Z inline-mir=no"
 
 # Generate profile data for pprof
 @generate-profile-data:
@@ -25,8 +26,8 @@ PROFILING_RUSTFLAGS := "-C link-arg=-Wl,--no-rosegment -C force-frame-pointers=y
     just generate-profile-data && pprof -http=localhost:8080 target/profile.pb
 
 # Use criterion to benchmark the simulation hot path
-@bench:
-    cargo bench --quiet
+@bench args="":
+    RUSTFLAGS='{{ TESTING_RUSTFLAGS }}' cargo bench --quiet -- {{ args }}
 
 # Run simulation
 @simulate report="basic":
@@ -39,3 +40,7 @@ PROFILING_RUSTFLAGS := "-C link-arg=-Wl,--no-rosegment -C force-frame-pointers=y
 # Run data update command
 @data-update:
     cargo run -- update
+
+# Test, check, format
+@tcf filter="":
+    just test {{ filter }} && just check && just fmt
