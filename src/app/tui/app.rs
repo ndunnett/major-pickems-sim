@@ -188,7 +188,8 @@ impl Entity<Update, Notify, Task, State> for App {
             }
             Update::ReportContent(..)
             | Update::AutoPickAssess(..)
-            | Update::ManualPickAssess(..) => {
+            | Update::ManualPickAssess(..)
+            | Update::PicksMode(..) => {
                 self.report.update(cx, msg);
             }
             Update::DataOrParams => {
@@ -212,6 +213,10 @@ impl Entity<Update, Notify, Task, State> for App {
                 self.input_modal = None;
                 cx.modal_open = false;
             }
+            Update::OpenReportModal => {
+                self.input_modal = Some(InputModal::report(cx));
+                cx.modal_open = true;
+            }
             Update::OpenIterationsModal => {
                 self.input_modal = Some(InputModal::iterations(cx));
                 cx.modal_open = true;
@@ -230,6 +235,14 @@ impl Entity<Update, Notify, Task, State> for App {
             }
             Update::OpenSeedModal(name) => {
                 self.input_modal = Some(InputModal::seed(cx, name));
+                cx.modal_open = true;
+            }
+            Update::OpenPicksModeModal => {
+                self.input_modal = Some(InputModal::picks_mode());
+                cx.modal_open = true;
+            }
+            Update::OpenPickSelectModal(n) => {
+                self.input_modal = Some(InputModal::pick_select(cx, n));
                 cx.modal_open = true;
             }
         }

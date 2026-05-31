@@ -11,23 +11,9 @@ use ratatui::{
 
 use pickems::datatypes::{Seed, Teams};
 
-use crate::app::tui::{Context, Id, Msg, Notify, State, Task, Update, binds, framework::Entity};
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-enum Mode {
-    #[default]
-    Auto,
-    Manual,
-}
-
-impl Mode {
-    const fn as_str(&self) -> &str {
-        match self {
-            Self::Auto => "auto",
-            Self::Manual => "manual",
-        }
-    }
-}
+use crate::app::tui::{
+    Context, Id, Msg, Notify, PicksMode, State, Task, Update, binds, framework::Entity,
+};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 enum Focus {
@@ -40,7 +26,7 @@ enum Focus {
 pub struct PicksPane {
     auto_content: String,
     manual_content: String,
-    mode: Mode,
+    mode: PicksMode,
     focus: Focus,
 }
 
@@ -77,9 +63,10 @@ impl Entity<Update, Notify, Task, State> for PicksPane {
 
         match self.focus {
             Focus::Mode => match (modifiers, code) {
-                binds::DOWN if self.mode == Mode::Manual => self.focus = Focus::Pick(0),
-                binds::LEFT => self.mode = Mode::Auto,
-                binds::RIGHT => self.mode = Mode::Manual,
+                binds::DOWN if self.mode == PicksMode::Manual => self.focus = Focus::Pick(0),
+                binds::LEFT => self.mode = PicksMode::Auto,
+                binds::RIGHT => self.mode = PicksMode::Manual,
+                binds::SELECT => return Some(Msg::Update(Update::OpenPicksModeModal)),
                 _ => return None,
             },
             Focus::Pick(n) => match (modifiers, code) {
@@ -140,6 +127,7 @@ impl Entity<Update, Notify, Task, State> for PicksPane {
                         name: new_name.clone(),
                     }));
                 }
+                binds::SELECT => return Some(Msg::Update(Update::OpenPickSelectModal(n))),
                 _ => return None,
             },
         }
@@ -162,6 +150,7 @@ impl Entity<Update, Notify, Task, State> for PicksPane {
             }
             Update::AutoPickAssess(content) => self.auto_content = content,
             Update::ManualPickAssess(content) => self.manual_content = content,
+            Update::PicksMode(mode) => self.mode = mode,
             _ => {}
         }
     }
@@ -190,10 +179,10 @@ impl Entity<Update, Notify, Task, State> for PicksPane {
         );
 
         match self.mode {
-            Mode::Auto => {
+            PicksMode::Auto => {
                 frame.render_widget(Paragraph::new(self.auto_content.trim()), bottom);
             }
-            Mode::Manual => {
+            PicksMode::Manual => {
                 let team_lines = |range: Range<usize>| {
                     range.map(|i| {
                         Line::from(cx.picks[i].as_ref().map_or("-", |name| name.as_str()))

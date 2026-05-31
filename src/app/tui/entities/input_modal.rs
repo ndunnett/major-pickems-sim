@@ -6,12 +6,14 @@ use ratatui::{
     layout::{Constraint, Layout, Position, Rect},
     style::Style,
     text::{Line, Text},
-    widgets::{Block, BorderType, Clear, Padding, Paragraph, Wrap},
+    widgets::{Block, BorderType, Clear, List, ListState, Padding, Paragraph, Wrap},
 };
 
 use pickems::datatypes::{Iterations, Name, Rating, Seed, Sigma};
 
-use crate::app::tui::{Context, Msg, Notify, State, Task, Update, binds, framework::Entity};
+use crate::app::tui::{
+    Context, Msg, Notify, PicksMode, ReportType, State, Task, Update, binds, framework::Entity,
+};
 
 #[derive(Debug)]
 pub struct InputModal {
@@ -148,6 +150,76 @@ impl InputModal {
             }),
         }
     }
+
+    pub fn report(cx: &Context) -> Self {
+        let values = vec![
+            ReportType::Basic,
+            ReportType::Strength,
+            ReportType::Picks,
+            ReportType::All,
+        ];
+
+        let selected = values.iter().position(|v| v == &cx.report_type);
+
+        Self {
+            field: InputField::Report(SelectField {
+                title: String::from("Report"),
+                values,
+                state: ListState::default().with_selected(selected),
+                submit: Box::new(|cx, report_type| {
+                    cx.report_type = report_type;
+                    cx.update(Update::DataOrParams);
+                }),
+            }),
+        }
+    }
+
+    pub fn picks_mode() -> Self {
+        Self {
+            field: InputField::PicksMode(SelectField {
+                title: String::from("Picks Mode"),
+                values: vec![PicksMode::Auto, PicksMode::Manual],
+                state: ListState::default().with_selected(Some(0)),
+                submit: Box::new(|cx, picks_mode| cx.update(Update::PicksMode(picks_mode))),
+            }),
+        }
+    }
+
+    pub fn pick_select(cx: &Context, index: usize) -> Self {
+        let current = cx.picks[index].as_ref();
+
+        let values = cx.teams.as_ref().map_or_else(Vec::new, |teams| {
+            teams
+                .keys()
+                .filter(|&key| {
+                    !cx.picks.iter().any(|name| {
+                        name.as_ref().is_some_and(|name| {
+                            name == key && current.is_none_or(|current| name != current)
+                        })
+                    })
+                })
+                .cloned()
+                .collect()
+        });
+
+        let initial = current.and_then(|current| values.iter().position(|v| v == current));
+
+        let title = match index {
+            0..2 => "Select 3-0 pick",
+            2..8 => "Select 3-1 or 3-2 pick",
+            8..10 => "Select 0-3 pick",
+            _ => unreachable!(),
+        };
+
+        Self {
+            field: InputField::PickSelect(SelectField {
+                title: String::from(title),
+                values,
+                state: ListState::default().with_selected(initial),
+                submit: Box::new(move |cx, name| cx.update(Update::SetPick { index, name })),
+            }),
+        }
+    }
 }
 
 impl Entity<Update, Notify, Task, State> for InputModal {
@@ -169,10 +241,6 @@ impl Entity<Update, Notify, Task, State> for InputModal {
         }
     }
 
-    fn notify(&mut self, _cx: &mut Context, _msg: Notify) {}
-
-    fn update(&mut self, _cx: &mut Context, _msg: Update) {}
-
     fn render(&mut self, cx: &Context, frame: &mut Frame, _area: Rect) {
         let [_, column, _] = Layout::horizontal([
             Constraint::Fill(1),
@@ -183,7 +251,7 @@ impl Entity<Update, Notify, Task, State> for InputModal {
 
         let [_, cell, _] = Layout::vertical([
             Constraint::Fill(1),
-            Constraint::Length(9),
+            Constraint::Length(11),
             Constraint::Fill(1),
         ])
         .areas(column);
@@ -193,10 +261,24 @@ impl Entity<Update, Notify, Task, State> for InputModal {
             .border_style(Style::new().bold().blue())
             .padding(Padding::horizontal(1));
 
-        let field_area = block.inner(cell);
+        let inner = block.inner(cell);
+
+        let [field_area, bind_area] =
+            Layout::vertical([Constraint::Fill(1), Constraint::Length(1)]).areas(inner);
+
+        let accept = Line::from(format!("Accept [{}]", binds::Bind(binds::ENTER)))
+            .left_aligned()
+            .style(Style::new().blue().bold());
+
+        let cancel = Line::from(format!("Cancel [{}]", binds::Bind(binds::ESC)))
+            .right_aligned()
+            .style(Style::new().blue().bold());
+
         frame.render_widget(Clear, cell);
         frame.render_widget(block, cell);
         self.field.render(cx, frame, field_area);
+        frame.render_widget(accept, bind_area);
+        frame.render_widget(cancel, bind_area);
     }
 }
 
@@ -208,7 +290,9 @@ enum InputField {
     Name(TextField<Name>),
     Rating(TextField<Rating>),
     Seed(TextField<Seed>),
-    Select(SelectField),
+    Report(SelectField<ReportType>),
+    PicksMode(SelectField<PicksMode>),
+    PickSelect(SelectField<Name>),
 }
 
 impl Entity<Update, Notify, Task, State> for InputField {
@@ -219,45 +303,53 @@ impl Entity<Update, Notify, Task, State> for InputField {
         modifiers: KeyModifiers,
     ) -> Option<Msg> {
         match self {
-            Self::Select(select) => select.on_key_press(cx, code, modifiers),
             Self::Iterations(text) => text.on_key_press(cx, code, modifiers),
             Self::Name(text) => text.on_key_press(cx, code, modifiers),
             Self::Rating(text) => text.on_key_press(cx, code, modifiers),
             Self::Seed(text) => text.on_key_press(cx, code, modifiers),
             Self::Sigma(text) => text.on_key_press(cx, code, modifiers),
+            Self::Report(select) => select.on_key_press(cx, code, modifiers),
+            Self::PicksMode(select) => select.on_key_press(cx, code, modifiers),
+            Self::PickSelect(select) => select.on_key_press(cx, code, modifiers),
         }
     }
 
     fn notify(&mut self, cx: &mut Context, msg: Notify) {
         match self {
-            Self::Select(select) => select.notify(cx, msg),
             Self::Iterations(text) => text.notify(cx, msg),
             Self::Name(text) => text.notify(cx, msg),
             Self::Rating(text) => text.notify(cx, msg),
             Self::Seed(text) => text.notify(cx, msg),
             Self::Sigma(text) => text.notify(cx, msg),
+            Self::Report(select) => select.notify(cx, msg),
+            Self::PicksMode(select) => select.notify(cx, msg),
+            Self::PickSelect(select) => select.notify(cx, msg),
         }
     }
 
     fn update(&mut self, cx: &mut Context, msg: Update) {
         match self {
-            Self::Select(select) => select.update(cx, msg),
             Self::Iterations(text) => text.update(cx, msg),
             Self::Name(text) => text.update(cx, msg),
             Self::Rating(text) => text.update(cx, msg),
             Self::Seed(text) => text.update(cx, msg),
             Self::Sigma(text) => text.update(cx, msg),
+            Self::Report(select) => select.update(cx, msg),
+            Self::PicksMode(select) => select.update(cx, msg),
+            Self::PickSelect(select) => select.update(cx, msg),
         }
     }
 
     fn render(&mut self, cx: &Context, frame: &mut Frame, area: Rect) {
         match self {
-            Self::Select(select) => select.render(cx, frame, area),
             Self::Iterations(text) => text.render(cx, frame, area),
             Self::Name(text) => text.render(cx, frame, area),
             Self::Rating(text) => text.render(cx, frame, area),
             Self::Seed(text) => text.render(cx, frame, area),
             Self::Sigma(text) => text.render(cx, frame, area),
+            Self::Report(select) => select.render(cx, frame, area),
+            Self::PicksMode(select) => select.render(cx, frame, area),
+            Self::PickSelect(select) => select.render(cx, frame, area),
         }
     }
 }
@@ -343,7 +435,7 @@ where
             (KeyModifiers::NONE | KeyModifiers::SHIFT, KeyCode::Char(c)) => self.insert(c),
             binds::BACKSPACE => self.backspace(),
             binds::DELETE => self.delete(),
-            binds::ENTER => {
+            binds::SELECT => {
                 return if let Some(Ok(t)) = self.validated.take_if(|r| r.is_ok()) {
                     (self.submit)(cx, t);
                     Some(Msg::Update(Update::CloseModal))
@@ -361,17 +453,9 @@ where
         Some(Msg::Redraw)
     }
 
-    fn notify(&mut self, _cx: &mut Context, _msg: Notify) {}
-
-    fn update(&mut self, _cx: &mut Context, _msg: Update) {}
-
     fn render(&mut self, _cx: &Context, frame: &mut Frame, area: Rect) {
-        let [block_area, message_area, bottom] = Layout::vertical([
-            Constraint::Length(3),
-            Constraint::Fill(1),
-            Constraint::Length(1),
-        ])
-        .areas(area);
+        let [block_area, message_area] =
+            Layout::vertical([Constraint::Length(3), Constraint::Fill(1)]).areas(area);
 
         let style = self.style();
 
@@ -383,14 +467,6 @@ where
         let text = Text::from(self.buffer.iter().collect::<String>());
         let text_area = block.inner(block_area);
         let cursor_position = Position::new(text_area.x + self.index as u16, text_area.y);
-
-        let accept = Line::from(format!("Accept [{}]", binds::Bind(binds::ENTER)))
-            .left_aligned()
-            .style(Style::new().blue().bold());
-
-        let cancel = Line::from(format!("Cancel [{}]", binds::Bind(binds::ESC)))
-            .right_aligned()
-            .style(Style::new().blue().bold());
 
         frame.render_widget(block, block_area);
         frame.render_widget(text, text_area);
@@ -405,53 +481,75 @@ where
                 message_area,
             );
         }
-
-        frame.render_widget(accept, bottom);
-        frame.render_widget(cancel, bottom);
     }
 }
 
 impl<T> std::fmt::Debug for TextField<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TextField")
+            .field("title", &self.title)
             .field("buffer", &self.buffer)
             .field("index", &self.index)
             .field("validated", &"...")
             .field("submit", &"...")
-            .finish_non_exhaustive()
+            .finish()
     }
 }
 
-#[derive(Debug, Clone)]
-struct SelectField {
-    // list: ListState,
+struct SelectField<T> {
+    title: String,
+    values: Vec<T>,
+    state: ListState,
+    submit: SubmitFn<T>,
 }
 
-// impl<S> SelectField<S> {
-//     fn new() -> Self {
-//         Self {
-//             list: ListState::default(),
-//             marker: PhantomData,
-//         }
-//     }
-// }
-
-impl Entity<Update, Notify, Task, State> for SelectField {
+impl<T> Entity<Update, Notify, Task, State> for SelectField<T>
+where
+    T: AsRef<str>,
+{
     fn on_key_press(
         &mut self,
-        _cx: &mut Context,
+        cx: &mut Context,
         code: KeyCode,
         modifiers: KeyModifiers,
     ) -> Option<Msg> {
-        #[allow(clippy::match_single_binding)]
         match (modifiers, code) {
-            _ => None,
+            binds::SELECT if let Some(i) = self.state.selected() => {
+                (self.submit)(cx, self.values.swap_remove(i));
+                return Some(Msg::Update(Update::CloseModal));
+            }
+            binds::UP => self.state.select_previous(),
+            binds::DOWN => self.state.select_next(),
+            _ => return None,
         }
+
+        Some(Msg::Redraw)
     }
 
-    fn notify(&mut self, _cx: &mut Context, _msg: Notify) {}
+    fn render(&mut self, _cx: &Context, frame: &mut Frame, area: Rect) {
+        let items = self.values.iter().map(AsRef::as_ref);
 
-    fn update(&mut self, _cx: &mut Context, _msg: Update) {}
+        let list = List::new(items)
+            .block(
+                Block::bordered()
+                    .border_type(BorderType::Rounded)
+                    .title(self.title.as_str()),
+            )
+            .highlight_style(Style::new().reversed())
+            .highlight_symbol(">")
+            .scroll_padding(2);
 
-    fn render(&mut self, _cx: &Context, _frame: &mut Frame, _area: Rect) {}
+        frame.render_stateful_widget(list, area, &mut self.state);
+    }
+}
+
+impl<T> std::fmt::Debug for SelectField<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SelectField")
+            .field("title", &self.title)
+            .field("values", &"Vec(...)")
+            .field("state", &self.state)
+            .field("submit", &"...")
+            .finish()
+    }
 }

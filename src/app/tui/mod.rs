@@ -72,8 +72,7 @@ pub enum Screen {
     Report,
 }
 
-#[allow(dead_code)]
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum ReportType {
     #[default]
     Basic,
@@ -93,6 +92,34 @@ impl ReportType {
     }
 }
 
+impl AsRef<str> for ReportType {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum PicksMode {
+    #[default]
+    Auto,
+    Manual,
+}
+
+impl PicksMode {
+    pub const fn as_str(&self) -> &str {
+        match self {
+            Self::Auto => "auto",
+            Self::Manual => "manual",
+        }
+    }
+}
+
+impl AsRef<str> for PicksMode {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub enum Update {
@@ -102,15 +129,19 @@ pub enum Update {
     LoadDataFile(PathBuf),
     ReportContent(String),
     DataOrParams,
+    PicksMode(PicksMode),
     AutoPickAssess(String),
     ManualPickAssess(String),
     SetPick { index: usize, name: Name },
     CloseModal,
+    OpenReportModal,
     OpenIterationsModal,
     OpenSigmaModal,
     OpenRatingModal(Name),
     OpenNameModal(Name),
     OpenSeedModal(Name),
+    OpenPicksModeModal,
+    OpenPickSelectModal(usize),
 }
 
 #[derive(Debug, Clone, Copy)]

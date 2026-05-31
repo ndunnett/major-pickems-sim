@@ -54,6 +54,7 @@ impl Entity<Update, Notify, Task, State> for ParametersPane {
                 Some(Msg::Redraw)
             }
             binds::SELECT => match self.state.selected() {
+                Some(0) => Some(Msg::Update(Update::OpenReportModal)),
                 Some(1) => Some(Msg::Update(Update::OpenIterationsModal)),
                 Some(2) => Some(Msg::Update(Update::OpenSigmaModal)),
                 _ => None,
