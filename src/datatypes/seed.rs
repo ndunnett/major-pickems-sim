@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// Initial tournament seed of a team.
@@ -46,11 +48,11 @@ impl TryFrom<u16> for Seed {
     }
 }
 
-impl TryFrom<&str> for Seed {
-    type Error = anyhow::Error;
+impl FromStr for Seed {
+    type Err = anyhow::Error;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        Self::try_new(value.parse()?)
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s.parse()?)
     }
 }
 

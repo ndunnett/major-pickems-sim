@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 /// Representation of simulation sigma.
 #[derive(Debug, Clone, Copy, PartialOrd, PartialEq)]
 pub struct Sigma(f32);
@@ -43,11 +45,11 @@ impl TryFrom<f32> for Sigma {
     }
 }
 
-impl TryFrom<&str> for Sigma {
-    type Error = anyhow::Error;
+impl FromStr for Sigma {
+    type Err = anyhow::Error;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        Self::try_new(value.parse()?)
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s.parse()?)
     }
 }
 
@@ -65,7 +67,7 @@ mod tests {
     fn validates_sigmas() {
         assert!(Sigma::try_new(800.0).is_ok());
         assert!(Sigma::try_new(0.0).is_err());
-        assert!(Sigma::try_from("800").is_ok());
-        assert!(Sigma::try_from("0").is_err());
+        assert!(Sigma::from_str("800").is_ok());
+        assert!(Sigma::from_str("0").is_err());
     }
 }

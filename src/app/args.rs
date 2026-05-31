@@ -1,6 +1,6 @@
 #![allow(clippy::derive_partial_eq_without_eq)]
 
-use std::path::PathBuf;
+use std::{path::PathBuf, str::FromStr};
 
 use argh::{FromArgValue, FromArgs};
 use pickems::datatypes::{Iterations, Name, Sigma};
@@ -31,11 +31,11 @@ pub enum ReportSelection {
 }
 
 fn parse_sigma(s: &str) -> Result<Sigma, String> {
-    Sigma::try_from(s).map_err(|e| e.to_string())
+    Sigma::from_str(s).map_err(|e| e.to_string())
 }
 
 fn parse_iterations(s: &str) -> Result<Iterations, String> {
-    Iterations::try_from(s).map_err(|e| e.to_string())
+    Iterations::from_str(s).map_err(|e| e.to_string())
 }
 
 fn parse_names<const N: usize>(s: &str) -> Result<Box<[Name; N]>, String> {

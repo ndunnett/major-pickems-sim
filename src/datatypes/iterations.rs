@@ -1,4 +1,4 @@
-use std::ops::Range;
+use std::{ops::Range, str::FromStr};
 
 use rayon::iter::IntoParallelIterator;
 
@@ -52,11 +52,11 @@ impl TryFrom<u64> for Iterations {
     }
 }
 
-impl TryFrom<&str> for Iterations {
-    type Error = anyhow::Error;
+impl FromStr for Iterations {
+    type Err = anyhow::Error;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        Self::try_new(value.parse()?)
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s.parse()?)
     }
 }
 
@@ -92,7 +92,7 @@ mod tests {
     fn validates_iterationss() {
         assert!(Iterations::try_new(1).is_ok());
         assert!(Iterations::try_new(0).is_err());
-        assert!(Iterations::try_from("1").is_ok());
-        assert!(Iterations::try_from("0").is_err());
+        assert!(Iterations::from_str("1").is_ok());
+        assert!(Iterations::from_str("0").is_err());
     }
 }
