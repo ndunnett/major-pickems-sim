@@ -56,6 +56,8 @@ pub const ENTER: (KeyModifiers, KeyCode) = (KeyModifiers::NONE, KeyCode::Enter);
 pub const ESC: (KeyModifiers, KeyCode) = (KeyModifiers::NONE, KeyCode::Esc);
 pub const TAB: (KeyModifiers, KeyCode) = (KeyModifiers::NONE, KeyCode::Tab);
 pub const SHIFT_TAB: (KeyModifiers, KeyCode) = (KeyModifiers::SHIFT, KeyCode::BackTab);
+pub const BACKSPACE: (KeyModifiers, KeyCode) = (KeyModifiers::NONE, KeyCode::Backspace);
+pub const DELETE: (KeyModifiers, KeyCode) = (KeyModifiers::NONE, KeyCode::Delete);
 
 pub const EOF: (KeyModifiers, KeyCode) = (KeyModifiers::CONTROL, KeyCode::Char('d'));
 pub const REDRAW: (KeyModifiers, KeyCode) = (KeyModifiers::CONTROL, KeyCode::Char('r'));

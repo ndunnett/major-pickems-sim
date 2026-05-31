@@ -50,7 +50,7 @@ impl PicksPane {
     }
 
     fn block_style(cx: &Context) -> Style {
-        if matches!(cx.report_focus, Id::Picks) {
+        if matches!(cx.report_focus, Id::Picks) && !cx.modal_open {
             Style::new().blue().bold()
         } else {
             Style::new().bold()
@@ -58,7 +58,7 @@ impl PicksPane {
     }
 
     fn focus_style(&self, cx: &Context, focus: Focus) -> Style {
-        if matches!(cx.report_focus, Id::Picks) && self.focus == focus {
+        if matches!(cx.report_focus, Id::Picks) && !cx.modal_open && self.focus == focus {
             Style::new().reversed()
         } else {
             Style::new()

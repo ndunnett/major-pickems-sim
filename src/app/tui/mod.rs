@@ -25,6 +25,7 @@ pub struct State {
     pub iterations: Iterations,
     pub report_type: ReportType,
     pub report_focus: Id,
+    pub modal_open: bool,
 }
 
 impl State {
@@ -104,6 +105,12 @@ pub enum Update {
     AutoPickAssess(String),
     ManualPickAssess(String),
     SetPick { index: usize, name: Name },
+    CloseModal,
+    OpenIterationsModal,
+    OpenSigmaModal,
+    OpenRatingModal(Name),
+    OpenNameModal(Name),
+    OpenSeedModal(Name),
 }
 
 #[derive(Debug, Clone, Copy)]

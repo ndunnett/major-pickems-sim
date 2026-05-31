@@ -6,31 +6,30 @@ use ratatui::{
 
 use pickems::datatypes::{Index, Map, Name, Set, Teams};
 
-use super::{
+use crate::app::tui::{
     Notify, ReportType, Screen, State, Task, Update, binds,
-    entities::{OpenScreen, ReportScreen},
+    entities::{InputModal, OpenScreen, ReportScreen},
     framework::{Entity, Root},
     tasks,
 };
 
-type Context = super::framework::Context<Update, Notify, Task, State>;
-type Msg = super::framework::Msg<Update, Notify, Task>;
+type Context = crate::app::tui::framework::Context<Update, Notify, Task, State>;
+type Msg = crate::app::tui::framework::Msg<Update, Notify, Task>;
 
 pub struct App {
     open: OpenScreen,
     report: ReportScreen,
     active: Screen,
+    input_modal: Option<InputModal>,
 }
 
 impl App {
     pub fn new() -> Self {
-        let open = OpenScreen::new();
-        let report = ReportScreen::new();
-
         Self {
-            open,
-            report,
+            open: OpenScreen::new(),
+            report: ReportScreen::new(),
             active: Screen::Open,
+            input_modal: None,
         }
     }
 }
@@ -83,11 +82,15 @@ impl Root<Update, Notify, Task, State> for App {
 
 impl Entity<Update, Notify, Task, State> for App {
     fn dispatch_event(&mut self, cx: &mut Context, event: &Event) -> Option<Msg> {
-        match self.active {
-            Screen::Open => self.open.dispatch_event(cx, event),
-            Screen::Report => self.report.dispatch_event(cx, event),
+        if let Some(input_modal) = &mut self.input_modal {
+            input_modal.dispatch_event(cx, event)
+        } else {
+            match self.active {
+                Screen::Open => self.open.dispatch_event(cx, event),
+                Screen::Report => self.report.dispatch_event(cx, event),
+            }
+            .map_or_else(|| self.handle_event(cx, event), Some)
         }
-        .map_or_else(|| self.handle_event(cx, event), Some)
     }
 
     fn on_key_press(
@@ -117,6 +120,7 @@ impl Entity<Update, Notify, Task, State> for App {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     fn update(&mut self, cx: &mut Context, msg: Update) {
         match msg {
             Update::ChangeScreen(screen) => {
@@ -183,12 +187,51 @@ impl Entity<Update, Notify, Task, State> for App {
                 });
             }
             Update::ReportContent(..)
-            | Update::DataOrParams
             | Update::AutoPickAssess(..)
             | Update::ManualPickAssess(..) => {
                 self.report.update(cx, msg);
             }
+            Update::DataOrParams => {
+                self.report.update(cx, msg);
+
+                if let Some(teams) = cx.teams.clone()
+                    && let Ok(teams_soa) = Teams::try_from(teams)
+                {
+                    cx.task(Task::RunSimulation {
+                        teams: Box::new(teams_soa),
+                        sigma: cx.sigma,
+                        iterations: cx.iterations,
+                        report: cx.report_type,
+                    });
+                } else {
+                    cx.notify(Notify::Todo);
+                }
+            }
             Update::LoadFileList(..) => self.open.update(cx, msg),
+            Update::CloseModal => {
+                self.input_modal = None;
+                cx.modal_open = false;
+            }
+            Update::OpenIterationsModal => {
+                self.input_modal = Some(InputModal::iterations(cx));
+                cx.modal_open = true;
+            }
+            Update::OpenSigmaModal => {
+                self.input_modal = Some(InputModal::sigma(cx));
+                cx.modal_open = true;
+            }
+            Update::OpenRatingModal(name) => {
+                self.input_modal = Some(InputModal::rating(cx, name));
+                cx.modal_open = true;
+            }
+            Update::OpenNameModal(name) => {
+                self.input_modal = Some(InputModal::name(name));
+                cx.modal_open = true;
+            }
+            Update::OpenSeedModal(name) => {
+                self.input_modal = Some(InputModal::seed(cx, name));
+                cx.modal_open = true;
+            }
         }
     }
 
@@ -196,6 +239,10 @@ impl Entity<Update, Notify, Task, State> for App {
         match self.active {
             Screen::Open => self.open.render(cx, frame, area),
             Screen::Report => self.report.render(cx, frame, area),
+        }
+
+        if let Some(input_modal) = &mut self.input_modal {
+            input_modal.render(cx, frame, area);
         }
     }
 }

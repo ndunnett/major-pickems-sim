@@ -26,7 +26,7 @@ impl TeamsPane {
     }
 
     fn block_style(cx: &Context) -> Style {
-        if matches!(cx.report_focus, Id::Teams) {
+        if matches!(cx.report_focus, Id::Teams) && !cx.modal_open {
             Style::new().bold().blue()
         } else {
             Style::new()
@@ -34,7 +34,7 @@ impl TeamsPane {
     }
 
     fn cell_style(cx: &Context) -> Style {
-        if matches!(cx.report_focus, Id::Teams) {
+        if matches!(cx.report_focus, Id::Teams) && !cx.modal_open {
             Style::new().reversed()
         } else {
             Style::new()
@@ -66,15 +66,17 @@ impl Entity<Update, Notify, Task, State> for TeamsPane {
                 self.state.select_next_column();
                 Some(Msg::Redraw)
             }
-            _ => None,
-        }
-    }
+            binds::SELECT if let Some((row, col)) = self.state.selected_cell() => {
+                let name = self.teams[row].1.clone();
 
-    fn notify(&mut self, _cx: &mut Context, msg: Notify) {
-        if matches!(msg, Notify::Select)
-            && let Some((_row, _col)) = self.state.selected_cell()
-        {
-            // cx.update(Update::LoadDataFile(self.items[i].clone()));
+                match col {
+                    0 => Some(Msg::Update(Update::OpenSeedModal(name))),
+                    1 => Some(Msg::Update(Update::OpenNameModal(name))),
+                    2 => Some(Msg::Update(Update::OpenRatingModal(name))),
+                    _ => unreachable!(),
+                }
+            }
+            _ => None,
         }
     }
 

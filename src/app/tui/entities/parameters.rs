@@ -21,7 +21,7 @@ impl ParametersPane {
     }
 
     fn block_style(cx: &Context) -> Style {
-        if matches!(cx.report_focus, Id::Parameters) {
+        if matches!(cx.report_focus, Id::Parameters) && !cx.modal_open {
             Style::new().blue().bold()
         } else {
             Style::new().bold()
@@ -29,7 +29,7 @@ impl ParametersPane {
     }
 
     fn cell_style(cx: &Context) -> Style {
-        if matches!(cx.report_focus, Id::Parameters) {
+        if matches!(cx.report_focus, Id::Parameters) && !cx.modal_open {
             Style::new().reversed()
         } else {
             Style::new()
@@ -38,10 +38,6 @@ impl ParametersPane {
 }
 
 impl Entity<Update, Notify, Task, State> for ParametersPane {
-    // fn on_load(&mut self, _cx: &mut Context) {
-    //     self.state.select_cell(Some((0, 1)));
-    // }
-
     fn on_key_press(
         &mut self,
         _cx: &mut Context,
@@ -57,15 +53,12 @@ impl Entity<Update, Notify, Task, State> for ParametersPane {
                 self.state.select_next();
                 Some(Msg::Redraw)
             }
+            binds::SELECT => match self.state.selected() {
+                Some(1) => Some(Msg::Update(Update::OpenIterationsModal)),
+                Some(2) => Some(Msg::Update(Update::OpenSigmaModal)),
+                _ => None,
+            },
             _ => None,
-        }
-    }
-
-    fn notify(&mut self, _cx: &mut Context, msg: Notify) {
-        if matches!(msg, Notify::Select)
-            && let Some(_row) = self.state.selected()
-        {
-            // cx.update(Update::LoadDataFile(self.items[i].clone()));
         }
     }
 

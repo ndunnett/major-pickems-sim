@@ -28,7 +28,7 @@ impl ReportPane {
     }
 
     fn style(cx: &Context) -> Style {
-        if matches!(cx.report_focus, Id::Report) {
+        if matches!(cx.report_focus, Id::Report) && !cx.modal_open {
             Style::new().blue().bold()
         } else {
             Style::new().bold()
