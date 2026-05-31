@@ -107,6 +107,12 @@ impl FromStr for Name {
     }
 }
 
+impl AsRef<str> for Name {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
