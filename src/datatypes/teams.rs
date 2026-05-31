@@ -1,4 +1,10 @@
-use std::{collections::BTreeMap, fs::read_to_string, io::Write, ops::Deref, path::PathBuf};
+use std::{
+    collections::BTreeMap,
+    fs::read_to_string,
+    io::Write,
+    ops::{Deref, DerefMut},
+    path::PathBuf,
+};
 
 use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
@@ -55,6 +61,12 @@ impl Deref for Map {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl DerefMut for Map {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 
