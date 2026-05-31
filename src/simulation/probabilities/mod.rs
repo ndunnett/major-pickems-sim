@@ -61,7 +61,7 @@ cfg_select! {
 
 use std::f32::consts::LOG2_10;
 
-use crate::datatypes::Rating;
+use crate::datatypes::{Rating, Sigma};
 
 pub use arch::calculate_probabilities;
 
@@ -70,12 +70,12 @@ pub use arch::calculate_probabilities;
 /// The result is `[probabilities_bo1, probabilities_bo3]`, and each matrix is
 /// indexed by `[team_a][team_b]`.
 #[must_use]
-pub fn scalar_impl(ratings: [Rating; 16], sigma: f32) -> [[[f32; 16]; 16]; 2] {
+pub fn scalar_impl(ratings: [Rating; 16], sigma: Sigma) -> [[[f32; 16]; 16]; 2] {
     // u = log2(10) / sigma
     // v = (Rb - Ra) * u
     // w = 2^v
     // P = 1 / (1 + w)
-    let u = LOG2_10 / sigma;
+    let u = LOG2_10 / sigma.to_f32();
     let mut probabilities_bo1 = [[0.5; 16]; 16];
 
     for (i, ra) in ratings.iter().enumerate() {

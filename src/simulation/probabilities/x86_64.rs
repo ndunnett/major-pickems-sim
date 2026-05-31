@@ -13,7 +13,7 @@ cfg_select! {
 
 use std::f32::consts::LN_2;
 
-use crate::datatypes::Rating;
+use crate::datatypes::{Rating, Sigma};
 
 const EXP2_INPUT_MIN: f32 = -126.0;
 const EXP2_INPUT_MAX: f32 = 127.0;
@@ -33,7 +33,7 @@ const EXP_POLY_5: f32 = 0.500_000_06;
 /// indexed by `[team_a][team_b]`.
 #[must_use]
 #[inline]
-pub fn calculate_probabilities(ratings: [Rating; 16], sigma: f32) -> [[[f32; 16]; 16]; 2] {
+pub fn calculate_probabilities(ratings: [Rating; 16], sigma: Sigma) -> [[[f32; 16]; 16]; 2] {
     if is_x86_feature_detected!("avx2") {
         unsafe { avx2_impl(ratings, sigma) }
     } else {
@@ -50,7 +50,7 @@ pub fn calculate_probabilities(ratings: [Rating; 16], sigma: f32) -> [[[f32; 16]
 /// must gate this with `is_x86_feature_detected!("sse2")` or an equivalent guarantee.
 #[target_feature(enable = "sse2")]
 #[must_use]
-pub unsafe fn sse2_impl(ratings: [Rating; 16], sigma: f32) -> [[[f32; 16]; 16]; 2] {
+pub unsafe fn sse2_impl(ratings: [Rating; 16], sigma: Sigma) -> [[[f32; 16]; 16]; 2] {
     let mut r = [f32::NAN; 16];
 
     for i in 0..16 {
@@ -61,7 +61,7 @@ pub unsafe fn sse2_impl(ratings: [Rating; 16], sigma: f32) -> [[[f32; 16]; 16]; 
     // v = (Rb - Ra) * u
     // w = 2^v
     // P = 1 / (1 + w)
-    let u = _mm_set1_ps(std::f32::consts::LOG2_10 / sigma);
+    let u = _mm_set1_ps(std::f32::consts::LOG2_10 / sigma.to_f32());
     let one = _mm_set1_ps(1.0);
     let mut probabilities_bo1 = [[f32::NAN; 16]; 16];
 
@@ -110,7 +110,7 @@ pub unsafe fn sse2_impl(ratings: [Rating; 16], sigma: f32) -> [[[f32; 16]; 16]; 
 /// must gate this with `is_x86_feature_detected!("avx2")` or an equivalent guarantee.
 #[target_feature(enable = "avx2")]
 #[must_use]
-pub unsafe fn avx2_impl(ratings: [Rating; 16], sigma: f32) -> [[[f32; 16]; 16]; 2] {
+pub unsafe fn avx2_impl(ratings: [Rating; 16], sigma: Sigma) -> [[[f32; 16]; 16]; 2] {
     let mut r = [f32::NAN; 16];
 
     for i in 0..16 {
@@ -121,7 +121,7 @@ pub unsafe fn avx2_impl(ratings: [Rating; 16], sigma: f32) -> [[[f32; 16]; 16]; 
     // v = (Rb - Ra) * u
     // w = 2^v
     // P = 1 / (1 + w)
-    let u = _mm256_set1_ps(std::f32::consts::LOG2_10 / sigma);
+    let u = _mm256_set1_ps(std::f32::consts::LOG2_10 / sigma.to_f32());
     let one = _mm256_set1_ps(1.0);
     let mut probabilities_bo1 = [[f32::NAN; 16]; 16];
 
@@ -270,10 +270,11 @@ unsafe fn exp2_ps_avx2(x: __m256) -> __m256 {
 
 #[cfg(test)]
 mod tests {
-    use super::{super::scalar_impl, Rating};
+    use super::{super::scalar_impl, Rating, Sigma};
 
     const TOLERANCE: f32 = 1e-5;
-    const SIGMAS: [f32; 2] = [800.0, 400.0];
+    const SIGMAS: [Sigma; 2] =
+        unsafe { [Sigma::new_unchecked(800.0), Sigma::new_unchecked(400.0)] };
     const RATING_FIXTURES: [[u16; 16]; 3] = [
         [
             1_100, 1_180, 1_260, 1_340, 1_420, 1_500, 1_580, 1_660, 1_740, 1_820, 1_900, 1_980,
@@ -289,7 +290,7 @@ mod tests {
         ],
     ];
 
-    type ImplFn = unsafe fn([Rating; 16], f32) -> [[[f32; 16]; 16]; 2];
+    type ImplFn = unsafe fn([Rating; 16], Sigma) -> [[[f32; 16]; 16]; 2];
 
     fn assert_matches_scalar(implementation: &str, func: ImplFn) {
         for fixture in RATING_FIXTURES {

@@ -6,12 +6,17 @@ pub mod update;
 
 use args::{Args, Command, ReportSelection};
 use pickems::{
-    datatypes::Teams,
+    datatypes::{Iterations, Sigma, Teams},
     reporting::{AssessReport, BasicReport, PicksReport, Report, ReportAll, StrengthReport},
     simulation::Simulation,
 };
 
-fn run_and_format(teams: Teams, sigma: f32, iterations: u64, report: impl Report) -> String {
+fn run_and_format(
+    teams: Teams,
+    sigma: Sigma,
+    iterations: Iterations,
+    report: impl Report,
+) -> String {
     let sim = Simulation::new(teams, sigma, iterations);
     let report = sim.run(report);
     report.format(&sim)

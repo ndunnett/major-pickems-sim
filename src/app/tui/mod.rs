@@ -10,7 +10,7 @@ mod tasks;
 
 use app::App;
 use framework::Root as _;
-use pickems::datatypes::{Map, Name, Set, Teams};
+use pickems::datatypes::{Iterations, Map, Name, Set, Sigma, Teams};
 
 pub type Msg = framework::Msg<Update, Notify, Task>;
 pub type Context = framework::Context<Update, Notify, Task, State>;
@@ -21,8 +21,8 @@ pub struct State {
     pub opened: Option<PathBuf>,
     pub teams: Option<Map>,
     pub picks: [Option<Name>; 10],
-    pub sigma: f32,
-    pub iterations: u64,
+    pub sigma: Sigma,
+    pub iterations: Iterations,
     pub report_type: ReportType,
     pub report_focus: Id,
 }
@@ -31,8 +31,6 @@ impl State {
     pub fn new(path: PathBuf) -> Self {
         Self {
             path,
-            sigma: 800.0,
-            iterations: 1_000_000,
             ..Default::default()
         }
     }
@@ -121,19 +119,19 @@ pub enum Task {
     },
     RunSimulation {
         teams: Box<Teams>,
-        sigma: f32,
-        iterations: u64,
+        sigma: Sigma,
+        iterations: Iterations,
         report: ReportType,
     },
     AutoPicks {
         teams: Box<Teams>,
-        sigma: f32,
-        iterations: u64,
+        sigma: Sigma,
+        iterations: Iterations,
     },
     ManualPicks {
         teams: Box<Teams>,
-        sigma: f32,
-        iterations: u64,
+        sigma: Sigma,
+        iterations: Iterations,
         three_zero: Set,
         advanced: Set,
         zero_three: Set,

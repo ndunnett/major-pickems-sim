@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 
 use argh::{FromArgValue, FromArgs};
-use pickems::datatypes::Name;
+use pickems::datatypes::{Iterations, Name, Sigma};
 
 #[derive(FromArgs, PartialEq, Debug)]
 /// Simulate tournament stage outcomes for Counter-Strike major tournaments.
@@ -28,6 +28,14 @@ pub enum ReportSelection {
     Strength,
     Picks,
     Assess,
+}
+
+fn parse_sigma(s: &str) -> Result<Sigma, String> {
+    Sigma::try_from(s).map_err(|e| e.to_string())
+}
+
+fn parse_iterations(s: &str) -> Result<Iterations, String> {
+    Iterations::try_from(s).map_err(|e| e.to_string())
 }
 
 fn parse_names<const N: usize>(s: &str) -> Result<Box<[Name; N]>, String> {
@@ -56,11 +64,11 @@ pub struct Simulate {
     #[argh(option, short = 'f')]
     pub file: PathBuf,
     /// number of iterations to run [default: 1000000]
-    #[argh(option, short = 'n', default = "1_000_000")]
-    pub iterations: u64,
+    #[argh(option, short = 'n', from_str_fn(parse_iterations))]
+    pub iterations: Iterations,
     /// sigma value to use for win probability [default: 800]
-    #[argh(option, short = 's', default = "800.0")]
-    pub sigma: f32,
+    #[argh(option, short = 's', from_str_fn(parse_sigma))]
+    pub sigma: Sigma,
     /// report data to collect [default: basic]
     #[argh(option, short = 'r', default = "ReportSelection::Basic")]
     pub report: ReportSelection,

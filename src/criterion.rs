@@ -3,7 +3,7 @@ use std::{hint::black_box, time::Duration};
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 
 use pickems::{
-    datatypes::{Rating, Set},
+    datatypes::{Iterations, Rating, Set, Sigma},
     reporting::NullReport,
     simulation::{Simulation, probabilities, seeding},
 };
@@ -15,11 +15,11 @@ fn bench_simulation(c: &mut Criterion) {
         .warm_up_time(Duration::from_millis(500))
         .measurement_time(Duration::from_secs(2))
         .bench_function("parallel", |b| {
-            let sim = Simulation::dummy(1_000_000);
+            let sim = Simulation::dummy(Iterations::new(1_000_000));
             b.iter(|| sim.clone().run(NullReport));
         })
         .bench_function("single_thread", |b| {
-            let sim = Simulation::dummy(50_000);
+            let sim = Simulation::dummy(Iterations::new(50_000));
             b.iter(|| sim.clone().bench_test(NullReport));
         });
 
@@ -138,7 +138,7 @@ fn bench_probabilities(c: &mut Criterion) {
             2_360, 1_590, 1_910, 1_300,
         ]
         .map(Rating::new),
-        800.0,
+        Sigma::new(800.0),
     );
 
     group.bench_with_input("scalar", case, |b, &(ratings, sigma)| {

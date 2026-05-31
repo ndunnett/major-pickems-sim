@@ -1,7 +1,7 @@
 use rand::prelude::*;
 
 use crate::{
-    datatypes::{Index, Rating, Set},
+    datatypes::{Index, Rating, Set, Sigma},
     simulation::{Matchups, calculate_probabilities},
 };
 
@@ -32,7 +32,7 @@ impl SwissSystem {
     #[must_use]
     #[cfg_attr(feature = "pprof", inline(never))]
     /// Create a fresh tournament state and precompute matchup probabilities.
-    pub fn new(ratings: [Rating; 16], sigma: f32) -> Self {
+    pub fn new(ratings: [Rating; 16], sigma: Sigma) -> Self {
         let [probabilities_bo1, probabilities_bo3] = calculate_probabilities(ratings, sigma);
         let wins = [0; 16];
         let losses = [0; 16];
@@ -149,7 +149,7 @@ mod tests {
     /// Uses fake RNG to isolate algorithmic changes from micro statistical changes.
     #[test]
     fn exact_regression_test() {
-        let mut ss = SwissSystem::new(Teams::dummy().ratings, 800.0);
+        let mut ss = SwissSystem::new(Teams::dummy().ratings, Sigma::new(800.0));
         ss.simulate_tournament(&mut rng::HalfRng);
 
         assert_eq!(ss.wins, [3, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 1, 1, 1, 0, 0]);
@@ -185,7 +185,7 @@ mod tests {
         const ITERATIONS_F32: f32 = ITERATIONS as f32;
         const TOLERANCE: f32 = 0.005;
 
-        let fresh_ss = SwissSystem::new(Teams::dummy().ratings, 800.0);
+        let fresh_ss = SwissSystem::new(Teams::dummy().ratings, Sigma::new(800.0));
         let mut rng = rng::deterministic();
         let mut total_three_zero = [0_u64; 16];
         let mut total_advancing = [0_u64; 16];

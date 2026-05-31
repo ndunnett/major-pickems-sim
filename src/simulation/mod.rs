@@ -1,6 +1,9 @@
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
-use crate::{datatypes::Teams, reporting::Report};
+use crate::{
+    datatypes::{Iterations, Sigma, Teams},
+    reporting::Report,
+};
 
 mod matching;
 pub mod probabilities;
@@ -19,15 +22,15 @@ pub struct Simulation {
     /// Seed-ordered team data.
     pub teams: Teams,
     /// Standard deviation parameter for the logistic win-probability model.
-    pub sigma: f32,
+    pub sigma: Sigma,
     /// Number of independent tournaments to simulate.
-    pub iterations: u64,
+    pub iterations: Iterations,
 }
 
 impl Simulation {
     /// Construct a simulation from team data, sigma, and iteration count.
     #[must_use]
-    pub const fn new(teams: Teams, sigma: f32, iterations: u64) -> Self {
+    pub const fn new(teams: Teams, sigma: Sigma, iterations: Iterations) -> Self {
         Self {
             teams,
             sigma,
@@ -37,10 +40,10 @@ impl Simulation {
 
     /// Produce simulation with dummy data for testing purposes.
     #[must_use]
-    pub fn dummy(iterations: u64) -> Self {
+    pub fn dummy(iterations: Iterations) -> Self {
         Self {
             teams: Teams::dummy(),
-            sigma: 800.0,
+            sigma: Sigma::default(),
             iterations,
         }
     }
@@ -50,7 +53,7 @@ impl Simulation {
         let mut ss = SwissSystem::new(self.teams.ratings, self.sigma);
         let mut rng = rng::deterministic();
 
-        for _ in 0..self.iterations {
+        for _ in self.iterations {
             ss.reset();
             ss.simulate_tournament(&mut rng);
             report.update(&ss);
@@ -63,7 +66,7 @@ impl Simulation {
     pub fn run<R: Report>(&self, fresh_report: R) -> R {
         let fresh_ss = SwissSystem::new(self.teams.ratings, self.sigma);
 
-        (0..self.iterations)
+        self.iterations
             .into_par_iter()
             .map_init(
                 || (fresh_ss, rng::random()),
@@ -91,7 +94,8 @@ mod tests {
     #[test]
     fn sanity_test() {
         let iterations = 1000;
-        let report = Simulation::dummy(iterations).bench_test(BasicReport::default());
+        let report =
+            Simulation::dummy(Iterations::new(iterations)).bench_test(BasicReport::default());
 
         // Total 3-0 stats should sum to 2 per iteration
         assert_eq!(

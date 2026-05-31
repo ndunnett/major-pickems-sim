@@ -37,7 +37,7 @@ pub struct BasicReport {
 impl BasicReport {
     /// Convert raw counts into probabilities for each terminal outcome.
     pub(super) fn calculate_probabilities(&self, sim: &Simulation) -> [[f32; 16]; 3] {
-        let n = sim.iterations as f32;
+        let n = sim.iterations.to_f32();
         let [mut three_zero, mut advancing, mut zero_three] = [[0.0; 16]; 3];
 
         for seed in 0..16 {

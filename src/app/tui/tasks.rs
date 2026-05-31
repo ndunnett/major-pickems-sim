@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use pickems::{
-    datatypes::{Set, Teams},
+    datatypes::{Iterations, Set, Sigma, Teams},
     reporting::{AssessReport, BasicReport, PicksReport, Report as _, ReportAll, StrengthReport},
     simulation::Simulation,
 };
@@ -37,7 +37,12 @@ pub fn load_file_list(path: &Path) -> anyhow::Result<impl Iterator<Item = PathBu
         }))
 }
 
-pub fn run_simulation(teams: Teams, sigma: f32, iterations: u64, report: ReportType) -> String {
+pub fn run_simulation(
+    teams: Teams,
+    sigma: Sigma,
+    iterations: Iterations,
+    report: ReportType,
+) -> String {
     let sim = Simulation::new(teams, sigma, iterations);
 
     match report {
@@ -50,8 +55,8 @@ pub fn run_simulation(teams: Teams, sigma: f32, iterations: u64, report: ReportT
 
 pub fn assess_picks(
     teams: Teams,
-    sigma: f32,
-    iterations: u64,
+    sigma: Sigma,
+    iterations: Iterations,
     three_zero: Set,
     advanced: Set,
     zero_three: Set,
