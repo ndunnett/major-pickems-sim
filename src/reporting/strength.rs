@@ -120,7 +120,7 @@ impl Report for StrengthReport {
         }
 
         // Sort by the mean descending.
-        results.sort_by_key(|(_, mean, _)| (*mean * -100.0) as i32);
+        results.sort_by(|(_, a, _), (_, b, _)| b.total_cmp(a));
 
         // Print table header
         out.push(format!(
