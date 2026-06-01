@@ -64,10 +64,10 @@ pub struct Simulate {
     #[argh(option, short = 'f')]
     pub file: PathBuf,
     /// number of iterations to run [default: 1000000]
-    #[argh(option, short = 'n', from_str_fn(parse_iterations))]
+    #[argh(option, short = 'n', from_str_fn(parse_iterations), default = "Iterations::default()")]
     pub iterations: Iterations,
     /// sigma value to use for win probability [default: 800]
-    #[argh(option, short = 's', from_str_fn(parse_sigma))]
+    #[argh(option, short = 's', from_str_fn(parse_sigma), default = "Sigma::default()")]
     pub sigma: Sigma,
     /// report data to collect [default: basic]
     #[argh(option, short = 'r', default = "ReportSelection::Basic")]
