@@ -6,7 +6,7 @@ pub struct Sigma(f32);
 
 impl Sigma {
     pub fn try_new(sigma: f32) -> anyhow::Result<Self> {
-        if sigma == 0.0 {
+        if !sigma.is_sign_positive() || !sigma.is_normal() {
             anyhow::bail!("invalid sigma: must be greater than 0");
         }
 
@@ -67,6 +67,8 @@ mod tests {
     fn validates_sigmas() {
         assert!(Sigma::try_new(800.0).is_ok());
         assert!(Sigma::try_new(0.0).is_err());
+        assert!(Sigma::try_new(f32::NAN).is_err());
+        assert!(Sigma::try_new(f32::INFINITY).is_err());
         assert!(Sigma::from_str("800").is_ok());
         assert!(Sigma::from_str("0").is_err());
     }
