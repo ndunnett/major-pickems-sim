@@ -10,7 +10,7 @@
 //! Bit-pack each piece into a 16-bit unsigned integer so that one sort
 //! applies every tiebreak in priority order:
 //!
-//! ```
+//! ```text
 //! [15] [14 13 12 11 10] [9 8 7 6 5] [4 3 2 1 0]
 //!  --   --------------   ---------   ---------
 //!   |          |             |           |

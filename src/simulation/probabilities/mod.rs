@@ -5,7 +5,7 @@
 //!
 //! A team wins the series by WW, WLW, or LWW.
 //!
-//! ```
+//! ```text
 //! where:
 //!     Ra = team A rating
 //!     Rb = team B rating
