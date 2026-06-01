@@ -24,9 +24,14 @@
 #![allow(clippy::cast_sign_loss)]
 
 cfg_select! {
-    any(target_arch = "x86", target_arch = "x86_64") => {
+    target_arch = "x86_64" => {
         pub mod x86_64;
+        pub mod x86;
         pub use x86_64 as arch;
+    }
+    target_arch = "x86" => {
+        pub mod x86;
+        pub use x86 as arch;
     }
     _ => {
         pub mod arch {
@@ -44,7 +49,7 @@ pub use arch::seed_teams;
 /// Mask for the initial seed portion of a packed seeding `u16`.
 const INITIAL_SEED_MASK: u16 = 0x1F;
 
-/// Return remaining team indices sorted by mid-stage seeding.
+/// Return remaining team indices sorted by mid-stage seeding using scalar loops.
 #[must_use]
 pub fn scalar_impl(remaining: Set, diffs: &[i8; 16], opponents: &[Set; 16]) -> Seeding {
     let mut seeding = [u16::MAX; 16];
@@ -249,9 +254,82 @@ impl<I: std::slice::SliceIndex<[Index]>> std::ops::Index<I> for Seeding {
     }
 }
 
+/// Lookup table for expanding opponent bits into byte masks.
+///
+/// Each 8-bit index maps to eight bytes. A set bit becomes `0xFF`; an unset
+/// bit becomes `0x00`.
+#[repr(align(64))]
+struct ByteMasks([i64; 256]);
+
+impl ByteMasks {
+    const MASKS: Self = {
+        // Mask to copy each source bit into a separate byte lane when the
+        // input byte is multiplied by it. The one-bit gaps prevent adjacent
+        // source bits from carrying into each other.
+        let spread_mask = {
+            let mut mask = 1;
+            let mut i = 0;
+
+            while i < 7 {
+                mask = (mask << 9) + 1;
+                i += 1;
+            }
+
+            mask
+        };
+
+        // Mask to select the high bit from each byte lane after the spread multiply.
+        let high_bits_mask = {
+            let mut mask = 0x80;
+            let mut i = 0;
+
+            while i < 8 {
+                mask = (mask << 8) + 0x80;
+                i += 1;
+            }
+
+            mask
+        };
+
+        // Final byte mask array, each mask will represent half a set with each
+        // bit in the set expanded to a byte.
+        // ie. index `145` => half-set `0b1001_0001` => mask `0xFF00_00FF_0000_00FF`
+        let mut masks = [0; 256];
+        let mut i = 0;
+
+        while i < 256 {
+            masks[i] = {
+                // Mask off the high bits for each lane, shift them down to the low bit.
+                let high_bits = ((i as u64).wrapping_mul(spread_mask) & high_bits_mask) >> 7;
+
+                // Multiply each bit by `0xFF`, reorder to put bit 0 in the lowest byte address.
+                high_bits.wrapping_mul(0xFF).swap_bytes().cast_signed()
+            };
+
+            i += 1;
+        }
+
+        Self(masks)
+    };
+
+    /// Returns a pointer to the mask for the low half of the set.
+    #[inline]
+    const fn low_ptr(set: Set) -> *const i64 {
+        // Safety: the index is always in `0x00..=0xFF`.
+        unsafe { Self::MASKS.0.as_ptr().add((set.to_bits() & 0xFF) as usize) }
+    }
+
+    /// Returns a pointer to the mask for the high half of the set.
+    #[inline]
+    const fn high_ptr(set: Set) -> *const i64 {
+        // Safety: the index is always in `0x00..=0xFF`.
+        unsafe { Self::MASKS.0.as_ptr().add((set.to_bits() >> 8) as usize) }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::datatypes::{Index, Set};
 
     #[test]
     fn sorting_network_8_matches_std_sort() {
@@ -263,7 +341,7 @@ mod tests {
                     1
                 }
             });
-            sorting_network_8(&mut actual);
+            super::sorting_network_8(&mut actual);
             let expected_ones = bits.count_ones() as usize;
             let expected = std::array::from_fn(|i| u16::from(i >= 8 - expected_ones));
             assert_eq!(actual, expected, "failed for bitset {bits:#04X}");
@@ -274,10 +352,61 @@ mod tests {
     fn sorting_network_16_matches_std_sort() {
         for bits in u16::MIN..=u16::MAX {
             let mut actual = std::array::from_fn(|i| u16::from(bits & (1 << i) != 0));
-            sorting_network_16(&mut actual);
+            super::sorting_network_16(&mut actual);
             let expected_ones = bits.count_ones() as usize;
             let expected = std::array::from_fn(|i| u16::from(i >= 16 - expected_ones));
             assert_eq!(actual, expected, "failed for bitset {bits:#06X}");
         }
+    }
+
+    const DIFF_FIXTURES: [[i8; 16]; 5] = [
+        [0; 16],
+        [-3, -2, -1, 0, 1, 2, 3, -3, -2, -1, 0, 1, 2, 3, -3, 3],
+        [3, -3, 2, -2, 1, -1, 0, 0, -1, 1, -2, 2, -3, 3, 0, -3],
+        [1, 1, 1, 1, -1, -1, -1, -1, 2, 2, -2, -2, 3, -3, 0, 0],
+        [3, 3, 2, 2, 2, 1, 1, 1, -1, -1, -1, -2, -2, -2, -3, -3],
+    ];
+
+    fn set_from_bits(bits: u16) -> Set {
+        Index::iter_all()
+            .filter(|index| bits & index.bit_select() != 0)
+            .collect()
+    }
+
+    type ImplFn = unsafe fn(Set, &[i8; 16], &[Set; 16]) -> super::Seeding;
+
+    /// Tests that optimised implementations match the behaviour of the scalar implementation.
+    fn assert_matches_scalar(implementation: &str, func: ImplFn) {
+        for diffs in DIFF_FIXTURES {
+            let opponents = std::array::from_fn(|i| {
+                let rotate = u32::try_from(i).unwrap();
+                set_from_bits(0b0001_0010_1010_0101_u16.rotate_left(rotate))
+            });
+
+            for bits in [
+                0x0000, 0x0001, 0x8000, 0x00FF, 0xFF00, 0x5555, 0xAAAA, 0xFFFF,
+            ] {
+                let remaining = set_from_bits(bits);
+                let expected = super::scalar_impl(remaining, &diffs, &opponents);
+                let actual = unsafe { func(remaining, &diffs, &opponents) };
+
+                assert_eq!(
+                    &*expected, &*actual,
+                    "{implementation} differs from scalar given fixture: {diffs:#?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    #[cfg(target_feature = "sse2")]
+    fn sse2_matches_scalar() {
+        assert_matches_scalar("sse2", super::x86::sse2_impl);
+    }
+
+    #[test]
+    #[cfg(target_feature = "avx2")]
+    fn avx2_matches_scalar() {
+        assert_matches_scalar("avx2", super::x86_64::avx2_impl);
     }
 }

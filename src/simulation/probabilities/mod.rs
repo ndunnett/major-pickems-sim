@@ -48,9 +48,14 @@
 #![allow(clippy::many_single_char_names)]
 
 cfg_select! {
-    any(target_arch = "x86", target_arch = "x86_64") => {
+    target_arch = "x86_64" => {
         pub mod x86_64;
+        pub mod x86;
         pub use x86_64 as arch;
+    }
+    target_arch = "x86" => {
+        pub mod x86;
+        pub use x86 as arch;
     }
     _ => {
         pub mod arch {
@@ -61,11 +66,25 @@ cfg_select! {
 
 use std::f32::consts::LOG2_10;
 
+/// Constants used for `exp2` approximations.
+mod exp2_constants {
+    pub const POLY_0: f32 = 0.000_198_756_91;
+    pub const POLY_1: f32 = 0.001_398_199_9;
+    pub const POLY_2: f32 = 0.008_333_452;
+    pub const POLY_3: f32 = 0.041_665_796;
+    pub const POLY_4: f32 = 0.166_666_66;
+    pub const POLY_5: f32 = 0.500_000_06;
+    pub const INPUT_MIN: f32 = -126.0;
+    pub const INPUT_MAX: f32 = 127.0;
+    pub const EXPONENT_BIAS: i32 = 0x7f;
+    pub const MANTISSA_BITS: i32 = 23;
+}
+
 use crate::datatypes::{Rating, Sigma};
 
 pub use arch::calculate_probabilities;
 
-/// Precalculate BO1 and BO3 win-probability matrices.
+/// Precalculate BO1 and BO3 win-probability matrices using scalar loops.
 ///
 /// The result is `[probabilities_bo1, probabilities_bo3]`, and each matrix is
 /// indexed by `[team_a][team_b]`.
@@ -108,4 +127,68 @@ pub fn scalar_impl(ratings: [Rating; 16], sigma: Sigma) -> [[[f32; 16]; 16]; 2] 
     }
 
     [probabilities_bo1, probabilities_bo3]
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::datatypes::{Rating, Sigma};
+
+    const TOLERANCE: f32 = 1e-5;
+    const SIGMAS: [Sigma; 2] =
+        unsafe { [Sigma::new_unchecked(800.0), Sigma::new_unchecked(400.0)] };
+    const RATING_FIXTURES: [[u16; 16]; 3] = [
+        [
+            1_100, 1_180, 1_260, 1_340, 1_420, 1_500, 1_580, 1_660, 1_740, 1_820, 1_900, 1_980,
+            2_060, 2_140, 2_220, 2_300,
+        ],
+        [
+            1_850, 1_120, 2_040, 1_530, 1_760, 2_270, 1_390, 1_970, 1_210, 2_130, 1_680, 1_470,
+            2_360, 1_590, 1_910, 1_300,
+        ],
+        [
+            1_600, 1_600, 1_610, 1_610, 1_620, 1_620, 1_630, 1_630, 1_640, 1_640, 1_650, 1_650,
+            1_660, 1_660, 1_670, 1_670,
+        ],
+    ];
+
+    type ImplFn = unsafe fn([Rating; 16], Sigma) -> [[[f32; 16]; 16]; 2];
+
+    /// Tests that optimised implementations match the behaviour of the scalar implementation.
+    fn assert_matches_scalar(implementation: &str, func: ImplFn) {
+        for fixture in RATING_FIXTURES {
+            let ratings = fixture.map(Rating::new);
+
+            for sigma in SIGMAS {
+                let expected = super::scalar_impl(ratings, sigma);
+                let actual = unsafe { func(ratings, sigma) };
+
+                for matrix in 0..2 {
+                    for row in 0..16 {
+                        for column in 0..16 {
+                            let expected = expected[matrix][row][column];
+                            let actual = actual[matrix][row][column];
+                            let difference = (expected - actual).abs();
+
+                            assert!(
+                                difference <= TOLERANCE,
+                                "{implementation} differs from scalar at matrix {matrix}, row {row}, column {column}: expected {expected}, actual {actual}, difference {difference}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    #[cfg(target_feature = "sse2")]
+    fn sse2_matches_scalar() {
+        assert_matches_scalar("sse2", super::x86::sse2_impl);
+    }
+
+    #[test]
+    #[cfg(target_feature = "avx2")]
+    fn avx2_matches_scalar() {
+        assert_matches_scalar("avx2", super::x86_64::avx2_impl);
+    }
 }

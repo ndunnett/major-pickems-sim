@@ -93,33 +93,31 @@ fn bench_seeding(c: &mut Criterion) {
             });
         });
 
-        if std::is_x86_feature_detected!("sse2") {
-            group.bench_with_input(BenchmarkId::new("sse2", case.name), case, |b, case| {
-                b.iter(|| {
-                    black_box(unsafe {
-                        seeding::x86_64::sse2_impl(
-                            black_box(case.remaining),
-                            black_box(&case.diffs),
-                            black_box(&case.opponents),
-                        )
-                    });
+        #[cfg(target_feature = "sse2")]
+        group.bench_with_input(BenchmarkId::new("sse2", case.name), case, |b, case| {
+            b.iter(|| {
+                black_box(unsafe {
+                    seeding::x86::sse2_impl(
+                        black_box(case.remaining),
+                        black_box(&case.diffs),
+                        black_box(&case.opponents),
+                    )
                 });
             });
-        }
+        });
 
-        if std::is_x86_feature_detected!("avx2") {
-            group.bench_with_input(BenchmarkId::new("avx2", case.name), case, |b, case| {
-                b.iter(|| {
-                    black_box(unsafe {
-                        seeding::x86_64::avx2_impl(
-                            black_box(case.remaining),
-                            black_box(&case.diffs),
-                            black_box(&case.opponents),
-                        )
-                    });
+        #[cfg(target_feature = "avx2")]
+        group.bench_with_input(BenchmarkId::new("avx2", case.name), case, |b, case| {
+            b.iter(|| {
+                black_box(unsafe {
+                    seeding::x86_64::avx2_impl(
+                        black_box(case.remaining),
+                        black_box(&case.diffs),
+                        black_box(&case.opponents),
+                    )
                 });
             });
-        }
+        });
     }
 
     group.finish();
@@ -150,25 +148,23 @@ fn bench_probabilities(c: &mut Criterion) {
         });
     });
 
-    if std::is_x86_feature_detected!("sse2") {
-        group.bench_with_input("sse2", case, |b, &(ratings, sigma)| {
-            b.iter(|| {
-                black_box(unsafe {
-                    probabilities::x86_64::sse2_impl(black_box(ratings), black_box(sigma))
-                });
+    #[cfg(target_feature = "sse2")]
+    group.bench_with_input("sse2", case, |b, &(ratings, sigma)| {
+        b.iter(|| {
+            black_box(unsafe {
+                probabilities::x86::sse2_impl(black_box(ratings), black_box(sigma))
             });
         });
-    }
+    });
 
-    if std::is_x86_feature_detected!("avx2") {
-        group.bench_with_input("avx2", case, |b, &(ratings, sigma)| {
-            b.iter(|| {
-                black_box(unsafe {
-                    probabilities::x86_64::avx2_impl(black_box(ratings), black_box(sigma))
-                });
+    #[cfg(target_feature = "avx2")]
+    group.bench_with_input("avx2", case, |b, &(ratings, sigma)| {
+        b.iter(|| {
+            black_box(unsafe {
+                probabilities::x86_64::avx2_impl(black_box(ratings), black_box(sigma))
             });
         });
-    }
+    });
 
     group.finish();
 }
