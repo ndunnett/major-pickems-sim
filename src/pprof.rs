@@ -2,12 +2,12 @@ use std::{fs::File, io::Write, time::Instant};
 
 use pprof::protos::Message;
 
-use pickems::{reporting::NullReport, simulation::Simulation};
+use pickems::{datatypes::Iterations, reporting::NullReport, simulation::Simulation};
 
 pub fn run() {
     let now = Instant::now();
     let guard = pprof::ProfilerGuard::new(1000).unwrap();
-    _ = Simulation::dummy(1_000_000).bench_test(NullReport);
+    _ = Simulation::dummy(Iterations::new(1_000_000)).bench_test(NullReport);
 
     println!(
         "Run time: {} seconds",
