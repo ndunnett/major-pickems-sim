@@ -6,14 +6,17 @@
     "source=${localWorkspaceFolder},target=/ws,type=bind,consistency=cached"
   ],
   "workspaceFolder": "/ws",
-  "capAdd": ["PERFMON"],
+  "capAdd": [
+    "PERFMON"
+  ],
   "customizations": {
     "vscode": {
       "extensions": [
         "rust-lang.rust-analyzer",
         "tamasfe.even-better-toml",
         "fill-labs.dependi",
-        "davidanson.vscode-markdownlint"
+        "davidanson.vscode-markdownlint",
+        "nefrob.vscode-just-syntax"
       ]
     }
   }
