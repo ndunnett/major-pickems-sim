@@ -44,3 +44,6 @@ TESTING_RUSTFLAGS := "-C target-cpu=native"
 # Test, check, format
 @tcf filter="":
     just test {{ filter }} && just check && just fmt
+
+@size build-args="--release":
+    cargo build {{ build-args }}; du -A -Bk target/release/pickems
