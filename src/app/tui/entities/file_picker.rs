@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use ratatui::{
     Frame,
@@ -8,7 +8,7 @@ use ratatui::{
     widgets::{Block, BorderType, List, ListState},
 };
 
-use crate::app::tui::{Context, Msg, State, Task, Update, binds, framework::Entity, tasks};
+use crate::app::tui::{Context, Msg, State, Task, Update, binds, framework::Entity};
 
 #[derive(Debug, Clone)]
 pub struct FilePicker {
@@ -22,6 +22,31 @@ impl FilePicker {
             state: ListState::default(),
             items: Vec::with_capacity(8),
         }
+    }
+
+    fn file_list_iter(path: &Path) -> anyhow::Result<impl Iterator<Item = PathBuf>> {
+        let path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+
+        if !path.exists() {
+            anyhow::bail!("path doesn't exist: {}", path.to_string_lossy());
+        }
+
+        if !path.is_dir() {
+            anyhow::bail!(
+                "path exists and is not a directory: {}",
+                path.to_string_lossy()
+            );
+        }
+
+        Ok(std::fs::read_dir(path)?
+            .filter_map(Result::ok)
+            .filter_map(|entry| {
+                entry
+                    .path()
+                    .extension()
+                    .is_some_and(|ext| ext.eq_ignore_ascii_case("toml"))
+                    .then(|| entry.path())
+            }))
     }
 }
 
@@ -50,7 +75,7 @@ impl Entity<Update, Task, State> for FilePicker {
 
     fn update(&mut self, cx: &mut Context, msg: Update) {
         if let Update::LoadFileList(path) = msg {
-            if let Ok(iter) = tasks::load_file_list(&path) {
+            if let Ok(iter) = Self::file_list_iter(&path) {
                 self.items.clear();
                 self.items.extend(iter);
                 self.items.sort_by(|a, b| b.cmp(a));

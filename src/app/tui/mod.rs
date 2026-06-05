@@ -6,7 +6,6 @@ mod app;
 mod binds;
 mod entities;
 mod framework;
-mod tasks;
 
 use app::App;
 use framework::Root as _;
