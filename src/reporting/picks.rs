@@ -103,7 +103,7 @@ impl Report for PicksReport {
 
         // Populate the pool of swap candidates with 3-0 candidates that are also
         // picked for advancement.
-        for candidate in candidates(tz, &[&tz_picks]) {
+        for candidate in candidates(tz, &[]) {
             if adv_picks.contains(&candidate) {
                 swap_candidates.push(candidate);
             } else {
@@ -115,15 +115,19 @@ impl Report for PicksReport {
         let mut adv_candidates = candidates(adv, &[&adv_picks]).collect::<BinaryHeap<_>>();
 
         while tz_picks.len() < 2 {
-            match (
-                tz_candidates.pop(),
-                swap_candidates.pop(),
-                adv_candidates.pop(),
-            ) {
+            let next_tz = tz_candidates.pop();
+            let next_swap_tz = swap_candidates.pop();
+            let next_swap_adv = next_swap_tz.and_then(|next| adv_picks.get(&next));
+            let mut next_adv = adv_candidates.pop();
+
+            // Ensure that the next advancement pick hasn't already been picked for 3-0.
+            while next_adv.is_some_and(|next| tz_picks.contains(&next)) {
+                next_adv = adv_candidates.pop();
+            }
+
+            match (next_tz, next_swap_tz, next_swap_adv, next_adv) {
                 // There are teams in all relevant candidate pools.
-                (Some(next_tz), Some(next_swap_tz), Some(next_adv))
-                    if let Some(next_swap_adv) = adv_picks.get(&next_swap_tz) =>
-                {
+                (Some(next_tz), Some(next_swap_tz), Some(next_swap_adv), Some(next_adv)) => {
                     // Compare the lost advancement probability against the
                     // gained 3-0 probability from making the swap.
                     let cost = next_adv.probability - next_swap_adv.probability;
@@ -139,17 +143,14 @@ impl Report for PicksReport {
                     } else {
                         tz_picks.insert(next_tz);
                         adv_candidates.push(next_adv);
+                        swap_candidates.push(next_swap_tz);
                     }
                 }
                 // No viable swaps left, fill picks straight from the 3-0 pool.
-                (Some(next_tz), None, _) => {
-                    tz_picks.insert(next_tz);
-                }
+                (Some(next_tz), None, ..) => _ = tz_picks.insert(next_tz),
                 // The current state no longer makes any sense, either the 3-0 pool is empty
                 // or the advancement picks don't contain the next swap candidate.
-                state => {
-                    unreachable!("invalid state for picking 3-0 teams:\n\n{state:#?}");
-                }
+                state => unreachable!("invalid state for picking 3-0 teams:\n\n{state:#?}"),
             }
         }
 
