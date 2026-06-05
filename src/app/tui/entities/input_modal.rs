@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{path::PathBuf, str::FromStr};
 
 use ratatui::{
     Frame,
@@ -9,7 +9,7 @@ use ratatui::{
     widgets::{Block, BorderType, Clear, List, ListState, Padding, Paragraph, Wrap},
 };
 
-use pickems::datatypes::{Iterations, Name, Rating, Seed, Sigma};
+use pickems::datatypes::{Iterations, Map, Name, Rating, Seed, Sigma};
 
 use crate::app::tui::{
     Context, Msg, Notify, PicksMode, ReportType, State, Task, Update, binds, framework::Entity,
@@ -21,6 +21,35 @@ pub struct InputModal {
 }
 
 impl InputModal {
+    pub fn save(cx: &Context) -> Self {
+        let buffer = cx.opened.as_ref().map_or_else(Vec::new, |opened| {
+            opened.to_string_lossy().chars().collect::<Vec<_>>()
+        });
+
+        let index = buffer.len();
+
+        let validated = Some(
+            SavePath::from_str(buffer.iter().collect::<String>().as_str())
+                .map_err(|e| e.to_string()),
+        );
+
+        Self {
+            field: InputField::SavePath(TextField {
+                title: String::from("Save As"),
+                buffer,
+                index,
+                validated,
+                submit: Box::new(|cx, save_path| {
+                    if let Ok(path) = save_path.save_teams(cx.teams.as_ref()) {
+                        cx.update(Update::DataSaved(path));
+                    } else {
+                        cx.notify(Notify::Todo);
+                    }
+                }),
+            }),
+        }
+    }
+
     pub fn iterations(cx: &Context) -> Self {
         let buffer = cx.iterations.to_string().chars().collect::<Vec<_>>();
         let index = buffer.len();
@@ -285,6 +314,7 @@ impl Entity<Update, Notify, Task, State> for InputModal {
 #[allow(dead_code)]
 #[derive(Debug)]
 enum InputField {
+    SavePath(TextField<SavePath>),
     Iterations(TextField<Iterations>),
     Sigma(TextField<Sigma>),
     Name(TextField<Name>),
@@ -303,6 +333,7 @@ impl Entity<Update, Notify, Task, State> for InputField {
         modifiers: KeyModifiers,
     ) -> Option<Msg> {
         match self {
+            Self::SavePath(text) => text.on_key_press(cx, code, modifiers),
             Self::Iterations(text) => text.on_key_press(cx, code, modifiers),
             Self::Name(text) => text.on_key_press(cx, code, modifiers),
             Self::Rating(text) => text.on_key_press(cx, code, modifiers),
@@ -316,6 +347,7 @@ impl Entity<Update, Notify, Task, State> for InputField {
 
     fn notify(&mut self, cx: &mut Context, msg: Notify) {
         match self {
+            Self::SavePath(text) => text.notify(cx, msg),
             Self::Iterations(text) => text.notify(cx, msg),
             Self::Name(text) => text.notify(cx, msg),
             Self::Rating(text) => text.notify(cx, msg),
@@ -329,6 +361,7 @@ impl Entity<Update, Notify, Task, State> for InputField {
 
     fn update(&mut self, cx: &mut Context, msg: Update) {
         match self {
+            Self::SavePath(text) => text.update(cx, msg),
             Self::Iterations(text) => text.update(cx, msg),
             Self::Name(text) => text.update(cx, msg),
             Self::Rating(text) => text.update(cx, msg),
@@ -342,6 +375,7 @@ impl Entity<Update, Notify, Task, State> for InputField {
 
     fn render(&mut self, cx: &Context, frame: &mut Frame, area: Rect) {
         match self {
+            Self::SavePath(text) => text.render(cx, frame, area),
             Self::Iterations(text) => text.render(cx, frame, area),
             Self::Name(text) => text.render(cx, frame, area),
             Self::Rating(text) => text.render(cx, frame, area),
@@ -551,5 +585,31 @@ impl<T> std::fmt::Debug for SelectField<T> {
             .field("state", &self.state)
             .field("submit", &"...")
             .finish()
+    }
+}
+
+#[derive(Debug, Clone)]
+struct SavePath(PathBuf);
+
+impl SavePath {
+    fn save_teams(self, teams: Option<&Map>) -> anyhow::Result<PathBuf> {
+        let Some(teams) = teams else {
+            anyhow::bail!("no teams data in context");
+        };
+
+        teams.write_toml(self.0.clone())?;
+        Ok(self.0)
+    }
+}
+
+impl FromStr for SavePath {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.trim().is_empty() {
+            anyhow::bail!("filename cannot be empty");
+        }
+
+        Ok(Self(PathBuf::from(s)))
     }
 }

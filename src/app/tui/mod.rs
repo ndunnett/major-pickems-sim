@@ -127,6 +127,8 @@ pub enum Update {
     ChangePath(PathBuf),
     LoadFileList(PathBuf),
     LoadDataFile(PathBuf),
+    NewInputData,
+    DataSaved(PathBuf),
     ReportContent(String),
     DataOrParams,
     PicksMode(PicksMode),
@@ -142,6 +144,7 @@ pub enum Update {
     OpenSeedModal(Name),
     OpenPicksModeModal,
     OpenPickSelectModal(usize),
+    OpenSaveModal,
 }
 
 #[derive(Debug, Clone, Copy)]

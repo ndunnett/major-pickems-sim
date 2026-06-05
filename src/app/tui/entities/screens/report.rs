@@ -81,6 +81,7 @@ impl Entity<Update, Notify, Task, State> for ReportScreen {
                 cx.update(Update::ChangeScreen(Screen::Open));
                 Some(Msg::Redraw)
             }
+            binds::SAVE if cx.teams.is_some() => Some(Msg::Update(Update::OpenSaveModal)),
             _ => None,
         }
     }
@@ -147,8 +148,12 @@ impl Entity<Update, Notify, Task, State> for ReportScreen {
         let quit = Span::from(format!("Quit [{}]", binds::Bind(binds::QUIT)))
             .style(Style::new().blue().bold());
 
-        let [open_area, _, quit_area] = Layout::horizontal([
+        let save = Span::from(format!("Save [{}]", binds::Bind(binds::SAVE)))
+            .style(Style::new().blue().bold());
+
+        let [open_area, save_area, _, quit_area] = Layout::horizontal([
             Constraint::Length(open.width() as u16),
+            Constraint::Length(save.width() as u16),
             Constraint::Fill(1),
             Constraint::Length(quit.width() as u16),
         ])
@@ -156,6 +161,7 @@ impl Entity<Update, Notify, Task, State> for ReportScreen {
         .areas(keybar);
 
         frame.render_widget(open, open_area);
+        frame.render_widget(save, save_area);
         frame.render_widget(quit, quit_area);
     }
 }

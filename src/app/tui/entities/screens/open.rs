@@ -37,6 +37,7 @@ impl Entity<Update, Notify, Task, State> for OpenScreen {
     ) -> Option<Msg> {
         match (modifiers, code) {
             binds::SELECT => Some(Msg::Notify(Notify::Select)),
+            binds::NEW => Some(Msg::Update(Update::NewInputData)),
             binds::UPDATE => Some(Msg::SpawnTask(Task::UpdateData {
                 path: cx.path.clone(),
             })),
@@ -62,23 +63,28 @@ impl Entity<Update, Notify, Task, State> for OpenScreen {
         let open = Span::from(format!("Open [{}]", binds::Bind(binds::SELECT)))
             .style(Style::new().blue().bold());
 
+        let new = Span::from(format!("New [{}]", binds::Bind(binds::NEW)))
+            .style(Style::new().blue().bold());
+
         let update = Span::from(format!("Update [{}]", binds::Bind(binds::UPDATE)))
             .style(Style::new().blue().bold());
 
         let quit = Span::from(format!("Quit [{}]", binds::Bind(binds::QUIT)))
             .style(Style::new().blue().bold());
 
-        let [open_area, update_area, _, quit_area] = Layout::horizontal([
+        let [open_area, new_area, update_area, _, quit_area] = Layout::horizontal([
             Constraint::Length(open.width() as u16),
+            Constraint::Length(new.width() as u16),
             Constraint::Length(update.width() as u16),
             Constraint::Fill(1),
             Constraint::Length(quit.width() as u16),
         ])
-        .spacing(2)
+        .spacing(4)
         .areas(keybar);
 
         frame.render_widget(open, open_area);
         frame.render_widget(update, update_area);
+        frame.render_widget(new, new_area);
         frame.render_widget(quit, quit_area);
     }
 }

@@ -132,23 +132,27 @@ impl Entity<Update, Notify, Task, State> for App {
                 cx.update(Update::ChangeScreen(Screen::Open));
             }
             Update::LoadDataFile(path) => {
-                if let Ok(teams) = Map::parse_toml(path.clone())
-                    && let Ok(teams_soa) = Teams::try_from(teams.clone())
-                {
+                if let Ok(teams) = Map::parse_toml(path.clone()) {
                     cx.opened = Some(path);
                     cx.teams = Some(teams);
+                    cx.picks = Default::default();
                     cx.update(Update::DataOrParams);
                     cx.update(Update::ChangeScreen(Screen::Report));
-
-                    cx.task(Task::RunSimulation {
-                        teams: Box::new(teams_soa),
-                        sigma: cx.sigma,
-                        iterations: cx.iterations,
-                        report: cx.report_type,
-                    });
                 } else {
                     cx.notify(Notify::Todo);
                 }
+            }
+            Update::NewInputData => {
+                let teams = Map::from(&Teams::dummy());
+                cx.opened = Some(cx.path.join("new_data_file.toml"));
+                cx.teams = Some(teams);
+                cx.picks = Default::default();
+                cx.update(Update::DataOrParams);
+                cx.update(Update::ChangeScreen(Screen::Report));
+            }
+            Update::DataSaved(path) => {
+                cx.opened = Some(path);
+                cx.update(Update::LoadFileList(cx.path.clone()));
             }
             Update::SetPick { index, name } => {
                 for pick in &mut cx.picks {
@@ -243,6 +247,10 @@ impl Entity<Update, Notify, Task, State> for App {
             }
             Update::OpenPickSelectModal(n) => {
                 self.input_modal = Some(InputModal::pick_select(cx, n));
+                cx.modal_open = true;
+            }
+            Update::OpenSaveModal => {
+                self.input_modal = Some(InputModal::save(cx));
                 cx.modal_open = true;
             }
         }
