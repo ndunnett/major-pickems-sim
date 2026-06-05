@@ -122,7 +122,6 @@ impl AsRef<str> for PicksMode {
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub enum Update {
-    Todo,
     ChangeScreen(Screen),
     ChangePath(PathBuf),
     LoadFileList(PathBuf),
@@ -135,6 +134,9 @@ pub enum Update {
     AutoPickAssess(String),
     ManualPickAssess(String),
     SetPick { index: usize, name: Name },
+    DataFilesUpdated { path: PathBuf, files: Vec<String> },
+    ErrorToast(String),
+    InfoToast(String),
     CloseModal,
     OpenReportModal,
     OpenIterationsModal,

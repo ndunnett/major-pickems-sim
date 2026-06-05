@@ -142,8 +142,6 @@ impl Entity<Update, Task, State> for PicksPane {
                         sigma: cx.sigma,
                         iterations: cx.iterations,
                     });
-                } else {
-                    cx.update(Update::Todo);
                 }
             }
             Update::AutoPickAssess(content) => self.auto_content = content,

@@ -33,6 +33,7 @@ where
 
             sleep(Self::TICK_TIME.saturating_sub(cx.tick.elapsed()));
             cx.tick = Instant::now();
+            self.on_tick(&mut cx);
 
             while let Some(msg) = engine.receive_msg()? {
                 cx.queue_message(msg);

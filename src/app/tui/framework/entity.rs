@@ -86,6 +86,10 @@ pub trait Entity<U, T, S> {
 
     #[allow(unused_variables)]
     #[inline]
+    fn on_tick(&mut self, cx: &mut Context<U, T, S>) {}
+
+    #[allow(unused_variables)]
+    #[inline]
     fn update(&mut self, cx: &mut Context<U, T, S>, msg: U) {}
 
     #[allow(unused_variables)]

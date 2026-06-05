@@ -75,16 +75,22 @@ impl Entity<Update, Task, State> for FilePicker {
 
     fn update(&mut self, cx: &mut Context, msg: Update) {
         if let Update::LoadFileList(path) = msg {
-            if let Ok(iter) = Self::file_list_iter(&path) {
-                self.items.clear();
-                self.items.extend(iter);
-                self.items.sort_by(|a, b| b.cmp(a));
+            match Self::file_list_iter(&path) {
+                Ok(iter) => {
+                    self.items.clear();
+                    self.items.extend(iter);
+                    self.items.sort_by(|a, b| b.cmp(a));
 
-                if self.state.selected().is_none() {
-                    self.state.select_first();
+                    if self.state.selected().is_none() {
+                        self.state.select_first();
+                    }
                 }
-            } else {
-                cx.update(Update::Todo);
+                Err(e) => {
+                    cx.update(Update::ErrorToast(format!(
+                        "Failed to list {}: {e}",
+                        path.display()
+                    )));
+                }
             }
         }
     }

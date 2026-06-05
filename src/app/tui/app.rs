@@ -15,7 +15,7 @@ use pickems::{
 use crate::app::{
     tui::{
         ReportType, Screen, State, Task, Update, binds,
-        entities::{InputModal, OpenScreen, ReportScreen},
+        entities::{InputModal, OpenScreen, ReportScreen, Toast, ToastKind, ToastMessage},
         framework::{Entity, Root},
     },
     update::data_updater,
@@ -29,6 +29,7 @@ pub struct App {
     report: ReportScreen,
     active: Screen,
     input_modal: Option<InputModal>,
+    toast: Toast,
 }
 
 impl App {
@@ -38,15 +39,28 @@ impl App {
             report: ReportScreen::new(),
             active: Screen::Open,
             input_modal: None,
+            toast: Toast::new(),
         }
     }
 
     fn update_data_files(path: PathBuf) -> Update {
-        if data_updater(&path).is_ok_and(|it| it.filter_map(Result::ok).count() > 0) {
-            Update::LoadFileList(path)
-        } else {
-            Update::Todo
+        let mut files = Vec::new();
+
+        let iter = match data_updater(&path) {
+            Ok(iter) => iter,
+            Err(e) => return Update::ErrorToast(format!("Update failed: {e}")),
+        };
+
+        for result in iter {
+            match result {
+                Ok(file) => files.push(file),
+                Err(e) => {
+                    return Update::ErrorToast(format!("Update failed: {e}"));
+                }
+            }
         }
+
+        Update::DataFilesUpdated { path, files }
     }
 
     fn run_simulation(
@@ -98,9 +112,17 @@ impl App {
             return;
         }
 
-        let Some(teams) = &cx.teams else { return };
-        let Ok(teams_soa) = Teams::try_from(teams.clone()) else {
+        let Some(teams) = &cx.teams else {
+            cx.update(Update::ErrorToast("No team data loaded.".to_string()));
             return;
+        };
+
+        let teams_soa = match Teams::try_from(teams.clone()) {
+            Ok(teams) => teams,
+            Err(e) => {
+                cx.update(Update::ErrorToast(format!("Invalid team data: {e}")));
+                return;
+            }
         };
 
         let collect_set = |slice: &[Option<Name>]| {
@@ -124,17 +146,23 @@ impl App {
     }
 
     fn spawn_simulation_task(cx: &mut Context) {
-        if let Some(teams) = cx.teams.clone()
-            && let Ok(teams_soa) = Teams::try_from(teams)
-        {
-            cx.task(Task::RunSimulation {
-                teams: Box::new(teams_soa),
-                sigma: cx.sigma,
-                iterations: cx.iterations,
-                report: cx.report_type,
-            });
-        } else {
-            cx.update(Update::Todo);
+        let Some(teams) = cx.teams.clone() else {
+            cx.update(Update::ErrorToast("No team data loaded.".to_string()));
+            return;
+        };
+
+        match Teams::try_from(teams) {
+            Ok(teams_soa) => {
+                cx.task(Task::RunSimulation {
+                    teams: Box::new(teams_soa),
+                    sigma: cx.sigma,
+                    iterations: cx.iterations,
+                    report: cx.report_type,
+                });
+            }
+            Err(e) => {
+                cx.update(Update::ErrorToast(format!("Invalid team data: {e}")));
+            }
         }
     }
 
@@ -184,15 +212,20 @@ impl Root<Update, Task, State> for App {
 
 impl Entity<Update, Task, State> for App {
     fn dispatch_event(&mut self, cx: &mut Context, event: &Event) -> Option<Msg> {
-        if let Some(input_modal) = &mut self.input_modal {
-            input_modal.dispatch_event(cx, event)
-        } else {
-            match self.active {
-                Screen::Open => self.open.dispatch_event(cx, event),
-                Screen::Report => self.report.dispatch_event(cx, event),
-            }
-            .map_or_else(|| self.handle_event(cx, event), Some)
-        }
+        self.toast.dispatch_event(cx, event).map_or_else(
+            || {
+                if let Some(input_modal) = &mut self.input_modal {
+                    input_modal.dispatch_event(cx, event)
+                } else {
+                    match self.active {
+                        Screen::Open => self.open.dispatch_event(cx, event),
+                        Screen::Report => self.report.dispatch_event(cx, event),
+                    }
+                    .map_or_else(|| self.handle_event(cx, event), Some)
+                }
+            },
+            Some,
+        )
     }
 
     fn on_key_press(
@@ -215,9 +248,12 @@ impl Entity<Update, Task, State> for App {
         });
     }
 
+    fn on_tick(&mut self, cx: &mut Context) {
+        self.toast.on_tick(cx);
+    }
+
     fn update(&mut self, cx: &mut Context, msg: Update) {
         match msg {
-            Update::Todo => {}
             Update::ChangeScreen(screen) => {
                 self.active = screen;
             }
@@ -226,13 +262,13 @@ impl Entity<Update, Task, State> for App {
                 cx.update(Update::LoadFileList(cx.path.clone()));
                 cx.update(Update::ChangeScreen(Screen::Open));
             }
-            Update::LoadDataFile(path) => {
-                if let Ok(teams) = Map::parse_toml(path.clone()) {
-                    Self::load_data(cx, teams, path);
-                } else {
-                    cx.update(Update::Todo);
-                }
-            }
+            Update::LoadDataFile(path) => match Map::parse_toml(path.clone()) {
+                Ok(teams) => Self::load_data(cx, teams, path),
+                Err(e) => cx.update(Update::ErrorToast(format!(
+                    "Failed to load {}: {e}",
+                    path.display()
+                ))),
+            },
             Update::NewInputData => {
                 let teams = Map::from(&Teams::dummy());
                 let path = cx.path.join("new_data_file.toml");
@@ -242,7 +278,30 @@ impl Entity<Update, Task, State> for App {
                 cx.opened = Some(path);
                 cx.update(Update::LoadFileList(cx.path.clone()));
             }
+            Update::DataFilesUpdated { path, files } => {
+                if !files.is_empty() {
+                    cx.update(Update::LoadFileList(path));
+                    cx.update(Update::InfoToast(format!(
+                        "Downloaded data files:\n- {}",
+                        files.join("\n- ")
+                    )));
+                }
+            }
             Update::SetPick { index, name } => Self::set_pick(cx, index, name),
+            Update::ErrorToast(text) => self.toast.push(
+                ToastMessage {
+                    kind: ToastKind::Error,
+                    text,
+                },
+                cx.tick(),
+            ),
+            Update::InfoToast(text) => self.toast.push(
+                ToastMessage {
+                    kind: ToastKind::Info,
+                    text,
+                },
+                cx.tick(),
+            ),
             Update::ReportContent(..)
             | Update::AutoPickAssess(..)
             | Update::ManualPickAssess(..)
@@ -279,5 +338,7 @@ impl Entity<Update, Task, State> for App {
         if let Some(input_modal) = &mut self.input_modal {
             input_modal.render(cx, frame, area);
         }
+
+        self.toast.render(cx, frame, area);
     }
 }

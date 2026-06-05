@@ -61,6 +61,7 @@ pub const DELETE: (KeyModifiers, KeyCode) = (KeyModifiers::NONE, KeyCode::Delete
 
 pub const EOF: (KeyModifiers, KeyCode) = (KeyModifiers::CONTROL, KeyCode::Char('d'));
 pub const REDRAW: (KeyModifiers, KeyCode) = (KeyModifiers::CONTROL, KeyCode::Char('r'));
+pub const DISMISS_TOAST: (KeyModifiers, KeyCode) = (KeyModifiers::CONTROL, KeyCode::Char('x'));
 pub const OPEN_SCREEN: (KeyModifiers, KeyCode) = (KeyModifiers::CONTROL, KeyCode::Char('o'));
 pub const UPDATE: (KeyModifiers, KeyCode) = (KeyModifiers::CONTROL, KeyCode::Char('u'));
 pub const NEW: (KeyModifiers, KeyCode) = (KeyModifiers::CONTROL, KeyCode::Char('n'));

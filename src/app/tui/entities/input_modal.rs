@@ -39,13 +39,14 @@ impl InputModal {
                 buffer,
                 index,
                 validated,
-                submit: Box::new(|cx, save_path| {
-                    if let Ok(path) = save_path.save_teams(cx.teams.as_ref()) {
-                        cx.update(Update::DataSaved(path));
-                    } else {
-                        cx.update(Update::Todo);
-                    }
-                }),
+                submit: Box::new(
+                    |cx, save_path| match save_path.save_teams(cx.teams.as_ref()) {
+                        Ok(path) => cx.update(Update::DataSaved(path)),
+                        Err(e) => {
+                            cx.update(Update::ErrorToast(format!("Failed to save data: {e}")));
+                        }
+                    },
+                ),
             }),
         }
     }
