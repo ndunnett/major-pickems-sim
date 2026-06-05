@@ -43,129 +43,6 @@ impl App {
         }
     }
 
-    fn update_data_files(path: PathBuf) -> Update {
-        let mut files = Vec::new();
-
-        let iter = match data_updater(&path) {
-            Ok(iter) => iter,
-            Err(e) => return Update::ErrorToast(format!("Update failed: {e}")),
-        };
-
-        for result in iter {
-            match result {
-                Ok(file) => files.push(file),
-                Err(e) => {
-                    return Update::ErrorToast(format!("Update failed: {e}"));
-                }
-            }
-        }
-
-        Update::DataFilesUpdated { path, files }
-    }
-
-    fn run_simulation(
-        teams: Box<Teams>,
-        sigma: Sigma,
-        iterations: Iterations,
-        report: ReportType,
-    ) -> String {
-        let sim = Simulation::new(*teams, sigma, iterations);
-
-        match report {
-            ReportType::Basic => sim.run(BasicReport::default()).format(&sim),
-            ReportType::Strength => sim.run(StrengthReport::default()).format(&sim),
-            ReportType::Picks => sim.run(PicksReport::default()).format(&sim),
-            ReportType::All => sim.run(ReportAll::default()).format(&sim),
-        }
-    }
-
-    fn assess_picks(
-        teams: Box<Teams>,
-        sigma: Sigma,
-        iterations: Iterations,
-        three_zero: Set,
-        advanced: Set,
-        zero_three: Set,
-    ) -> String {
-        let sim = Simulation::new(*teams, sigma, iterations);
-        sim.run(AssessReport::new(three_zero, advanced, zero_three))
-            .format(&sim)
-    }
-
-    fn load_data(cx: &mut Context, teams: Map, path: PathBuf) {
-        cx.opened = Some(path);
-        cx.teams = Some(teams);
-        cx.picks = Default::default();
-        cx.update(Update::DataOrParams);
-        cx.update(Update::ChangeScreen(Screen::Report));
-    }
-
-    fn set_pick(cx: &mut Context, index: usize, name: Name) {
-        for pick in &mut cx.picks {
-            _ = pick.take_if(|pick| pick == &name);
-        }
-
-        cx.picks[index] = Some(name);
-
-        if cx.picks.iter().any(Option::is_none) {
-            cx.update(Update::ManualPickAssess(String::new()));
-            return;
-        }
-
-        let Some(teams) = &cx.teams else {
-            cx.update(Update::ErrorToast("No team data loaded.".to_string()));
-            return;
-        };
-
-        let teams_soa = match Teams::try_from(teams.clone()) {
-            Ok(teams) => teams,
-            Err(e) => {
-                cx.update(Update::ErrorToast(format!("Invalid team data: {e}")));
-                return;
-            }
-        };
-
-        let collect_set = |slice: &[Option<Name>]| {
-            slice
-                .iter()
-                .filter_map(|name| {
-                    let Some(name) = name else { return None };
-                    Some(Index::from(teams[name].seed))
-                })
-                .collect::<Set>()
-        };
-
-        cx.task(Task::ManualPicks {
-            teams: Box::new(teams_soa),
-            sigma: cx.sigma,
-            iterations: cx.iterations,
-            three_zero: collect_set(&cx.picks[..2]),
-            advanced: collect_set(&cx.picks[2..8]),
-            zero_three: collect_set(&cx.picks[8..]),
-        });
-    }
-
-    fn spawn_simulation_task(cx: &mut Context) {
-        let Some(teams) = cx.teams.clone() else {
-            cx.update(Update::ErrorToast("No team data loaded.".to_string()));
-            return;
-        };
-
-        match Teams::try_from(teams) {
-            Ok(teams_soa) => {
-                cx.task(Task::RunSimulation {
-                    teams: Box::new(teams_soa),
-                    sigma: cx.sigma,
-                    iterations: cx.iterations,
-                    report: cx.report_type,
-                });
-            }
-            Err(e) => {
-                cx.update(Update::ErrorToast(format!("Invalid team data: {e}")));
-            }
-        }
-    }
-
     fn open_modal(&mut self, cx: &mut Context, modal: InputModal) {
         self.input_modal = Some(modal);
         cx.modal_open = true;
@@ -177,20 +54,20 @@ impl Root<Update, Task, State> for App {
 
     fn handle_task(task: Task) -> Option<Msg> {
         match task {
-            Task::UpdateData { path } => Some(Msg::Update(Self::update_data_files(path))),
+            Task::UpdateData { path } => Some(Msg::Update(update_data_files(path))),
             Task::RunSimulation {
                 teams,
                 sigma,
                 iterations,
                 report,
-            } => Some(Msg::Update(Update::ReportContent(Self::run_simulation(
+            } => Some(Msg::Update(Update::ReportContent(run_simulation(
                 teams, sigma, iterations, report,
             )))),
             Task::AutoPicks {
                 teams,
                 sigma,
                 iterations,
-            } => Some(Msg::Update(Update::AutoPickAssess(Self::run_simulation(
+            } => Some(Msg::Update(Update::AutoPickAssess(run_simulation(
                 teams,
                 sigma,
                 iterations,
@@ -203,7 +80,7 @@ impl Root<Update, Task, State> for App {
                 three_zero,
                 advanced,
                 zero_three,
-            } => Some(Msg::Update(Update::ManualPickAssess(Self::assess_picks(
+            } => Some(Msg::Update(Update::ManualPickAssess(assess_picks(
                 teams, sigma, iterations, three_zero, advanced, zero_three,
             )))),
         }
@@ -263,7 +140,7 @@ impl Entity<Update, Task, State> for App {
                 cx.update(Update::ChangeScreen(Screen::Open));
             }
             Update::LoadDataFile(path) => match Map::parse_toml(path.clone()) {
-                Ok(teams) => Self::load_data(cx, teams, path),
+                Ok(teams) => load_data(cx, teams, path),
                 Err(e) => cx.update(Update::ErrorToast(format!(
                     "Failed to load {}: {e}",
                     path.display()
@@ -272,7 +149,7 @@ impl Entity<Update, Task, State> for App {
             Update::NewInputData => {
                 let teams = Map::from(&Teams::dummy());
                 let path = cx.path.join("new_data_file.toml");
-                Self::load_data(cx, teams, path);
+                load_data(cx, teams, path);
             }
             Update::DataSaved(path) => {
                 cx.opened = Some(path);
@@ -287,7 +164,7 @@ impl Entity<Update, Task, State> for App {
                     )));
                 }
             }
-            Update::SetPick { index, name } => Self::set_pick(cx, index, name),
+            Update::SetPick { index, name } => set_pick(cx, index, name),
             Update::ErrorToast(text) => self.toast.push(
                 ToastMessage {
                     kind: ToastKind::Error,
@@ -310,7 +187,7 @@ impl Entity<Update, Task, State> for App {
             }
             Update::DataOrParams => {
                 self.report.update(cx, msg);
-                Self::spawn_simulation_task(cx);
+                spawn_simulation_task(cx);
             }
             Update::LoadFileList(..) => self.open.update(cx, msg),
             Update::CloseModal => {
@@ -340,5 +217,128 @@ impl Entity<Update, Task, State> for App {
         }
 
         self.toast.render(cx, frame, area);
+    }
+}
+
+fn update_data_files(path: PathBuf) -> Update {
+    let mut files = Vec::new();
+
+    let iter = match data_updater(&path) {
+        Ok(iter) => iter,
+        Err(e) => return Update::ErrorToast(format!("Update failed: {e}")),
+    };
+
+    for result in iter {
+        match result {
+            Ok(file) => files.push(file),
+            Err(e) => {
+                return Update::ErrorToast(format!("Update failed: {e}"));
+            }
+        }
+    }
+
+    Update::DataFilesUpdated { path, files }
+}
+
+fn run_simulation(
+    teams: Box<Teams>,
+    sigma: Sigma,
+    iterations: Iterations,
+    report: ReportType,
+) -> String {
+    let sim = Simulation::new(*teams, sigma, iterations);
+
+    match report {
+        ReportType::Basic => sim.run(BasicReport::default()).format(&sim),
+        ReportType::Strength => sim.run(StrengthReport::default()).format(&sim),
+        ReportType::Picks => sim.run(PicksReport::default()).format(&sim),
+        ReportType::All => sim.run(ReportAll::default()).format(&sim),
+    }
+}
+
+fn assess_picks(
+    teams: Box<Teams>,
+    sigma: Sigma,
+    iterations: Iterations,
+    three_zero: Set,
+    advanced: Set,
+    zero_three: Set,
+) -> String {
+    let sim = Simulation::new(*teams, sigma, iterations);
+    sim.run(AssessReport::new(three_zero, advanced, zero_three))
+        .format(&sim)
+}
+
+fn load_data(cx: &mut Context, teams: Map, path: PathBuf) {
+    cx.opened = Some(path);
+    cx.teams = Some(teams);
+    cx.picks = Default::default();
+    cx.update(Update::DataOrParams);
+    cx.update(Update::ChangeScreen(Screen::Report));
+}
+
+fn set_pick(cx: &mut Context, index: usize, name: Name) {
+    for pick in &mut cx.picks {
+        _ = pick.take_if(|pick| pick == &name);
+    }
+
+    cx.picks[index] = Some(name);
+
+    if cx.picks.iter().any(Option::is_none) {
+        cx.update(Update::ManualPickAssess(String::new()));
+        return;
+    }
+
+    let Some(teams) = &cx.teams else {
+        cx.update(Update::ErrorToast("No team data loaded.".to_string()));
+        return;
+    };
+
+    let teams_soa = match Teams::try_from(teams.clone()) {
+        Ok(teams) => teams,
+        Err(e) => {
+            cx.update(Update::ErrorToast(format!("Invalid team data: {e}")));
+            return;
+        }
+    };
+
+    let collect_set = |slice: &[Option<Name>]| {
+        slice
+            .iter()
+            .filter_map(|name| {
+                let Some(name) = name else { return None };
+                Some(Index::from(teams[name].seed))
+            })
+            .collect::<Set>()
+    };
+
+    cx.task(Task::ManualPicks {
+        teams: Box::new(teams_soa),
+        sigma: cx.sigma,
+        iterations: cx.iterations,
+        three_zero: collect_set(&cx.picks[..2]),
+        advanced: collect_set(&cx.picks[2..8]),
+        zero_three: collect_set(&cx.picks[8..]),
+    });
+}
+
+fn spawn_simulation_task(cx: &mut Context) {
+    let Some(teams) = cx.teams.clone() else {
+        cx.update(Update::ErrorToast("No team data loaded.".to_string()));
+        return;
+    };
+
+    match Teams::try_from(teams) {
+        Ok(teams_soa) => {
+            cx.task(Task::RunSimulation {
+                teams: Box::new(teams_soa),
+                sigma: cx.sigma,
+                iterations: cx.iterations,
+                report: cx.report_type,
+            });
+        }
+        Err(e) => {
+            cx.update(Update::ErrorToast(format!("Invalid team data: {e}")));
+        }
     }
 }
