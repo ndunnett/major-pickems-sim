@@ -7,14 +7,14 @@ use ratatui::{
 use pickems::datatypes::{Index, Map, Name, Set, Teams};
 
 use crate::app::tui::{
-    Notify, ReportType, Screen, State, Task, Update, binds,
+    ReportType, Screen, State, Task, Update, binds,
     entities::{InputModal, OpenScreen, ReportScreen},
     framework::{Entity, Root},
     tasks,
 };
 
-type Context = crate::app::tui::framework::Context<Update, Notify, Task, State>;
-type Msg = crate::app::tui::framework::Msg<Update, Notify, Task>;
+type Context = crate::app::tui::framework::Context<Update, Task, State>;
+type Msg = crate::app::tui::framework::Msg<Update, Task>;
 
 pub struct App {
     open: OpenScreen,
@@ -34,7 +34,7 @@ impl App {
     }
 }
 
-impl Root<Update, Notify, Task, State> for App {
+impl Root<Update, Task, State> for App {
     const MAX_FPS: u64 = 120;
 
     fn handle_task(task: Task) -> Option<Msg> {
@@ -43,7 +43,7 @@ impl Root<Update, Notify, Task, State> for App {
                 if tasks::update_data(&path).is_ok_and(|it| it.count() > 0) {
                     Some(Msg::Update(Update::LoadFileList(path)))
                 } else {
-                    Some(Msg::Notify(Notify::Todo))
+                    Some(Msg::Update(Update::Todo))
                 }
             }
             Task::RunSimulation {
@@ -80,7 +80,7 @@ impl Root<Update, Notify, Task, State> for App {
     }
 }
 
-impl Entity<Update, Notify, Task, State> for App {
+impl Entity<Update, Task, State> for App {
     fn dispatch_event(&mut self, cx: &mut Context, event: &Event) -> Option<Msg> {
         if let Some(input_modal) = &mut self.input_modal {
             input_modal.dispatch_event(cx, event)
@@ -113,16 +113,10 @@ impl Entity<Update, Notify, Task, State> for App {
         });
     }
 
-    fn notify(&mut self, cx: &mut Context, msg: Notify) {
-        match self.active {
-            Screen::Open => self.open.notify(cx, msg),
-            Screen::Report => self.report.notify(cx, msg),
-        }
-    }
-
     #[allow(clippy::too_many_lines)]
     fn update(&mut self, cx: &mut Context, msg: Update) {
         match msg {
+            Update::Todo => {}
             Update::ChangeScreen(screen) => {
                 self.active = screen;
             }
@@ -139,7 +133,7 @@ impl Entity<Update, Notify, Task, State> for App {
                     cx.update(Update::DataOrParams);
                     cx.update(Update::ChangeScreen(Screen::Report));
                 } else {
-                    cx.notify(Notify::Todo);
+                    cx.update(Update::Todo);
                 }
             }
             Update::NewInputData => {
@@ -209,7 +203,7 @@ impl Entity<Update, Notify, Task, State> for App {
                         report: cx.report_type,
                     });
                 } else {
-                    cx.notify(Notify::Todo);
+                    cx.update(Update::Todo);
                 }
             }
             Update::LoadFileList(..) => self.open.update(cx, msg),

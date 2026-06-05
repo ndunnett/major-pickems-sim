@@ -9,7 +9,7 @@ use ratatui::{
 
 use pickems::datatypes::Name;
 
-use crate::app::tui::{Context, Id, Msg, Notify, State, Task, Update, binds, framework::Entity};
+use crate::app::tui::{Context, Id, Msg, State, Task, Update, binds, framework::Entity};
 
 #[derive(Debug, Clone)]
 pub struct TeamsPane {
@@ -42,7 +42,7 @@ impl TeamsPane {
     }
 }
 
-impl Entity<Update, Notify, Task, State> for TeamsPane {
+impl Entity<Update, Task, State> for TeamsPane {
     fn on_key_press(
         &mut self,
         _cx: &mut Context,

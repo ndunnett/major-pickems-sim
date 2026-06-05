@@ -6,7 +6,7 @@ use ratatui::{
     widgets::{Block, BorderType, Padding, Row, Table, TableState},
 };
 
-use crate::app::tui::{Context, Id, Msg, Notify, State, Task, Update, binds, framework::Entity};
+use crate::app::tui::{Context, Id, Msg, State, Task, Update, binds, framework::Entity};
 
 #[derive(Debug, Clone)]
 pub struct ParametersPane {
@@ -37,7 +37,7 @@ impl ParametersPane {
     }
 }
 
-impl Entity<Update, Notify, Task, State> for ParametersPane {
+impl Entity<Update, Task, State> for ParametersPane {
     fn on_key_press(
         &mut self,
         _cx: &mut Context,

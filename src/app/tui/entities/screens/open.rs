@@ -7,7 +7,7 @@ use ratatui::{
 };
 
 use crate::app::tui::{
-    Context, Msg, Notify, State, Task, Update, binds, entities::FilePicker, framework::Entity,
+    Context, Msg, State, Task, Update, binds, entities::FilePicker, framework::Entity,
 };
 
 pub struct OpenScreen {
@@ -22,7 +22,7 @@ impl OpenScreen {
     }
 }
 
-impl Entity<Update, Notify, Task, State> for OpenScreen {
+impl Entity<Update, Task, State> for OpenScreen {
     fn dispatch_event(&mut self, cx: &mut Context, event: &Event) -> Option<Msg> {
         self.file_picker
             .dispatch_event(cx, event)
@@ -36,17 +36,12 @@ impl Entity<Update, Notify, Task, State> for OpenScreen {
         modifiers: KeyModifiers,
     ) -> Option<Msg> {
         match (modifiers, code) {
-            binds::SELECT => Some(Msg::Notify(Notify::Select)),
             binds::NEW => Some(Msg::Update(Update::NewInputData)),
             binds::UPDATE => Some(Msg::SpawnTask(Task::UpdateData {
                 path: cx.path.clone(),
             })),
             _ => None,
         }
-    }
-
-    fn notify(&mut self, cx: &mut Context, msg: Notify) {
-        self.file_picker.notify(cx, msg);
     }
 
     fn update(&mut self, cx: &mut Context, msg: Update) {

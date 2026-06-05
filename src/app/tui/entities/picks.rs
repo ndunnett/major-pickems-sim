@@ -11,9 +11,7 @@ use ratatui::{
 
 use pickems::datatypes::{Seed, Teams};
 
-use crate::app::tui::{
-    Context, Id, Msg, Notify, PicksMode, State, Task, Update, binds, framework::Entity,
-};
+use crate::app::tui::{Context, Id, Msg, PicksMode, State, Task, Update, binds, framework::Entity};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 enum Focus {
@@ -52,7 +50,7 @@ impl PicksPane {
     }
 }
 
-impl Entity<Update, Notify, Task, State> for PicksPane {
+impl Entity<Update, Task, State> for PicksPane {
     fn on_key_press(
         &mut self,
         cx: &mut Context,
@@ -145,7 +143,7 @@ impl Entity<Update, Notify, Task, State> for PicksPane {
                         iterations: cx.iterations,
                     });
                 } else {
-                    cx.notify(Notify::Todo);
+                    cx.update(Update::Todo);
                 }
             }
             Update::AutoPickAssess(content) => self.auto_content = content,

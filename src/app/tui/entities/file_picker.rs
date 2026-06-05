@@ -8,7 +8,7 @@ use ratatui::{
     widgets::{Block, BorderType, List, ListState},
 };
 
-use crate::app::tui::{Context, Msg, Notify, State, Task, Update, binds, framework::Entity, tasks};
+use crate::app::tui::{Context, Msg, State, Task, Update, binds, framework::Entity, tasks};
 
 #[derive(Debug, Clone)]
 pub struct FilePicker {
@@ -25,7 +25,7 @@ impl FilePicker {
     }
 }
 
-impl Entity<Update, Notify, Task, State> for FilePicker {
+impl Entity<Update, Task, State> for FilePicker {
     fn on_key_press(
         &mut self,
         _cx: &mut Context,
@@ -33,6 +33,9 @@ impl Entity<Update, Notify, Task, State> for FilePicker {
         modifiers: KeyModifiers,
     ) -> Option<Msg> {
         match (modifiers, code) {
+            binds::SELECT if let Some(i) = self.state.selected() => {
+                Some(Msg::Update(Update::LoadDataFile(self.items[i].clone())))
+            }
             binds::UP => {
                 self.state.select_previous();
                 Some(Msg::Redraw)
@@ -42,14 +45,6 @@ impl Entity<Update, Notify, Task, State> for FilePicker {
                 Some(Msg::Redraw)
             }
             _ => None,
-        }
-    }
-
-    fn notify(&mut self, cx: &mut Context, msg: Notify) {
-        if matches!(msg, Notify::Select)
-            && let Some(i) = self.state.selected()
-        {
-            cx.update(Update::LoadDataFile(self.items[i].clone()));
         }
     }
 
@@ -64,7 +59,7 @@ impl Entity<Update, Notify, Task, State> for FilePicker {
                     self.state.select_first();
                 }
             } else {
-                cx.notify(Notify::Todo);
+                cx.update(Update::Todo);
             }
         }
     }

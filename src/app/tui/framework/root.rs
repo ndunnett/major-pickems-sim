@@ -8,18 +8,17 @@ use ratatui::{crossterm::event::Event, layout::Rect};
 
 use super::{Context, Engine, Entity, Msg};
 
-pub trait Root<U, N, T, S>
+pub trait Root<U, T, S>
 where
-    Self: Entity<U, N, T, S> + Sized + 'static,
+    Self: Entity<U, T, S> + Sized + 'static,
     U: Send + Sync + 'static,
-    N: Send + Sync + 'static,
     T: Send + Sync + 'static,
     S: 'static,
 {
     const MAX_FPS: u64;
     const TICK_TIME: Duration = Duration::from_nanos(1_000_000_000 / Self::MAX_FPS);
 
-    fn handle_task(task: T) -> Option<Msg<U, N, T>>;
+    fn handle_task(task: T) -> Option<Msg<U, T>>;
 
     fn run<W: Write>(mut self, initial_state: impl FnOnce() -> S, writer: W) -> anyhow::Result<()> {
         let mut engine = Engine::new(Self::handle_task, writer)?;
@@ -58,7 +57,6 @@ where
                         self.update(&mut cx, update);
                         cx.should_redraw = true;
                     }
-                    Msg::Notify(notify) => self.notify(&mut cx, notify),
                     Msg::SpawnTask(task) => {
                         engine.send_task(task)?;
                     }

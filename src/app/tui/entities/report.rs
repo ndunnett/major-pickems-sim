@@ -9,7 +9,7 @@ use ratatui::{
     },
 };
 
-use crate::app::tui::{Context, Id, Msg, Notify, State, Task, Update, binds, framework::Entity};
+use crate::app::tui::{Context, Id, Msg, State, Task, Update, binds, framework::Entity};
 
 #[derive(Debug, Clone)]
 pub struct ReportPane {
@@ -36,7 +36,7 @@ impl ReportPane {
     }
 }
 
-impl Entity<Update, Notify, Task, State> for ReportPane {
+impl Entity<Update, Task, State> for ReportPane {
     fn on_resize(&mut self, _cx: &mut Context, _width: u16, _height: u16) -> Option<Msg> {
         self.len_set = false;
         None

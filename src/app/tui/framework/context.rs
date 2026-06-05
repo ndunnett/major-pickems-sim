@@ -7,15 +7,15 @@ use std::{
 
 use super::Msg;
 
-pub struct Context<U, N, T, S> {
+pub struct Context<U, T, S> {
     state: S,
-    messages: VecDeque<Msg<U, N, T>>,
+    messages: VecDeque<Msg<U, T>>,
     pub(super) tick: Instant,
     pub(super) should_exit: bool,
     pub(super) should_redraw: bool,
 }
 
-impl<U, N, T, S> Context<U, N, T, S> {
+impl<U, T, S> Context<U, T, S> {
     pub fn new(initial_state: impl FnOnce() -> S) -> Self {
         Self {
             state: initial_state(),
@@ -32,18 +32,13 @@ impl<U, N, T, S> Context<U, N, T, S> {
     }
 
     #[inline]
-    pub fn queue_message(&mut self, msg: Msg<U, N, T>) {
+    pub fn queue_message(&mut self, msg: Msg<U, T>) {
         self.messages.push_back(msg);
     }
 
     #[inline]
-    pub(super) fn pop_message(&mut self) -> Option<Msg<U, N, T>> {
+    pub(super) fn pop_message(&mut self) -> Option<Msg<U, T>> {
         self.messages.pop_front()
-    }
-
-    #[inline]
-    pub fn notify(&mut self, msg: N) {
-        self.queue_message(Msg::Notify(msg));
     }
 
     #[inline]
@@ -67,7 +62,7 @@ impl<U, N, T, S> Context<U, N, T, S> {
     }
 }
 
-impl<U, N, T, S> Deref for Context<U, N, T, S> {
+impl<U, T, S> Deref for Context<U, T, S> {
     type Target = S;
 
     fn deref(&self) -> &Self::Target {
@@ -75,13 +70,13 @@ impl<U, N, T, S> Deref for Context<U, N, T, S> {
     }
 }
 
-impl<U, N, T, S> DerefMut for Context<U, N, T, S> {
+impl<U, T, S> DerefMut for Context<U, T, S> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.state
     }
 }
 
-impl<U: Debug, N: Debug, T: Debug, S: Debug> Debug for Context<U, N, T, S> {
+impl<U: Debug, T: Debug, S: Debug> Debug for Context<U, T, S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Context")
             .field("state", &self.state)

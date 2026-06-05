@@ -26,26 +26,25 @@ use super::Msg;
 
 const POLL_TIME: Duration = Duration::from_millis(100);
 
-pub struct Engine<U, N, T, W: Write> {
+pub struct Engine<U, T, W: Write> {
     terminal: TerminalBackend<W>,
     event_receiver: mpsc::Receiver<Event>,
     task_sender: mpsc::Sender<T>,
-    msg_receiver: mpsc::Receiver<Msg<U, N, T>>,
+    msg_receiver: mpsc::Receiver<Msg<U, T>>,
     shutdown_signal: Arc<AtomicBool>,
     event_handler: Option<JoinHandle<()>>,
     task_handler: Option<JoinHandle<()>>,
 }
 
-impl<U, N, T, W> Engine<U, N, T, W>
+impl<U, T, W> Engine<U, T, W>
 where
     U: Send + Sync + 'static,
-    N: Send + Sync + 'static,
     T: Send + Sync + 'static,
     W: Write,
 {
     pub fn new<F>(task_handler: F, writer: W) -> anyhow::Result<Self>
     where
-        F: Fn(T) -> Option<Msg<U, N, T>> + Send + Sync + 'static,
+        F: Fn(T) -> Option<Msg<U, T>> + Send + Sync + 'static,
     {
         let terminal = TerminalBackend::new(writer)?;
         let shutdown_signal = Arc::new(AtomicBool::new(false));
@@ -137,7 +136,7 @@ where
         }
     }
 
-    pub fn receive_msg(&self) -> anyhow::Result<Option<Msg<U, N, T>>> {
+    pub fn receive_msg(&self) -> anyhow::Result<Option<Msg<U, T>>> {
         match self.msg_receiver.try_recv() {
             Ok(msg) => Ok(Some(msg)),
             Err(mpsc::TryRecvError::Empty) => Ok(None),
@@ -146,7 +145,7 @@ where
     }
 }
 
-impl<U, N, T, W: Write> Drop for Engine<U, N, T, W> {
+impl<U, T, W: Write> Drop for Engine<U, T, W> {
     fn drop(&mut self) {
         self.shutdown_signal.store(true, Ordering::Relaxed);
 
@@ -160,7 +159,7 @@ impl<U, N, T, W: Write> Drop for Engine<U, N, T, W> {
     }
 }
 
-impl<U: Debug, N: Debug, T: Debug, W: Write + Debug> Debug for Engine<U, N, T, W> {
+impl<U: Debug, T: Debug, W: Write + Debug> Debug for Engine<U, T, W> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Engine")
             .field("terminal", &self.terminal)

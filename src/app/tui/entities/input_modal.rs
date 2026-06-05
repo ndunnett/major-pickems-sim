@@ -12,7 +12,7 @@ use ratatui::{
 use pickems::datatypes::{Iterations, Map, Name, Rating, Seed, Sigma};
 
 use crate::app::tui::{
-    Context, Msg, Notify, PicksMode, ReportType, State, Task, Update, binds, framework::Entity,
+    Context, Msg, PicksMode, ReportType, State, Task, Update, binds, framework::Entity,
 };
 
 #[derive(Debug)]
@@ -43,7 +43,7 @@ impl InputModal {
                     if let Ok(path) = save_path.save_teams(cx.teams.as_ref()) {
                         cx.update(Update::DataSaved(path));
                     } else {
-                        cx.notify(Notify::Todo);
+                        cx.update(Update::Todo);
                     }
                 }),
             }),
@@ -251,7 +251,7 @@ impl InputModal {
     }
 }
 
-impl Entity<Update, Notify, Task, State> for InputModal {
+impl Entity<Update, Task, State> for InputModal {
     fn dispatch_event(&mut self, cx: &mut Context, event: &Event) -> Option<Msg> {
         self.field
             .dispatch_event(cx, event)
@@ -325,7 +325,7 @@ enum InputField {
     PickSelect(SelectField<Name>),
 }
 
-impl Entity<Update, Notify, Task, State> for InputField {
+impl Entity<Update, Task, State> for InputField {
     fn on_key_press(
         &mut self,
         cx: &mut Context,
@@ -342,20 +342,6 @@ impl Entity<Update, Notify, Task, State> for InputField {
             Self::Report(select) => select.on_key_press(cx, code, modifiers),
             Self::PicksMode(select) => select.on_key_press(cx, code, modifiers),
             Self::PickSelect(select) => select.on_key_press(cx, code, modifiers),
-        }
-    }
-
-    fn notify(&mut self, cx: &mut Context, msg: Notify) {
-        match self {
-            Self::SavePath(text) => text.notify(cx, msg),
-            Self::Iterations(text) => text.notify(cx, msg),
-            Self::Name(text) => text.notify(cx, msg),
-            Self::Rating(text) => text.notify(cx, msg),
-            Self::Seed(text) => text.notify(cx, msg),
-            Self::Sigma(text) => text.notify(cx, msg),
-            Self::Report(select) => select.notify(cx, msg),
-            Self::PicksMode(select) => select.notify(cx, msg),
-            Self::PickSelect(select) => select.notify(cx, msg),
         }
     }
 
@@ -450,7 +436,7 @@ where
     }
 }
 
-impl<T> Entity<Update, Notify, Task, State> for TextField<T>
+impl<T> Entity<Update, Task, State> for TextField<T>
 where
     T: FromStr,
     <T as FromStr>::Err: ToString,
@@ -537,7 +523,7 @@ struct SelectField<T> {
     submit: SubmitFn<T>,
 }
 
-impl<T> Entity<Update, Notify, Task, State> for SelectField<T>
+impl<T> Entity<Update, Task, State> for SelectField<T>
 where
     T: AsRef<str>,
 {

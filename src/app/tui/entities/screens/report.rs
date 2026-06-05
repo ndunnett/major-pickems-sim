@@ -7,7 +7,7 @@ use ratatui::{
 };
 
 use crate::app::tui::{
-    Context, Id, Msg, Notify, Screen, State, Task, Update, binds,
+    Context, Id, Msg, Screen, State, Task, Update, binds,
     entities::{ParametersPane, PicksPane, ReportPane, TeamsPane},
     framework::Entity,
 };
@@ -35,7 +35,7 @@ impl ReportScreen {
     }
 }
 
-impl Entity<Update, Notify, Task, State> for ReportScreen {
+impl Entity<Update, Task, State> for ReportScreen {
     fn dispatch_event(&mut self, cx: &mut Context, event: &Event) -> Option<Msg> {
         match cx.report_focus {
             Id::Teams => self.teams.dispatch_event(cx, event),
@@ -83,15 +83,6 @@ impl Entity<Update, Notify, Task, State> for ReportScreen {
             }
             binds::SAVE if cx.teams.is_some() => Some(Msg::Update(Update::OpenSaveModal)),
             _ => None,
-        }
-    }
-
-    fn notify(&mut self, cx: &mut Context, msg: Notify) {
-        match cx.report_focus {
-            Id::Teams => self.teams.notify(cx, msg),
-            Id::Picks => self.picks.notify(cx, msg),
-            Id::Report => self.report.notify(cx, msg),
-            Id::Parameters => self.parameters.notify(cx, msg),
         }
     }
 

@@ -12,8 +12,8 @@ use app::App;
 use framework::Root as _;
 use pickems::datatypes::{Iterations, Map, Name, Set, Sigma, Teams};
 
-pub type Msg = framework::Msg<Update, Notify, Task>;
-pub type Context = framework::Context<Update, Notify, Task, State>;
+pub type Msg = framework::Msg<Update, Task>;
+pub type Context = framework::Context<Update, Task, State>;
 
 #[derive(Debug, Clone, Default)]
 pub struct State {
@@ -123,6 +123,7 @@ impl AsRef<str> for PicksMode {
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub enum Update {
+    Todo,
     ChangeScreen(Screen),
     ChangePath(PathBuf),
     LoadFileList(PathBuf),
@@ -145,12 +146,6 @@ pub enum Update {
     OpenPicksModeModal,
     OpenPickSelectModal(usize),
     OpenSaveModal,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum Notify {
-    Select,
-    Todo,
 }
 
 #[derive(Debug, Clone)]
