@@ -406,7 +406,7 @@ where
     }
 
     fn delete(&mut self) {
-        if self.index + 1 < self.buffer.len() {
+        if self.index < self.buffer.len() {
             self.buffer.remove(self.index);
         }
 
