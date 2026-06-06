@@ -20,6 +20,7 @@ pub struct State {
     pub opened: Option<PathBuf>,
     pub teams: Option<Map>,
     pub picks: [Option<Name>; 10],
+    pub picks_mode: PicksMode,
     pub sigma: Sigma,
     pub iterations: Iterations,
     pub report_type: ReportType,

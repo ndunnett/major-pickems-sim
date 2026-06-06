@@ -204,12 +204,15 @@ impl InputModal {
         }
     }
 
-    pub fn picks_mode() -> Self {
+    pub fn picks_mode(cx: &Context) -> Self {
         Self {
             field: InputField::PicksMode(SelectField {
                 title: String::from("Picks Mode"),
                 values: vec![PicksMode::Auto, PicksMode::Manual],
-                state: ListState::default().with_selected(Some(0)),
+                state: ListState::default().with_selected(Some(match cx.picks_mode {
+                    PicksMode::Auto => 0,
+                    PicksMode::Manual => 1,
+                })),
                 submit: Box::new(|cx, picks_mode| cx.update(Update::PicksMode(picks_mode))),
             }),
         }

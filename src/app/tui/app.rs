@@ -209,7 +209,7 @@ impl Entity<Update, Task, State> for App {
             Update::OpenRatingModal(name) => self.open_modal(cx, InputModal::rating(cx, name)),
             Update::OpenNameModal(name) => self.open_modal(cx, InputModal::name(name)),
             Update::OpenSeedModal(name) => self.open_modal(cx, InputModal::seed(cx, name)),
-            Update::OpenPicksModeModal => self.open_modal(cx, InputModal::picks_mode()),
+            Update::OpenPicksModeModal => self.open_modal(cx, InputModal::picks_mode(cx)),
             Update::OpenPickSelectModal(n) => self.open_modal(cx, InputModal::pick_select(cx, n)),
             Update::OpenSaveModal => self.open_modal(cx, InputModal::save(cx)),
         }

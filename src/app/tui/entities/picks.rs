@@ -24,7 +24,6 @@ enum Focus {
 pub struct PicksPane {
     auto_content: String,
     manual_content: String,
-    mode: PicksMode,
     focus: Focus,
 }
 
@@ -61,9 +60,9 @@ impl Entity<Update, Task, State> for PicksPane {
 
         match self.focus {
             Focus::Mode => match (modifiers, code) {
-                binds::DOWN if self.mode == PicksMode::Manual => self.focus = Focus::Pick(0),
-                binds::LEFT => self.mode = PicksMode::Auto,
-                binds::RIGHT => self.mode = PicksMode::Manual,
+                binds::DOWN if cx.picks_mode == PicksMode::Manual => self.focus = Focus::Pick(0),
+                binds::LEFT => cx.picks_mode = PicksMode::Auto,
+                binds::RIGHT => cx.picks_mode = PicksMode::Manual,
                 binds::SELECT => return Some(Msg::Update(Update::OpenPicksModeModal)),
                 _ => return None,
             },
@@ -150,7 +149,7 @@ impl Entity<Update, Task, State> for PicksPane {
             }
             Update::AutoPickAssess(content) => self.auto_content = content,
             Update::ManualPickAssess(content) => self.manual_content = content,
-            Update::PicksMode(mode) => self.mode = mode,
+            Update::PicksMode(mode) => cx.picks_mode = mode,
             _ => {}
         }
     }
@@ -173,12 +172,12 @@ impl Entity<Update, Task, State> for PicksPane {
         frame.render_widget(
             Line::from_iter([
                 Span::from("Mode: "),
-                Span::from(self.mode.as_str()).style(self.focus_style(cx, Focus::Mode)),
+                Span::from(cx.picks_mode.as_str()).style(self.focus_style(cx, Focus::Mode)),
             ]),
             top,
         );
 
-        match self.mode {
+        match cx.picks_mode {
             PicksMode::Auto => {
                 frame.render_widget(Paragraph::new(self.auto_content.trim()), bottom);
             }
