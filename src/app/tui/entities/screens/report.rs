@@ -86,6 +86,10 @@ impl Entity<Update, Task, State> for ReportScreen {
         }
     }
 
+    fn on_resize(&mut self, cx: &mut Context, width: u16, height: u16) -> Option<Msg> {
+        self.report.on_resize(cx, width, height)
+    }
+
     fn update(&mut self, cx: &mut Context, msg: Update) {
         match msg {
             Update::RefreshContent => {

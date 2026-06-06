@@ -125,6 +125,10 @@ impl Entity<Update, Task, State> for App {
         });
     }
 
+    fn on_resize(&mut self, cx: &mut Context, width: u16, height: u16) -> Option<Msg> {
+        self.report.on_resize(cx, width, height)
+    }
+
     fn on_tick(&mut self, cx: &mut Context) {
         self.toast.on_tick(cx);
 
