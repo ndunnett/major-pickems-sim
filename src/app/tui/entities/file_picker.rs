@@ -84,6 +84,8 @@ impl Entity<Update, Task, State> for FilePicker {
                     if self.state.selected().is_none() {
                         self.state.select_first();
                     }
+
+                    cx.last_file_list_load = Some(*cx.tick());
                 }
                 Err(e) => {
                     cx.update(Update::ErrorToast(format!(

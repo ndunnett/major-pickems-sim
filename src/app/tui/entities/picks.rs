@@ -135,7 +135,7 @@ impl Entity<Update, Task, State> for PicksPane {
 
     fn update(&mut self, cx: &mut Context, msg: Update) {
         match msg {
-            Update::DataOrParams if let Some(teams) = &cx.teams => {
+            Update::RefreshContent if let Some(teams) = &cx.teams => {
                 if let Ok(teams_soa) = Teams::try_from(teams.clone()) {
                     cx.task(Task::AutoPicks {
                         teams: Box::new(teams_soa),
@@ -143,6 +143,10 @@ impl Entity<Update, Task, State> for PicksPane {
                         iterations: cx.iterations,
                     });
                 }
+
+                self.auto_content.clear();
+                self.manual_content.clear();
+                cx.picks = Default::default();
             }
             Update::AutoPickAssess(content) => self.auto_content = content,
             Update::ManualPickAssess(content) => self.manual_content = content,

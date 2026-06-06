@@ -62,10 +62,18 @@ impl Entity<Update, Task, State> for ReportPane {
     }
 
     fn update(&mut self, _cx: &mut Context, msg: Update) {
-        if let Update::ReportContent(content) = msg {
-            self.content = content;
-            self.scrollbar = self.scrollbar.content_length(0);
-            self.len_set = false;
+        match msg {
+            Update::RefreshContent => {
+                self.content.clear();
+                self.scrollbar = self.scrollbar.content_length(0);
+                self.len_set = false;
+            }
+            Update::ReportContent(content) => {
+                self.content = content;
+                self.scrollbar = self.scrollbar.content_length(0);
+                self.len_set = false;
+            }
+            _ => {}
         }
     }
 

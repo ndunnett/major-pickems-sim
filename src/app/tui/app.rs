@@ -127,6 +127,11 @@ impl Entity<Update, Task, State> for App {
 
     fn on_tick(&mut self, cx: &mut Context) {
         self.toast.on_tick(cx);
+
+        match self.active {
+            Screen::Open => self.open.on_tick(cx),
+            Screen::Report => self.report.on_tick(cx),
+        }
     }
 
     fn update(&mut self, cx: &mut Context, msg: Update) {
@@ -185,7 +190,7 @@ impl Entity<Update, Task, State> for App {
             | Update::PicksMode(..) => {
                 self.report.update(cx, msg);
             }
-            Update::DataOrParams => {
+            Update::RefreshContent => {
                 self.report.update(cx, msg);
                 spawn_simulation_task(cx);
             }
@@ -273,7 +278,7 @@ fn load_data(cx: &mut Context, teams: Map, path: PathBuf) {
     cx.opened = Some(path);
     cx.teams = Some(teams);
     cx.picks = Default::default();
-    cx.update(Update::DataOrParams);
+    cx.update(Update::RefreshContent);
     cx.update(Update::ChangeScreen(Screen::Report));
 }
 

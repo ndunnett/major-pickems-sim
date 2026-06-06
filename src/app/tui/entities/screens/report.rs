@@ -88,9 +88,10 @@ impl Entity<Update, Task, State> for ReportScreen {
 
     fn update(&mut self, cx: &mut Context, msg: Update) {
         match msg {
-            Update::DataOrParams => {
+            Update::RefreshContent => {
                 self.teams.update(cx, msg.clone());
-                self.picks.update(cx, msg);
+                self.picks.update(cx, msg.clone());
+                self.report.update(cx, msg);
             }
             Update::ReportContent(..) => self.report.update(cx, msg),
             Update::AutoPickAssess(..) => self.picks.update(cx, msg),

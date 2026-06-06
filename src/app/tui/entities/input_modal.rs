@@ -63,7 +63,7 @@ impl InputModal {
                 validated: None,
                 submit: Box::new(|cx, iterations| {
                     cx.iterations = iterations;
-                    cx.update(Update::DataOrParams);
+                    cx.update(Update::RefreshContent);
                 }),
             }),
         }
@@ -81,7 +81,7 @@ impl InputModal {
                 validated: None,
                 submit: Box::new(|cx, sigma| {
                     cx.sigma = sigma;
-                    cx.update(Update::DataOrParams);
+                    cx.update(Update::RefreshContent);
                 }),
             }),
         }
@@ -107,7 +107,7 @@ impl InputModal {
                         && let Some(team) = teams.get_mut(&name)
                     {
                         team.rating = new_rating;
-                        cx.update(Update::DataOrParams);
+                        cx.update(Update::RefreshContent);
                     }
                 }),
             }),
@@ -130,7 +130,7 @@ impl InputModal {
                         && let Some(team) = teams.remove(&initial_name)
                     {
                         teams.insert(new_name, team);
-                        cx.update(Update::DataOrParams);
+                        cx.update(Update::RefreshContent);
                     }
                 }),
             }),
@@ -174,7 +174,7 @@ impl InputModal {
                             team.seed = new_seed;
                         }
 
-                        cx.update(Update::DataOrParams);
+                        cx.update(Update::RefreshContent);
                     }
                 }),
             }),
@@ -198,7 +198,7 @@ impl InputModal {
                 state: ListState::default().with_selected(selected),
                 submit: Box::new(|cx, report_type| {
                     cx.report_type = report_type;
-                    cx.update(Update::DataOrParams);
+                    cx.update(Update::RefreshContent);
                 }),
             }),
         }

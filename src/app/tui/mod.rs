@@ -1,4 +1,4 @@
-use std::{io::stdout, path::PathBuf};
+use std::{io::stdout, path::PathBuf, time::Instant};
 
 use ratatui::backend::CrosstermBackend;
 
@@ -25,6 +25,7 @@ pub struct State {
     pub report_type: ReportType,
     pub report_focus: Id,
     pub modal_open: bool,
+    pub last_file_list_load: Option<Instant>,
 }
 
 impl State {
@@ -129,7 +130,7 @@ pub enum Update {
     NewInputData,
     DataSaved(PathBuf),
     ReportContent(String),
-    DataOrParams,
+    RefreshContent,
     PicksMode(PicksMode),
     AutoPickAssess(String),
     ManualPickAssess(String),
