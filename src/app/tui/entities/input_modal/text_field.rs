@@ -3,7 +3,6 @@ use ratatui::{
     crossterm::event::{KeyCode, KeyModifiers},
     layout::{Constraint, Layout, Position, Rect},
     style::Style,
-    text::Text,
     widgets::{Block, BorderType, Paragraph, Wrap},
 };
 
@@ -16,6 +15,7 @@ pub struct TextField<T> {
     title: String,
     buffer: Vec<char>,
     index: usize,
+    scroll: u16,
     initial: Option<Result<T, String>>,
     validated: Option<Result<T, String>>,
     validator: ValidateFn<T>,
@@ -36,6 +36,7 @@ impl<T: PartialEq + Clone> TextField<T> {
             title: title.into(),
             buffer: initial_buffer,
             index,
+            scroll: 0,
             initial: None,
             validated: None,
             validator: Box::new(validator_fn),
@@ -150,15 +151,34 @@ impl<T: PartialEq + Clone> Entity<Update, Task, State> for TextField<T> {
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
             .border_style(style)
-            .title(self.title.as_str());
+            .title(self.title.clone());
 
-        let text = Text::from(self.buffer.iter().collect::<String>());
         let text_area = block.inner(block_area);
-        let cursor_position = Position::new(text_area.x + self.index as u16, text_area.y);
+
+        let cursor_offset = {
+            let index = self.index as u16;
+
+            if index < self.scroll {
+                self.scroll = index;
+            } else if index >= self.scroll.saturating_add(text_area.width) {
+                self.scroll = index.saturating_add(1).saturating_sub(text_area.width);
+            }
+
+            Some(index.saturating_sub(self.scroll))
+        };
 
         frame.render_widget(block, block_area);
-        frame.render_widget(text, text_area);
-        frame.set_cursor_position(cursor_position);
+        frame.render_widget(
+            Paragraph::new(self.buffer.iter().collect::<String>()).scroll((0, self.scroll)),
+            text_area,
+        );
+
+        if let Some(cursor_offset) = cursor_offset {
+            frame.set_cursor_position(Position::new(
+                text_area.x.saturating_add(cursor_offset),
+                text_area.y,
+            ));
+        }
 
         if let Some(Err(e)) = &self.validated {
             frame.render_widget(
@@ -178,6 +198,7 @@ impl<T> std::fmt::Debug for TextField<T> {
             .field("title", &self.title)
             .field("buffer", &self.buffer)
             .field("index", &self.index)
+            .field("scroll", &self.scroll)
             .field("initial", &"...")
             .field("validated", &"...")
             .field("validator", &"...")
