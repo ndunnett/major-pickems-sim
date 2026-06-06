@@ -7,7 +7,6 @@ use std::{
         atomic::{AtomicBool, Ordering},
         mpsc,
     },
-    thread::JoinHandle,
     time::Duration,
 };
 
@@ -32,8 +31,6 @@ pub struct Engine<U, T, W: Write> {
     task_sender: mpsc::Sender<T>,
     msg_receiver: mpsc::Receiver<Msg<U, T>>,
     shutdown_signal: Arc<AtomicBool>,
-    event_handler: Option<JoinHandle<()>>,
-    task_handler: Option<JoinHandle<()>>,
 }
 
 impl<U, T, W> Engine<U, T, W>
@@ -51,7 +48,7 @@ where
         let event_shutdown = shutdown_signal.clone();
         let (event_sender, event_receiver) = mpsc::channel();
 
-        let event_handler = Some(std::thread::spawn(move || {
+        std::thread::spawn(move || {
             loop {
                 let Ok(event_available) = poll_event(POLL_TIME) else {
                     return;
@@ -71,13 +68,13 @@ where
                     return;
                 }
             }
-        }));
+        });
 
         let task_shutdown = shutdown_signal.clone();
         let (task_sender, task_receiver) = mpsc::channel();
         let (msg_sender, msg_receiver) = mpsc::channel();
 
-        let task_handler = Some(std::thread::spawn(move || {
+        std::thread::spawn(move || {
             loop {
                 match task_receiver.recv_timeout(POLL_TIME) {
                     Ok(task) => {
@@ -97,7 +94,7 @@ where
                     return;
                 }
             }
-        }));
+        });
 
         Ok(Self {
             terminal,
@@ -105,8 +102,6 @@ where
             task_sender,
             msg_receiver,
             shutdown_signal,
-            event_handler,
-            task_handler,
         })
     }
 
@@ -148,14 +143,6 @@ where
 impl<U, T, W: Write> Drop for Engine<U, T, W> {
     fn drop(&mut self) {
         self.shutdown_signal.store(true, Ordering::Relaxed);
-
-        if let Some(handle) = self.event_handler.take() {
-            _ = handle.join();
-        }
-
-        if let Some(handle) = self.task_handler.take() {
-            _ = handle.join();
-        }
     }
 }
 
@@ -167,8 +154,6 @@ impl<U: Debug, T: Debug, W: Write + Debug> Debug for Engine<U, T, W> {
             .field("task_sender", &self.task_sender)
             .field("msg_receiver", &self.msg_receiver)
             .field("shutdown_signal", &self.shutdown_signal)
-            .field("event_handler", &self.event_handler)
-            .field("task_handler", &self.task_handler)
             .finish()
     }
 }
