@@ -9,7 +9,7 @@ use ratatui::{
     widgets::{Block, BorderType, Paragraph},
 };
 
-use pickems::datatypes::{Seed, Teams};
+use pickems::datatypes::Seed;
 
 use crate::app::tui::{Context, Id, Msg, PicksMode, State, Task, Update, binds, framework::Entity};
 
@@ -134,15 +134,7 @@ impl Entity<Update, Task, State> for PicksPane {
 
     fn update(&mut self, cx: &mut Context, msg: Update) {
         match msg {
-            Update::RefreshContent if let Some(teams) = &cx.teams => {
-                if let Ok(teams_soa) = Teams::try_from(teams.clone()) {
-                    cx.task(Task::AutoPicks {
-                        teams: Box::new(teams_soa),
-                        sigma: cx.sigma,
-                        iterations: cx.iterations,
-                    });
-                }
-
+            Update::RefreshFull => {
                 self.auto_content.clear();
                 self.manual_content.clear();
                 cx.picks = Default::default();

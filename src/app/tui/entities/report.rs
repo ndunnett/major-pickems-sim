@@ -63,7 +63,7 @@ impl Entity<Update, Task, State> for ReportPane {
 
     fn update(&mut self, _cx: &mut Context, msg: Update) {
         match msg {
-            Update::RefreshContent => {
+            Update::RefreshFull => {
                 self.content.clear();
                 self.scrollbar = self.scrollbar.content_length(0);
                 self.len_set = false;

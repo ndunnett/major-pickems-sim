@@ -71,7 +71,7 @@ impl InputModal {
             |cx, iterations, is_changed| {
                 if is_changed {
                     cx.iterations = iterations;
-                    cx.update(Update::RefreshContent);
+                    cx.update(Update::RefreshParameters);
                 }
             },
         )))
@@ -86,7 +86,7 @@ impl InputModal {
             |cx, sigma, is_changed| {
                 if is_changed {
                     cx.sigma = sigma;
-                    cx.update(Update::RefreshContent);
+                    cx.update(Update::RefreshParameters);
                 }
             },
         )))
@@ -109,7 +109,7 @@ impl InputModal {
                     && let Some(team) = teams.get_mut(&name)
                 {
                     team.rating = new_rating;
-                    cx.update(Update::RefreshContent);
+                    cx.update(Update::RefreshTeamValues);
                 }
             },
         )))
@@ -143,7 +143,7 @@ impl InputModal {
                     && let Some(team) = teams.remove(&submit_initial_name)
                 {
                     teams.insert(new_name, team);
-                    cx.update(Update::RefreshContent);
+                    cx.update(Update::RefreshFull);
                 }
             },
         )))
@@ -183,7 +183,7 @@ impl InputModal {
                         team.seed = new_seed;
                     }
 
-                    cx.update(Update::RefreshContent);
+                    cx.update(Update::RefreshTeamValues);
                 }
             },
         )))
@@ -202,7 +202,7 @@ impl InputModal {
             |cx, report_type, is_changed| {
                 if is_changed {
                     cx.report_type = report_type;
-                    cx.update(Update::RefreshContent);
+                    cx.update(Update::RefreshReport);
                 }
             },
         )))

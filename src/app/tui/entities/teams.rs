@@ -81,7 +81,7 @@ impl Entity<Update, Task, State> for TeamsPane {
     }
 
     fn update(&mut self, cx: &mut Context, msg: Update) {
-        if matches!(msg, Update::RefreshContent)
+        if matches!(msg, Update::RefreshFull | Update::RefreshTeamValues)
             && let Some(teams) = &cx.teams
         {
             self.teams = teams
