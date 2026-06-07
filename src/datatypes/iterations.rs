@@ -1,7 +1,5 @@
 use std::{ops::Range, str::FromStr};
 
-use rayon::iter::IntoParallelIterator;
-
 /// Representation of simulation iterations.
 #[derive(Debug, Clone, Copy, PartialOrd, Ord, PartialEq, Eq)]
 pub struct Iterations(u64);
@@ -72,15 +70,6 @@ impl IntoIterator for Iterations {
 
     fn into_iter(self) -> Self::IntoIter {
         0..self.0
-    }
-}
-
-impl IntoParallelIterator for Iterations {
-    type Item = u64;
-    type Iter = rayon::range::Iter<u64>;
-
-    fn into_par_iter(self) -> Self::Iter {
-        (0..self.0).into_par_iter()
     }
 }
 

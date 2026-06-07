@@ -1,4 +1,4 @@
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use std::num::NonZero;
 
 use crate::{
     datatypes::{Iterations, Sigma, Teams},
@@ -64,23 +64,42 @@ impl Simulation {
 
     /// Run a tournament simulation to completion and return a report.
     pub fn run<R: Report>(&self, fresh_report: R) -> R {
-        let fresh_ss = SwissSystem::new(self.teams.ratings, self.sigma);
+        const MIN_ITERS_PER_THREAD: u64 = 15_000;
+        let threads = std::thread::available_parallelism().map_or(1, NonZero::get) as u64;
+        let iterations = self.iterations.to_u64();
+        let max_workers = iterations.div_ceil(MIN_ITERS_PER_THREAD);
+        let worker_count = threads.min(max_workers);
+        let dividend = iterations / worker_count;
+        let remainder = iterations % worker_count;
 
-        self.iterations
-            .into_par_iter()
-            .map_init(
-                || (fresh_ss, rng::random()),
-                |(ss, rng), _| {
-                    // Reuse the precomputed probability matrices per worker and
-                    // reset only the mutable tournament state each iteration.
-                    ss.reset();
-                    ss.simulate_tournament(rng);
-                    let mut report = fresh_report;
-                    report.update(ss);
-                    report
-                },
-            )
-            .sum()
+        std::thread::scope(|scope| {
+            let fresh_ss = SwissSystem::new(self.teams.ratings, self.sigma);
+
+            let handles = (0..worker_count)
+                .map(|worker| {
+                    let worker_iterations = dividend + u64::from(worker < remainder);
+
+                    scope.spawn(move || {
+                        let mut ss = fresh_ss;
+                        let mut rng = rng::random();
+                        let mut report = fresh_report;
+
+                        for _ in 0..worker_iterations {
+                            ss.reset();
+                            ss.simulate_tournament(&mut rng);
+                            report.update(&ss);
+                        }
+
+                        report
+                    })
+                })
+                .collect::<Vec<_>>();
+
+            handles
+                .into_iter()
+                .map(|handle| handle.join().expect("simulation worker panicked"))
+                .sum()
+        })
     }
 }
 
