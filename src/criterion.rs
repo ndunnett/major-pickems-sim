@@ -5,7 +5,11 @@ use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use pickems::{
     datatypes::{Iterations, Rating, Set, Sigma},
     reporting::NullReport,
-    simulation::{Simulation, probabilities, seeding},
+    simulation::{
+        Simulation, probabilities,
+        seeding::{self, PackedSeeding},
+        sorting,
+    },
 };
 
 fn bench_simulation(c: &mut Criterion) {
@@ -76,13 +80,14 @@ fn seeding_cases() -> [SeedingCase; 5] {
 }
 
 fn bench_seeding(c: &mut Criterion) {
+    let cases = seeding_cases();
     let mut group = c.benchmark_group("seeding");
 
     group
         .warm_up_time(Duration::from_millis(500))
         .measurement_time(Duration::from_secs(2));
 
-    for case in &seeding_cases() {
+    for case in &cases {
         group.bench_with_input(BenchmarkId::new("scalar", case.name), case, |b, case| {
             b.iter(|| {
                 black_box(seeding::scalar_impl(
@@ -92,33 +97,184 @@ fn bench_seeding(c: &mut Criterion) {
                 ));
             });
         });
+    }
 
-        #[cfg(target_feature = "sse2")]
-        group.bench_with_input(BenchmarkId::new("sse2", case.name), case, |b, case| {
-            b.iter(|| {
-                black_box(unsafe {
-                    seeding::x86::sse2_impl(
-                        black_box(case.remaining),
-                        black_box(&case.diffs),
-                        black_box(&case.opponents),
-                    )
-                });
+    // Runtime of SIMD implementations does not dependent on arguments.
+    let case = &cases[0];
+
+    #[cfg(target_feature = "sse2")]
+    group.bench_with_input(BenchmarkId::new("sse2", case.name), case, |b, case| {
+        b.iter(|| {
+            black_box(unsafe {
+                seeding::x86::sse2_impl(
+                    black_box(case.remaining),
+                    black_box(&case.diffs),
+                    black_box(&case.opponents),
+                )
             });
         });
+    });
 
-        #[cfg(target_feature = "avx2")]
-        group.bench_with_input(BenchmarkId::new("avx2", case.name), case, |b, case| {
+    #[cfg(target_feature = "avx2")]
+    group.bench_with_input(BenchmarkId::new("avx2", case.name), case, |b, case| {
+        b.iter(|| {
+            black_box(unsafe {
+                seeding::x86_64::avx2_impl(
+                    black_box(case.remaining),
+                    black_box(&case.diffs),
+                    black_box(&case.opponents),
+                )
+            });
+        });
+    });
+
+    group.finish();
+}
+
+struct SortingCase {
+    name: &'static str,
+    seeding: PackedSeeding,
+    len: usize,
+}
+
+fn sorting_cases() -> [SortingCase; 5] {
+    [
+        SortingCase {
+            name: "16_items",
+            seeding: PackedSeeding::from([
+                0x1020, 0x0010, 0x4010, 0x0001, 0x2400, 0x1000, 0x0100, 0x0000, 0x2200, 0x0200,
+                0x2100, 0x0030, 0x1300, 0x1200, 0x1100, 0x0110,
+            ]),
+            len: 16,
+        },
+        SortingCase {
+            name: "12_items",
+            seeding: PackedSeeding::from([
+                0x1020,
+                0x0010,
+                0x4010,
+                0x0001,
+                0x2400,
+                0x1000,
+                0x0100,
+                0x0000,
+                0x2200,
+                0x0200,
+                0x2100,
+                0x0030,
+                u16::MAX,
+                u16::MAX,
+                u16::MAX,
+                u16::MAX,
+            ]),
+            len: 12,
+        },
+        SortingCase {
+            name: "8_items",
+            seeding: PackedSeeding::from([
+                0x1020,
+                0x0010,
+                0x4010,
+                0x0001,
+                0x2400,
+                0x1000,
+                0x0100,
+                0x0000,
+                u16::MAX,
+                u16::MAX,
+                u16::MAX,
+                u16::MAX,
+                u16::MAX,
+                u16::MAX,
+                u16::MAX,
+                u16::MAX,
+            ]),
+            len: 8,
+        },
+        SortingCase {
+            name: "6_items",
+            seeding: PackedSeeding::from([
+                u16::MAX,
+                0x0010,
+                0x4010,
+                u16::MAX,
+                0x2400,
+                0x1000,
+                u16::MAX,
+                0x0000,
+                u16::MAX,
+                u16::MAX,
+                0x2100,
+                u16::MAX,
+                u16::MAX,
+                u16::MAX,
+                u16::MAX,
+                u16::MAX,
+            ]),
+            len: 6,
+        },
+        SortingCase {
+            name: "4_items",
+            seeding: PackedSeeding::from([
+                u16::MAX,
+                u16::MAX,
+                0x4010,
+                u16::MAX,
+                0x2400,
+                u16::MAX,
+                u16::MAX,
+                0x0000,
+                u16::MAX,
+                u16::MAX,
+                0x2100,
+                u16::MAX,
+                u16::MAX,
+                u16::MAX,
+                u16::MAX,
+                u16::MAX,
+            ]),
+            len: 4,
+        },
+    ]
+}
+
+fn bench_sorting(c: &mut Criterion) {
+    let cases = sorting_cases();
+    let mut group = c.benchmark_group("sorting");
+
+    group
+        .warm_up_time(Duration::from_millis(500))
+        .measurement_time(Duration::from_secs(2));
+
+    for case in &cases {
+        group.bench_with_input(BenchmarkId::new("scalar", case.name), case, |b, case| {
             b.iter(|| {
-                black_box(unsafe {
-                    seeding::x86_64::avx2_impl(
-                        black_box(case.remaining),
-                        black_box(&case.diffs),
-                        black_box(&case.opponents),
-                    )
-                });
+                let seeding = black_box(case.seeding);
+                black_box(seeding.sort_strip(black_box(case.len)));
             });
         });
     }
+
+    // Runtime of SIMD implementations does not dependent on arguments.
+    let case = &cases[0];
+
+    #[cfg(target_feature = "sse2")]
+    group.bench_with_input(BenchmarkId::new("sse2", case.name), case, |b, case| {
+        b.iter(|| {
+            black_box(unsafe {
+                sorting::x86::sort_strip_sse2(black_box(case.seeding), black_box(case.len))
+            });
+        });
+    });
+
+    #[cfg(target_feature = "avx2")]
+    group.bench_with_input(BenchmarkId::new("avx2", case.name), case, |b, case| {
+        b.iter(|| {
+            black_box(unsafe {
+                sorting::x86_64::sort_strip_avx2(black_box(case.seeding), black_box(case.len))
+            });
+        });
+    });
 
     group.finish();
 }
@@ -173,6 +329,7 @@ criterion_group!(
     benches,
     bench_simulation,
     bench_seeding,
+    bench_sorting,
     bench_probabilities
 );
 criterion_main!(benches);

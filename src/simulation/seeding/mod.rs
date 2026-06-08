@@ -40,7 +40,10 @@ cfg_select! {
     }
 }
 
-use std::{mem::transmute, ops::Deref};
+use std::{
+    mem::transmute,
+    ops::{Deref, DerefMut},
+};
 
 use crate::datatypes::{Index, Set};
 
@@ -52,7 +55,7 @@ const INITIAL_SEED_MASK: u16 = 0x1F;
 /// Return remaining team indices sorted by mid-stage seeding using scalar loops.
 #[must_use]
 pub fn scalar_impl(remaining: Set, diffs: &[i8; 16], opponents: &[Set; 16]) -> Seeding {
-    let mut seeding = [u16::MAX; 16];
+    let mut seeding = PackedSeeding::new();
 
     // Match only teams that remain in the tournament.
     for index in remaining {
@@ -67,138 +70,99 @@ pub fn scalar_impl(remaining: Set, diffs: &[i8; 16], opponents: &[Set; 16]) -> S
         seeding[index.to_usize()] = diff << 10 | buchholz << 5 | index.to_u16();
     }
 
-    let len = remaining.len();
-    sort(&mut seeding, len);
-
-    // Strip back down to just the zero-based initial seed.
-    for packed_seed in &mut seeding[..len] {
-        *packed_seed &= INITIAL_SEED_MASK;
-    }
-
-    // `Index` is a transparent newtype of `u16`; the active prefix has been masked
-    // down to only the initial seed, which is known to be in `0..16`.
-    Seeding {
-        len,
-        data: unsafe { transmute::<[u16; 16], [Index; 16]>(seeding) },
-    }
+    seeding.sort_strip(remaining.len())
 }
 
-/// Applies a static sorting network depending on the number of elements to sort.
-#[cfg_attr(feature = "pprof", inline(never))]
-#[cfg_attr(not(feature = "pprof"), inline)]
-fn sort(seeding: &mut [u16; 16], len: usize) {
-    match len {
-        0..=8 => {
-            // Compact the active values into the first eight lanes before
-            // applying the smaller sorting network.
-            for i in 0..len {
-                if seeding[i] == u16::MAX {
-                    let mut j = 15;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(align(32), C)]
+pub struct PackedSeeding {
+    data: [u16; 16],
+}
 
-                    loop {
-                        if seeding[j] < u16::MAX {
-                            seeding.swap(i, j);
-                            break;
-                        }
-
-                        j -= 1;
-                    }
-                }
-            }
-
-            sorting_network_8(seeding);
+impl PackedSeeding {
+    #[must_use]
+    pub const fn new() -> Self {
+        Self {
+            data: [u16::MAX; _],
         }
-        9..=16 => sorting_network_16(seeding),
-        _ => unreachable!(),
+    }
+
+    #[must_use]
+    pub fn sort_strip(mut self, len: usize) -> Seeding {
+        self.data.sort_unstable();
+
+        for packed_seed in &mut self[..len] {
+            *packed_seed &= INITIAL_SEED_MASK;
+        }
+
+        // Safety: data is sorted and the active prefix has been masked out.
+        unsafe { self.into_seeding_unchecked(len) }
+    }
+
+    /// # Safety
+    ///
+    /// Must be sorted with active prefixes stripped to construct a valid [`Seeding`].
+    #[must_use]
+    #[inline]
+    pub unsafe fn into_seeding_unchecked(self, len: usize) -> Seeding {
+        // `Index` is a transparent newtype of `u16`; the active prefix has been masked
+        // down to only the initial seed, which is known to be in `0..16`.
+        Seeding {
+            len,
+            data: unsafe { transmute::<[u16; 16], [Index; 16]>(self.data) },
+        }
+    }
+
+    /// Returns a `*mut Self` which can be cast to other 8/16/32-byte aligned pointers, ie. SIMD vector types.
+    pub const fn as_aligned_mut_ptr(&mut self) -> *mut Self {
+        // `self.data` is 32-byte aligned.
+        #[allow(clippy::cast_ptr_alignment)]
+        self.data.as_mut_ptr().cast::<Self>()
     }
 }
 
-macro_rules! compare_exchange {
-    ($p:expr, ($a:expr, $b:expr)) => {
-        unsafe {
-            let x = *$p.add($a);
-            let y = *$p.add($b);
-            *$p.add($a) = x.min(y);
-            *$p.add($b) = x.max(y);
+impl Default for PackedSeeding {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Deref for PackedSeeding {
+    type Target = [u16];
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.data
+    }
+}
+
+impl DerefMut for PackedSeeding {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.data
+    }
+}
+
+impl From<[u16; 16]> for PackedSeeding {
+    fn from(data: [u16; 16]) -> Self {
+        Self { data }
+    }
+}
+
+#[derive(Debug)]
+pub struct SortedSeeding {
+    data: [u16; 16],
+}
+
+impl SortedSeeding {
+    #[must_use]
+    pub fn with_len(self, len: usize) -> Seeding {
+        // `Index` is a transparent newtype of `u16`; the active prefix has been masked
+        // down to only the initial seed, which is known to be in `0..16`.
+        Seeding {
+            len,
+            data: unsafe { transmute::<[u16; 16], [Index; 16]>(self.data) },
         }
-    };
-}
-
-macro_rules! sorting_network {
-    ($p:expr, $([$(($a:expr, $b:expr)),+ $(,)*]),+ $(,)*) => {
-        $($(compare_exchange!($p, ($a, $b));)+)+
-    };
-}
-
-#[cfg_attr(feature = "pprof", inline(never))]
-#[cfg_attr(not(feature = "pprof"), inline)]
-fn sorting_network_8(seeding: &mut [u16; 16]) {
-    let p = seeding.as_mut_ptr();
-
-    sorting_network!(
-        p,
-        [(5, 7), (4, 6), (1, 3), (0, 2)],
-        [(3, 7), (2, 6), (1, 5), (0, 4)],
-        [(6, 7), (4, 5), (2, 3), (0, 1)],
-        [(3, 5), (2, 4)],
-        [(3, 6), (1, 4)],
-        [(5, 6), (3, 4), (1, 2)],
-    );
-}
-
-#[cfg_attr(feature = "pprof", inline(never))]
-#[cfg_attr(not(feature = "pprof"), inline)]
-fn sorting_network_16(seeding: &mut [u16; 16]) {
-    let p = seeding.as_mut_ptr();
-
-    sorting_network!(
-        p,
-        [
-            (10, 15),
-            (11, 14),
-            (3, 13),
-            (2, 12),
-            (8, 9),
-            (6, 7),
-            (0, 5),
-            (1, 4)
-        ],
-        [
-            (13, 15),
-            (5, 14),
-            (9, 12),
-            (8, 11),
-            (1, 10),
-            (4, 7),
-            (3, 6),
-            (0, 2)
-        ],
-        [
-            (7, 15),
-            (12, 14),
-            (4, 13),
-            (2, 11),
-            (6, 10),
-            (5, 9),
-            (0, 8),
-            (1, 3)
-        ],
-        [
-            (14, 15),
-            (11, 13),
-            (7, 12),
-            (9, 10),
-            (3, 8),
-            (5, 6),
-            (2, 4),
-            (0, 1)
-        ],
-        [(12, 14), (10, 13), (7, 11), (6, 9), (4, 8), (2, 5), (1, 3)],
-        [(13, 14), (10, 12), (4, 11), (7, 9), (6, 8), (3, 5), (1, 2)],
-        [(12, 13), (10, 11), (8, 9), (6, 7), (4, 5), (2, 3)],
-        [(9, 11), (8, 10), (5, 7), (4, 6)],
-        [(11, 12), (9, 10), (7, 8), (5, 6), (3, 4)],
-    );
+    }
 }
 
 /// Sorted mid-stage seed order for the teams that remain in the tournament.
@@ -232,7 +196,7 @@ impl Deref for Seeding {
 
     #[inline]
     fn deref(&self) -> &Self::Target {
-        unsafe { std::slice::from_raw_parts(self.data.as_ptr(), self.len()) }
+        &self.data[..self.len]
     }
 }
 
@@ -330,34 +294,6 @@ impl ByteMasks {
 #[cfg(test)]
 mod tests {
     use crate::datatypes::{Index, Set};
-
-    #[test]
-    fn sorting_network_8_matches_std_sort() {
-        for bits in u8::MIN..=u8::MAX {
-            let mut actual = std::array::from_fn(|i| {
-                if i < 8 {
-                    u16::from(bits & (1 << i) != 0)
-                } else {
-                    1
-                }
-            });
-            super::sorting_network_8(&mut actual);
-            let expected_ones = bits.count_ones() as usize;
-            let expected = std::array::from_fn(|i| u16::from(i >= 8 - expected_ones));
-            assert_eq!(actual, expected, "failed for bitset {bits:#04X}");
-        }
-    }
-
-    #[test]
-    fn sorting_network_16_matches_std_sort() {
-        for bits in u16::MIN..=u16::MAX {
-            let mut actual = std::array::from_fn(|i| u16::from(bits & (1 << i) != 0));
-            super::sorting_network_16(&mut actual);
-            let expected_ones = bits.count_ones() as usize;
-            let expected = std::array::from_fn(|i| u16::from(i >= 16 - expected_ones));
-            assert_eq!(actual, expected, "failed for bitset {bits:#06X}");
-        }
-    }
 
     const DIFF_FIXTURES: [[i8; 16]; 5] = [
         [0; 16],

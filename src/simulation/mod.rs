@@ -9,6 +9,7 @@ mod matching;
 pub mod probabilities;
 mod rng;
 pub mod seeding;
+pub mod sorting;
 mod swiss_system;
 
 pub use matching::Matchups;

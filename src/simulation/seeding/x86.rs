@@ -11,11 +11,9 @@ cfg_select! {
     }
 }
 
-use std::mem::transmute;
+use crate::{datatypes::Set, simulation::sorting};
 
-use crate::datatypes::{Index, Set};
-
-use super::{ByteMasks, INITIAL_SEED_MASK, Seeding, sort};
+use super::{ByteMasks, PackedSeeding, Seeding};
 
 /// Return remaining team indices sorted by mid-stage seeding.
 #[cfg(target_arch = "x86")]
@@ -63,7 +61,7 @@ pub unsafe fn sse2_impl(remaining: Set, diffs: &[i8; 16], opponents: &[Set; 16])
         };
     }
 
-    let mut packed = [0; 16];
+    let mut packed = PackedSeeding::new();
 
     unsafe {
         let buchholz = _mm_loadu_si128(buchholz_scores.as_ptr().cast());
@@ -102,18 +100,5 @@ pub unsafe fn sse2_impl(remaining: Set, diffs: &[i8; 16], opponents: &[Set; 16])
         packed[seed.to_usize()] = u16::MAX;
     }
 
-    let len = remaining.len();
-    sort(&mut packed, len);
-
-    // Strip back down to just the zero-based initial seed.
-    for packed_seed in &mut packed[..len] {
-        *packed_seed &= INITIAL_SEED_MASK;
-    }
-
-    // `Index` is a transparent newtype of `u16`; the active prefix has been masked
-    // down to only the initial seed, which is known to be in `0..16`.
-    Seeding {
-        len,
-        data: unsafe { transmute::<[u16; 16], [Index; 16]>(packed) },
-    }
+    sorting::x86::sort_strip_sse2(packed, remaining.len())
 }

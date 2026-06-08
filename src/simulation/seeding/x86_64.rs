@@ -2,17 +2,17 @@
 
 #![allow(clippy::wildcard_imports)]
 
-use std::{arch::x86_64::*, mem::transmute};
+use std::arch::x86_64::*;
 
-use crate::datatypes::{Index, Set};
+use crate::{datatypes::Set, simulation::sorting};
 
-use super::{ByteMasks, INITIAL_SEED_MASK, Seeding, sort};
+use super::{ByteMasks, PackedSeeding, Seeding};
 
 /// Return remaining team indices sorted by mid-stage seeding.
 #[must_use]
 #[inline]
 pub fn seed_teams(remaining: Set, diffs: &[i8; 16], opponents: &[Set; 16]) -> Seeding {
-    if is_x86_feature_detected!("avx2") && remaining.len() > 8 {
+    if is_x86_feature_detected!("avx2") {
         unsafe { avx2_impl(remaining, diffs, opponents) }
     } else {
         // Safety: SSE2 is enabled on x86_64 architectures by default
@@ -31,7 +31,7 @@ pub fn seed_teams(remaining: Set, diffs: &[i8; 16], opponents: &[Set; 16]) -> Se
 pub unsafe fn avx2_impl(remaining: Set, diffs: &[i8; 16], opponents: &[Set; 16]) -> Seeding {
     let len = remaining.len();
     let diffs_vector = unsafe { _mm_loadu_si128(diffs.as_ptr().cast()) };
-    let mut packed = [0; 16];
+    let mut packed = PackedSeeding::new();
 
     unsafe {
         let fifteen = _mm256_set1_epi16(15);
@@ -85,17 +85,5 @@ pub unsafe fn avx2_impl(remaining: Set, diffs: &[i8; 16], opponents: &[Set; 16])
         _mm256_storeu_si256(packed.as_mut_ptr().cast(), packed_vector);
     }
 
-    sort(&mut packed, len);
-
-    // Strip back down to just the zero-based initial seed.
-    for packed_seed in &mut packed[..len] {
-        *packed_seed &= INITIAL_SEED_MASK;
-    }
-
-    // `Index` is a transparent newtype of `u16`; the active prefix has been masked
-    // down to only the initial seed, which is known to be in `0..16`.
-    Seeding {
-        len,
-        data: unsafe { transmute::<[u16; 16], [Index; 16]>(packed) },
-    }
+    sorting::x86_64::sort_strip_avx2(packed, len)
 }
