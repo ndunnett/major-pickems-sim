@@ -77,12 +77,12 @@ impl Sum for BasicReport {
 impl Report for BasicReport {
     fn update(&mut self, ss: &SwissSystem) {
         for (seed, result) in self.stats.iter_mut().enumerate() {
-            match (ss.wins[seed], ss.losses[seed]) {
-                (3, 0) => result.three_zero += 1,
-                (3, _) => result.advancing += 1,
-                (0, 3) => result.zero_three += 1,
-                _ => {}
-            }
+            let wins = ss.wins[seed];
+            let losses = ss.losses[seed];
+
+            result.three_zero += u64::from(wins == 3 && losses == 0);
+            result.advancing += u64::from(wins == 3 && losses != 0);
+            result.zero_three += u64::from(wins == 0 && losses == 3);
         }
     }
 

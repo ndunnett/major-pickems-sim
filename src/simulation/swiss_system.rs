@@ -81,20 +81,17 @@ impl SwissSystem {
             self.probabilities_bo1[a][b]
         };
 
-        let team_a_win = p > r;
+        let winner_a = u8::from(p > r);
+        let loser_a = 1 - winner_a;
+        let diff_delta = winner_a.cast_signed() * 2 - 1;
 
         // Update team records.
-        if team_a_win {
-            self.wins[a] += 1;
-            self.losses[b] += 1;
-            self.diffs[a] += 1;
-            self.diffs[b] -= 1;
-        } else {
-            self.losses[a] += 1;
-            self.wins[b] += 1;
-            self.diffs[a] -= 1;
-            self.diffs[b] += 1;
-        }
+        self.wins[a] += winner_a;
+        self.losses[a] += loser_a;
+        self.wins[b] += loser_a;
+        self.losses[b] += winner_a;
+        self.diffs[a] += diff_delta;
+        self.diffs[b] -= diff_delta;
 
         self.opponents[a].insert(seed_b);
         self.opponents[b].insert(seed_a);
