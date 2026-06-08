@@ -39,7 +39,7 @@ pub fn calculate_probabilities(ratings: [Rating; 16], sigma: Sigma) -> [[[f32; 1
 /// Undefined behaviour on platforms that do not support SSE2 instructions.
 #[target_feature(enable = "sse2")]
 #[must_use]
-pub unsafe fn sse2_impl(ratings: [Rating; 16], sigma: Sigma) -> [[[f32; 16]; 16]; 2] {
+pub fn sse2_impl(ratings: [Rating; 16], sigma: Sigma) -> [[[f32; 16]; 16]; 2] {
     let mut r = [f32::NAN; 16];
 
     for i in 0..16 {
@@ -102,7 +102,7 @@ pub unsafe fn sse2_impl(ratings: [Rating; 16], sigma: Sigma) -> [[[f32; 16]; 16]
 ///
 /// Undefined behaviour on platforms that do not support SSE2 instructions.
 #[target_feature(enable = "sse2")]
-unsafe fn exp2_ps_sse2(x: __m128) -> __m128 {
+fn exp2_ps_sse2(x: __m128) -> __m128 {
     let one = _mm_set1_ps(1.0);
 
     // Clamp x so the reconstructed 2^n stays within normal f32 exponent bits.

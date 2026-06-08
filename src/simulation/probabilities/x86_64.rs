@@ -30,7 +30,7 @@ pub fn calculate_probabilities(ratings: [Rating; 16], sigma: Sigma) -> [[[f32; 1
 /// Undefined behaviour on platforms that do not support AVX2 instructions.
 #[target_feature(enable = "avx2")]
 #[must_use]
-pub unsafe fn avx2_impl(ratings: [Rating; 16], sigma: Sigma) -> [[[f32; 16]; 16]; 2] {
+pub fn avx2_impl(ratings: [Rating; 16], sigma: Sigma) -> [[[f32; 16]; 16]; 2] {
     let mut r = [f32::NAN; 16];
 
     for i in 0..16 {
@@ -93,7 +93,7 @@ pub unsafe fn avx2_impl(ratings: [Rating; 16], sigma: Sigma) -> [[[f32; 16]; 16]
 ///
 /// Undefined behaviour on platforms that do not support AVX2 instructions.
 #[target_feature(enable = "avx2")]
-unsafe fn exp2_ps_avx2(x: __m256) -> __m256 {
+fn exp2_ps_avx2(x: __m256) -> __m256 {
     let one = _mm256_set1_ps(1.0);
 
     // Clamp x so the reconstructed 2^n stays within normal f32 exponent bits.

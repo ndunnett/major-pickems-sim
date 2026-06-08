@@ -28,7 +28,7 @@ pub fn seed_teams(remaining: Set, diffs: &[i8; 16], opponents: &[Set; 16]) -> Se
 /// must gate this with `is_x86_feature_detected!("avx2")` or an equivalent guarantee.
 #[target_feature(enable = "avx2")]
 #[must_use]
-pub unsafe fn avx2_impl(remaining: Set, diffs: &[i8; 16], opponents: &[Set; 16]) -> Seeding {
+pub fn avx2_impl(remaining: Set, diffs: &[i8; 16], opponents: &[Set; 16]) -> Seeding {
     let len = remaining.len();
     let diffs_vector = unsafe { _mm_loadu_si128(diffs.as_ptr().cast()) };
     let mut packed = PackedSeeding::new();

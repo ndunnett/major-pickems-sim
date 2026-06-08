@@ -34,7 +34,7 @@ pub fn seed_teams(remaining: Set, diffs: &[i8; 16], opponents: &[Set; 16]) -> Se
 /// Undefined behaviour on platforms that do not support SSE2 instructions.
 #[target_feature(enable = "sse2")]
 #[must_use]
-pub unsafe fn sse2_impl(remaining: Set, diffs: &[i8; 16], opponents: &[Set; 16]) -> Seeding {
+pub fn sse2_impl(remaining: Set, diffs: &[i8; 16], opponents: &[Set; 16]) -> Seeding {
     let mut buchholz_scores = [0; 16];
     let diffs_vector = unsafe { _mm_loadu_si128(diffs.as_ptr().cast()) };
 
