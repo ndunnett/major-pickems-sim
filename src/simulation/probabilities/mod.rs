@@ -48,6 +48,10 @@
 #![allow(clippy::many_single_char_names)]
 
 cfg_select! {
+    target_arch = "aarch64" => {
+        pub mod aarch64;
+        pub use aarch64 as arch;
+    }
     target_arch = "x86_64" => {
         pub mod x86_64;
         pub mod x86;
@@ -178,6 +182,12 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    #[cfg(target_feature = "neon")]
+    fn neon_matches_scalar() {
+        assert_matches_scalar("neon", super::aarch64::neon_impl);
     }
 
     #[test]

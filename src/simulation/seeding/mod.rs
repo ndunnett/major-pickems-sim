@@ -24,6 +24,10 @@
 #![allow(clippy::cast_sign_loss)]
 
 cfg_select! {
+    target_arch = "aarch64" => {
+        pub mod aarch64;
+        pub use aarch64 as arch;
+    }
     target_arch = "x86_64" => {
         pub mod x86_64;
         pub mod x86;
@@ -176,6 +180,15 @@ pub struct Seeding {
 }
 
 impl Seeding {
+    /// # Safety
+    ///
+    /// Must be sorted with active prefixes stripped to construct a valid [`Seeding`].
+    #[must_use]
+    #[inline]
+    pub(crate) const unsafe fn from_indices_unchecked(len: usize, data: [Index; 16]) -> Self {
+        Self { len, data }
+    }
+
     /// Return the number of remaining teams in this seeding.
     #[must_use]
     #[inline]
@@ -223,8 +236,10 @@ impl<I: std::slice::SliceIndex<[Index]>> std::ops::Index<I> for Seeding {
 /// Each 8-bit index maps to eight bytes. A set bit becomes `0xFF`; an unset
 /// bit becomes `0x00`.
 #[repr(align(64))]
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 struct ByteMasks([i64; 256]);
 
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 impl ByteMasks {
     const MASKS: Self = {
         // Mask to copy each source bit into a separate byte lane when the
@@ -332,6 +347,12 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    #[cfg(target_feature = "neon")]
+    fn neon_matches_scalar() {
+        assert_matches_scalar("neon", super::aarch64::neon_impl);
     }
 
     #[test]

@@ -102,6 +102,19 @@ fn bench_seeding(c: &mut Criterion) {
     // Runtime of SIMD implementations does not dependent on arguments.
     let case = &cases[0];
 
+    #[cfg(target_feature = "neon")]
+    group.bench_with_input(BenchmarkId::new("neon", case.name), case, |b, case| {
+        b.iter(|| {
+            black_box(unsafe {
+                seeding::aarch64::neon_impl(
+                    black_box(case.remaining),
+                    black_box(&case.diffs),
+                    black_box(&case.opponents),
+                )
+            });
+        });
+    });
+
     #[cfg(target_feature = "sse2")]
     group.bench_with_input(BenchmarkId::new("sse2", case.name), case, |b, case| {
         b.iter(|| {
@@ -258,6 +271,15 @@ fn bench_sorting(c: &mut Criterion) {
     // Runtime of SIMD implementations does not dependent on arguments.
     let case = &cases[0];
 
+    #[cfg(target_feature = "neon")]
+    group.bench_with_input(BenchmarkId::new("neon", case.name), case, |b, case| {
+        b.iter(|| {
+            black_box(unsafe {
+                sorting::aarch64::sort_strip_neon(black_box(case.seeding), black_box(case.len))
+            });
+        });
+    });
+
     #[cfg(target_feature = "sse2")]
     group.bench_with_input(BenchmarkId::new("sse2", case.name), case, |b, case| {
         b.iter(|| {
@@ -301,6 +323,15 @@ fn bench_probabilities(c: &mut Criterion) {
                 black_box(ratings),
                 black_box(sigma),
             ));
+        });
+    });
+
+    #[cfg(target_feature = "neon")]
+    group.bench_with_input("neon", case, |b, &(ratings, sigma)| {
+        b.iter(|| {
+            black_box(unsafe {
+                probabilities::aarch64::neon_impl(black_box(ratings), black_box(sigma))
+            });
         });
     });
 

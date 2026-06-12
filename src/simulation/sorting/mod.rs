@@ -6,6 +6,9 @@
 //! only the initial seed value.
 
 cfg_select! {
+    target_arch = "aarch64" => {
+        pub mod aarch64;
+    }
     target_arch = "x86_64" => {
         pub mod x86_64;
         pub mod x86;
@@ -13,6 +16,7 @@ cfg_select! {
     target_arch = "x86" => {
         pub mod x86;
     }
+    _ => {}
 }
 
 #[cfg(test)]
@@ -41,6 +45,12 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    #[cfg(target_feature = "neon")]
+    fn neon_correctness() {
+        assert_sorting_correct("neon", super::aarch64::sort_strip_neon);
     }
 
     #[test]
