@@ -4,6 +4,7 @@ use std::{
 };
 
 use crate::{
+    datatypes::Index,
     reporting::Report,
     simulation::{Simulation, SwissSystem},
 };
@@ -77,8 +78,10 @@ impl Sum for BasicReport {
 impl Report for BasicReport {
     fn update(&mut self, ss: &SwissSystem) {
         for (seed, result) in self.stats.iter_mut().enumerate() {
-            let wins = ss.wins[seed];
-            let losses = ss.losses[seed];
+            // SAFETY: `seed` is always in range 0..16
+            let index = unsafe { Index::from_usize(seed) };
+            let wins = ss.wins(index);
+            let losses = ss.losses(index);
 
             result.three_zero += u64::from(wins == 3 && losses == 0);
             result.advancing += u64::from(wins == 3 && losses != 0);

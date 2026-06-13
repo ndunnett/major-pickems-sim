@@ -152,19 +152,17 @@ impl Report for AssessReport {
         let stars = {
             self.three_zero_picks
                 .iter()
-                .filter(|&pick| ss.wins[pick.to_usize()] == 3 && ss.losses[pick.to_usize()] == 0)
+                .filter(|&pick| ss.wins(pick) == 3 && ss.losses(pick) == 0)
                 .count()
                 + self
                     .advancing_picks
                     .iter()
-                    .filter(|&pick| ss.wins[pick.to_usize()] == 3 && ss.losses[pick.to_usize()] > 0)
+                    .filter(|&pick| ss.wins(pick) == 3 && ss.losses(pick) > 0)
                     .count()
                 + self
                     .zero_three_picks
                     .iter()
-                    .filter(|&pick| {
-                        ss.wins[pick.to_usize()] == 0 && ss.losses[pick.to_usize()] == 3
-                    })
+                    .filter(|&pick| ss.wins(pick) == 0 && ss.losses(pick) == 3)
                     .count()
         };
 

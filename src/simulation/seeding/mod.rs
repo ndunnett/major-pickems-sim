@@ -185,7 +185,7 @@ impl Seeding {
     /// Must be sorted with active prefixes stripped to construct a valid [`Seeding`].
     #[must_use]
     #[inline]
-    pub(crate) const unsafe fn from_indices_unchecked(len: usize, data: [Index; 16]) -> Self {
+    pub const unsafe fn from_indices_unchecked(len: usize, data: [Index; 16]) -> Self {
         Self { len, data }
     }
 

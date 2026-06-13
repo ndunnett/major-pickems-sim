@@ -1,7 +1,7 @@
 use std::{iter::Sum, ops::Add};
 
 use crate::{
-    datatypes::Rating,
+    datatypes::{Index, Rating},
     reporting::Report,
     simulation::{Simulation, SwissSystem},
 };
@@ -70,13 +70,16 @@ impl Sum for StrengthReport {
 impl Report for StrengthReport {
     fn update(&mut self, ss: &SwissSystem) {
         for (seed, result) in self.stats.iter_mut().enumerate() {
-            for opponent in ss.opponents[seed] {
+            // SAFETY: `seed` is always in range 0..16
+            let index = unsafe { Index::from_usize(seed) };
+
+            for opponent in ss.opponents(index) {
                 // Welford's online algorithm keeps variance stable while
                 // accumulating many parallel simulation samples.
                 result.n += 1;
 
                 // Update rating distribution.
-                let r = ss.ratings[opponent.to_usize()].to_f32();
+                let r = ss.rating(index).to_f32();
                 let r_delta1 = r - result.r_mean;
                 result.r_mean += r_delta1 / result.n as f32;
                 let r_delta2 = r - result.r_mean;
@@ -84,7 +87,7 @@ impl Report for StrengthReport {
 
                 // Update distribution of this team's BO1 win probabilities
                 // against the opponents it actually drew.
-                let p = ss.probabilities_bo1[seed][opponent.to_usize()] * 100.0;
+                let p = ss.probability_bo1(index, opponent) * 100.0;
                 let p_delta1 = p - result.p_mean;
                 result.p_mean += p_delta1 / result.n as f32;
                 let p_delta2 = p - result.p_mean;

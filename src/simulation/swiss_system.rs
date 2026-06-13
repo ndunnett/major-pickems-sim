@@ -8,24 +8,15 @@ use crate::{
 /// Mutable state for one Swiss-system tournament iteration.
 #[derive(Debug, Clone, Copy)]
 pub struct SwissSystem {
-    /// Match wins per team.
-    pub wins: [u8; 16],
-    /// Match losses per team.
-    pub losses: [u8; 16],
-    /// Win-loss differential per team, used for record-group sorting.
-    pub diffs: [i8; 16],
-    /// Opponents already faced by each team.
-    pub opponents: [Set; 16],
-    /// Best-of-one win probability matrix, indexed by `[team_a][team_b]`.
-    pub probabilities_bo1: [[f32; 16]; 16],
-    /// Best-of-three win probability matrix, indexed by `[team_a][team_b]`.
-    pub probabilities_bo3: [[f32; 16]; 16],
-    /// Team ratings sorted by initial seed.
-    pub ratings: [Rating; 16],
-    /// Teams that have not yet advanced or been eliminated.
-    pub remaining: Set,
-    /// Number of completed tournament rounds.
-    pub rounds_complete: u8,
+    wins: [u8; 16],
+    losses: [u8; 16],
+    diffs: [i8; 16],
+    opponents: [Set; 16],
+    probabilities_bo1: [[f32; 16]; 16],
+    probabilities_bo3: [[f32; 16]; 16],
+    ratings: [Rating; 16],
+    remaining: Set,
+    rounds_complete: u8,
 }
 
 impl SwissSystem {
@@ -50,6 +41,86 @@ impl SwissSystem {
             remaining: Set::full(),
             rounds_complete: 0,
         }
+    }
+
+    /// Return match wins for a given team index.
+    #[must_use]
+    #[inline]
+    pub fn wins(&self, index: Index) -> u8 {
+        unsafe { *self.wins.get_unchecked(index.to_usize()) }
+    }
+
+    /// Return match losses for a given team index.
+    #[must_use]
+    #[inline]
+    pub fn losses(&self, index: Index) -> u8 {
+        unsafe { *self.losses.get_unchecked(index.to_usize()) }
+    }
+
+    /// Return win-loss differentials for each team.
+    #[must_use]
+    #[inline]
+    pub const fn diffs(&self) -> &[i8; 16] {
+        &self.diffs
+    }
+
+    /// Return the opponents already faced by each team.
+    #[must_use]
+    #[inline]
+    pub const fn all_opponents(&self) -> &[Set; 16] {
+        &self.opponents
+    }
+
+    /// Return the opponents already faced for a given team index.
+    #[must_use]
+    #[inline]
+    pub fn opponents(&self, index: Index) -> Set {
+        unsafe { *self.opponents.get_unchecked(index.to_usize()) }
+    }
+
+    /// Return the best-of-one win probability for given team indices.
+    #[must_use]
+    #[inline]
+    pub fn probability_bo1(&self, a: Index, b: Index) -> f32 {
+        unsafe {
+            *self
+                .probabilities_bo1
+                .get_unchecked(a.to_usize())
+                .get_unchecked(b.to_usize())
+        }
+    }
+
+    /// Return the best-of-three win probability for given team indices.
+    #[must_use]
+    #[inline]
+    pub fn probability_bo3(&self, a: Index, b: Index) -> f32 {
+        unsafe {
+            *self
+                .probabilities_bo3
+                .get_unchecked(a.to_usize())
+                .get_unchecked(b.to_usize())
+        }
+    }
+
+    /// Return team rating for a given team index.
+    #[must_use]
+    #[inline]
+    pub fn rating(&self, index: Index) -> Rating {
+        unsafe { *self.ratings.get_unchecked(index.to_usize()) }
+    }
+
+    /// Return the teams that have not yet advanced or been eliminated.
+    #[must_use]
+    #[inline]
+    pub const fn remaining(&self) -> Set {
+        self.remaining
+    }
+
+    /// Return the number of completed tournament rounds.
+    #[must_use]
+    #[inline]
+    pub const fn rounds_complete(&self) -> u8 {
+        self.rounds_complete
     }
 
     /// Reset Swiss System state to restart tournament.
@@ -112,7 +183,7 @@ impl SwissSystem {
     /// Simulate one tournament round.
     #[cfg_attr(feature = "pprof", inline(never))]
     #[cfg_attr(not(feature = "pprof"), inline)]
-    fn simulate_round<R: rand::Rng>(&mut self, rng: &mut R) {
+    pub fn simulate_round<R: rand::Rng>(&mut self, rng: &mut R) {
         for (a, b) in Matchups::new(self) {
             self.simulate_match(rng, a, b);
         }
@@ -140,6 +211,20 @@ mod tests {
         ($($n:expr),*) => {
             [$(Index::new::<$n>(),)*].into_iter().collect()
         };
+    }
+
+    /// Check for regressions in matchup shape for each Swiss stage.
+    #[test]
+    fn matchup_shape_regression_test() {
+        let mut ss = SwissSystem::new(Teams::dummy().ratings, Sigma::new(800.0));
+
+        for (round, expected_matchups) in [8, 8, 8, 6, 3].into_iter().enumerate() {
+            assert_eq!(ss.rounds_complete as usize, round);
+            assert_eq!(Matchups::new(&ss).len(), expected_matchups);
+            ss.simulate_round(&mut rng::HalfRng);
+        }
+
+        assert!(ss.remaining.is_empty());
     }
 
     /// Exact regression test, will break if the seeding algorithm changes.

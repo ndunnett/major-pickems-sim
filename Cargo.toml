@@ -21,7 +21,6 @@ cast_lossless = "allow"
 [dependencies]
 anyhow = "1.0"
 argh = { version = "0.1", default-features = false, features = ["help"] }
-arrayvec = "0.7"
 minreq = { version = "3.0.0-rc.1", default-features = false, features = [
     "https-native-tls",
     "json-using-serde",
