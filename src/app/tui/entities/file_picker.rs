@@ -58,8 +58,10 @@ impl Entity<Update, Task, State> for FilePicker {
         modifiers: KeyModifiers,
     ) -> Option<Msg> {
         match (modifiers, code) {
-            binds::SELECT if let Some(i) = self.state.selected() => {
-                Some(Msg::Update(Update::LoadDataFile(self.items[i].clone())))
+            binds::SELECT
+                if let Some(path) = self.state.selected().and_then(|i| self.items.get(i)) =>
+            {
+                Some(Msg::Update(Update::LoadDataFile(path.clone())))
             }
             binds::UP => {
                 self.state.select_previous();
@@ -81,9 +83,12 @@ impl Entity<Update, Task, State> for FilePicker {
                     self.items.extend(iter);
                     self.items.sort_by(|a, b| b.cmp(a));
 
-                    if self.state.selected().is_none() {
-                        self.state.select_first();
-                    }
+                    self.state.select(
+                        self.items
+                            .len()
+                            .checked_sub(1)
+                            .map(|last| self.state.selected().unwrap_or_default().min(last)),
+                    );
 
                     cx.last_file_list_load = Some(*cx.tick());
                 }
