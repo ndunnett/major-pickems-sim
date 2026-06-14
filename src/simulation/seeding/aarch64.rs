@@ -31,6 +31,7 @@ pub fn seed_teams(remaining: Set, diffs: &[i8; 16], opponents: &[Set; 16]) -> Se
 pub fn neon_impl(remaining: Set, diffs: &[i8; 16], opponents: &[Set; 16]) -> Seeding {
     // Build the two sortable tiebreaker fields, then pack them with each team's
     // original seed so the SIMD sorting network can order all tiebreaks at once.
+    let diffs = unsafe { vld1q_s8(diffs.as_ptr()) };
     let diff = diff(diffs);
     let buchholz = buchholz(diffs, opponents);
     let packed = pack(remaining, diff, buchholz);
@@ -40,59 +41,60 @@ pub fn neon_impl(remaining: Set, diffs: &[i8; 16], opponents: &[Set; 16]) -> See
 /// Convert raw win-loss differentials into sortable `u16` vector lanes.
 ///
 /// The scalar representation stores lower values first, so each signed
-/// differential is sign-extended to `i16`, inverted around 15, and reinterpreted
-/// as an unsigned lane ready for packing.
+/// differential is inverted around 15, then zero-extended into an unsigned lane
+/// ready for packing.
 #[inline]
 #[target_feature(enable = "neon")]
-fn diff(diffs: &[i8; 16]) -> [uint16x8_t; 2] {
-    // Load all 16 signed byte differentials, then process the low and high
-    // halves independently because the packed key uses 16-bit lanes.
-    let diffs = unsafe { vld1q_s8(diffs.as_ptr()) };
-
-    [
-        vreinterpretq_u16_s16(vsubq_s16(consts::I15, vmovl_s8(vget_low_s8(diffs)))),
-        vreinterpretq_u16_s16(vsubq_s16(consts::I15, vmovl_s8(vget_high_s8(diffs)))),
-    ]
+fn diff(diffs: int8x16_t) -> [uint16x8_t; 2] {
+    let sortable = vsubq_u8(consts::U15, vreinterpretq_u8_s8(diffs));
+    [vmovl_u8(vget_low_u8(sortable)), vmovl_high_u8(sortable)]
 }
 
 /// Compute sortable Buchholz scores for all 16 teams.
 ///
 /// Each opponent set is split into four 4-bit nibbles. For each nibble, a
 /// 16-entry table contains the sum of the four corresponding differentials for
-/// every possible opponent subset. The selected nibble sums are added and then
-/// inverted around 15 to match the packed sort order.
+/// every possible opponent subset. The selected nibble sums are combined as
+/// signed bytes, inverted around 15, and widened for packing.
 #[inline]
 #[target_feature(enable = "neon")]
-fn buchholz(diffs: &[i8; 16], opponents: &[Set; 16]) -> [uint16x8_t; 2] {
+fn buchholz(diffs: int8x16_t, opponents: &[Set; 16]) -> [uint16x8_t; 2] {
     // Preserve all opponent bitsets as two u16x8 vectors: teams 0-7 and teams 8-15.
     let bits = sets_to_vecs(opponents);
 
     // Build one lookup table for each 4-team block of possible opponents.
     let tables = [
-        build_table(&diffs[0..4]),
-        build_table(&diffs[4..8]),
-        build_table(&diffs[8..12]),
-        build_table(&diffs[12..16]),
+        build_table::<0, 1, 2, 3>(diffs),
+        build_table::<4, 5, 6, 7>(diffs),
+        build_table::<8, 9, 10, 11>(diffs),
+        build_table::<12, 13, 14, 15>(diffs),
     ];
 
-    // Extract each 4-bit opponent subset and use it to table-lookup that block's
-    // contribution to the team's Buchholz score.
-    let scores = [
-        select(tables[0], vandq_u16(bits[0], consts::U15)),
-        select(tables[1], vandq_u16(vshrq_n_u16::<4>(bits[0]), consts::U15)),
-        select(tables[2], vandq_u16(vshrq_n_u16::<8>(bits[0]), consts::U15)),
-        select(tables[3], vshrq_n_u16::<12>(bits[0])),
-        select(tables[0], vandq_u16(bits[1], consts::U15)),
-        select(tables[1], vandq_u16(vshrq_n_u16::<4>(bits[1]), consts::U15)),
-        select(tables[2], vandq_u16(vshrq_n_u16::<8>(bits[1]), consts::U15)),
-        select(tables[3], vshrq_n_u16::<12>(bits[1])),
+    // Deinterleave each set's low and high bytes so every table lookup handles
+    // all 16 teams at once.
+    let low = vuzp1q_u8(vreinterpretq_u8_u16(bits[0]), vreinterpretq_u8_u16(bits[1]));
+    let high = vuzp2q_u8(vreinterpretq_u8_u16(bits[0]), vreinterpretq_u8_u16(bits[1]));
+    let indices = [
+        vandq_u8(low, consts::U15),
+        vshrq_n_u8::<4>(low),
+        vandq_u8(high, consts::U15),
+        vshrq_n_u8::<4>(high),
     ];
 
-    // Add the four nibble contributions for teams 0-7 and 8-15 separately.
-    [
-        vreinterpretq_u16_s16(combine(&scores[0..4])),
-        vreinterpretq_u16_s16(combine(&scores[4..8])),
-    ]
+    // Look up and add all four signed-byte contributions before widening.
+    let scores = vaddq_s8(
+        vaddq_s8(
+            vqtbl1q_s8(tables[0], indices[0]),
+            vqtbl1q_s8(tables[1], indices[1]),
+        ),
+        vaddq_s8(
+            vqtbl1q_s8(tables[2], indices[2]),
+            vqtbl1q_s8(tables[3], indices[3]),
+        ),
+    );
+
+    let sortable = vsubq_u8(consts::U15, vreinterpretq_u8_s8(scores));
+    [vmovl_u8(vget_low_u8(sortable)), vmovl_high_u8(sortable)]
 }
 
 /// Load the raw bits from 16 [`Set`] values into two `u16x8` vectors.
@@ -101,16 +103,8 @@ fn buchholz(diffs: &[i8; 16], opponents: &[Set; 16]) -> [uint16x8_t; 2] {
 fn sets_to_vecs(sets: &[Set; 16]) -> [uint16x8_t; 2] {
     unsafe {
         [
-            // Each unaligned u64 load pulls four adjacent `Set` bitsets. Pair two
-            // loads to form one eight-lane vector.
-            vcombine_u16(
-                vcreate_u16(sets.as_ptr().cast::<u64>().read_unaligned()),
-                vcreate_u16(sets.as_ptr().add(4).cast::<u64>().read_unaligned()),
-            ),
-            vcombine_u16(
-                vcreate_u16(sets.as_ptr().add(8).cast::<u64>().read_unaligned()),
-                vcreate_u16(sets.as_ptr().add(12).cast::<u64>().read_unaligned()),
-            ),
+            vld1q_u16(sets.as_ptr().cast()),
+            vld1q_u16(sets.as_ptr().add(8).cast()),
         ]
     }
 }
@@ -121,47 +115,17 @@ fn sets_to_vecs(sets: &[Set; 16]) -> [uint16x8_t; 2] {
 /// lanes contain the sum of the corresponding differentials.
 #[inline]
 #[target_feature(enable = "neon")]
-fn build_table(diffs: &[i8]) -> uint8x16_t {
-    // Broadcast each differential across all table lanes, mask it into only the
-    // lanes whose index contains that team's bit, then add the four contributions.
-    vreinterpretq_u8_s8(vaddq_s8(
+fn build_table<const A: i32, const B: i32, const C: i32, const D: i32>(
+    diffs: int8x16_t,
+) -> int8x16_t {
+    vaddq_s8(
         vaddq_s8(
-            vandq_s8(vdupq_n_s8(diffs[0]), consts::NIBBLE[0]),
-            vandq_s8(vdupq_n_s8(diffs[1]), consts::NIBBLE[1]),
+            vandq_s8(vdupq_laneq_s8::<A>(diffs), consts::NIBBLE[0]),
+            vandq_s8(vdupq_laneq_s8::<B>(diffs), consts::NIBBLE[1]),
         ),
         vaddq_s8(
-            vandq_s8(vdupq_n_s8(diffs[2]), consts::NIBBLE[2]),
-            vandq_s8(vdupq_n_s8(diffs[3]), consts::NIBBLE[3]),
-        ),
-    ))
-}
-
-/// Select signed byte scores from a nibble lookup table.
-///
-/// The `index` vector holds eight 4-bit table indices. The selected bytes are
-/// sign-extended into `i16` lanes so later additions keep signed score semantics.
-#[inline]
-#[target_feature(enable = "neon")]
-fn select(table: uint8x16_t, index: uint16x8_t) -> int16x8_t {
-    // `vqtbl1_u8` operates on eight byte indices, so narrow the u16 indexes
-    // before table lookup and sign-extend the resulting bytes afterward.
-    vmovl_s8(vreinterpret_s8_u8(vqtbl1_u8(table, vmovn_u16(index))))
-}
-
-/// Combine four nibble-level Buchholz contributions into sortable lanes.
-///
-/// The raw signed sum is subtracted from 15 so ascending `u16` sort order places
-/// stronger Buchholz scores before weaker ones.
-#[inline]
-#[target_feature(enable = "neon")]
-fn combine(scores: &[int16x8_t]) -> int16x8_t {
-    // Sum the four independent 4-team blocks for each lane, then invert the
-    // result to match the packed key's ascending sort convention.
-    vsubq_s16(
-        consts::I15,
-        vaddq_s16(
-            vaddq_s16(scores[0], scores[1]),
-            vaddq_s16(scores[2], scores[3]),
+            vandq_s8(vdupq_laneq_s8::<C>(diffs), consts::NIBBLE[2]),
+            vandq_s8(vdupq_laneq_s8::<D>(diffs), consts::NIBBLE[3]),
         ),
     )
 }
@@ -176,8 +140,8 @@ fn pack(remaining: Set, diff: [uint16x8_t; 2], buchholz: [uint16x8_t; 2]) -> Pac
     // Expand the remaining-team bitset into one mask lane per team.
     let remaining_bits = vdupq_n_u16(remaining.to_bits());
     let remaining = [
-        vceqq_u16(vandq_u16(remaining_bits, consts::BITS[0]), consts::BITS[0]),
-        vceqq_u16(vandq_u16(remaining_bits, consts::BITS[1]), consts::BITS[1]),
+        vtstq_u16(remaining_bits, consts::BITS[0]),
+        vtstq_u16(remaining_bits, consts::BITS[1]),
     ];
 
     // Compose the packed seeding keys for teams 0-7 and 8-15.
@@ -214,7 +178,7 @@ mod consts {
 
     use super::*;
 
-    const fn i16x8(data: [i16; 8]) -> int16x8_t {
+    const fn u8x16(data: [u8; 16]) -> uint8x16_t {
         unsafe { transmute(data) }
     }
 
@@ -227,8 +191,7 @@ mod consts {
     }
 
     pub const MAX: uint16x8_t = u16x8([u16::MAX; _]);
-    pub const U15: uint16x8_t = u16x8([15; _]);
-    pub const I15: int16x8_t = i16x8([15; _]);
+    pub const U15: uint8x16_t = u8x16([15; _]);
 
     /// Team index lanes used as the final packed-key tiebreaker.
     pub const INDICES: [uint16x8_t; 2] = [
@@ -238,8 +201,8 @@ mod consts {
 
     /// One-hot team bit lanes used to expand a [`Set`] into a SIMD mask.
     ///
-    /// ANDing these lanes with a broadcast set bitfield reveals which teams are
-    /// still active.
+    /// Testing these lanes against a broadcast set bitfield reveals which teams
+    /// are still active.
     pub const BITS: [uint16x8_t; 2] = [
         u16x8([1, 2, 4, 8, 16, 32, 64, 128]),
         u16x8([256, 512, 1024, 2048, 4096, 8192, 16384, 32768]),
