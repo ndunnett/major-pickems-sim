@@ -143,9 +143,7 @@ impl Entity<Update, Task, State> for App {
 
     fn update(&mut self, cx: &mut Context, msg: Update) {
         match msg {
-            Update::ChangeScreen(screen) => {
-                self.active = screen;
-            }
+            Update::ChangeScreen(screen) => self.active = screen,
             Update::ChangePath(path) => {
                 cx.path = path;
                 cx.update(Update::LoadFileList(cx.path.clone()));
@@ -167,13 +165,30 @@ impl Entity<Update, Task, State> for App {
                 cx.opened = Some(path);
                 cx.update(Update::LoadFileList(cx.path.clone()));
             }
-            Update::DataFilesUpdated { path, files } => {
+            Update::DataFilesUpdated {
+                path,
+                files,
+                errors,
+            } => {
                 if !files.is_empty() {
                     cx.update(Update::LoadFileList(path));
-                    cx.update(Update::InfoToast(format!(
+                }
+
+                match (files.is_empty(), errors.is_empty()) {
+                    (false, true) => cx.update(Update::InfoToast(format!(
                         "Downloaded data files:\n- {}",
                         files.join("\n- ")
-                    )));
+                    ))),
+                    (true, false) => cx.update(Update::ErrorToast(format!(
+                        "Failed data file updates:\n- {}",
+                        errors.join("\n- ")
+                    ))),
+                    (false, false) => cx.update(Update::ErrorToast(format!(
+                        "Downloaded data files:\n- {}\n\nFailed data file updates:\n- {}",
+                        files.join("\n- "),
+                        errors.join("\n- ")
+                    ))),
+                    (true, true) => {}
                 }
             }
             Update::SetPick { index, name } => set_pick(cx, index, name),
@@ -354,24 +369,30 @@ fn refresh_report_only(cx: &mut Context) {
     }
 }
 
+/// Runs the data updater and collects both successful and failed file results.
 fn update_data_files(path: PathBuf) -> Update {
     let mut files = Vec::new();
+    let mut errors = Vec::new();
 
     let iter = match data_updater(&path) {
         Ok(iter) => iter,
         Err(e) => return Update::ErrorToast(format!("Update failed: {e}")),
     };
 
+    // Keep consuming after a per-file failure so unrelated data files can still
+    // be updated and the UI can report the complete outcome in one message.
     for result in iter {
         match result {
             Ok(file) => files.push(file),
-            Err(e) => {
-                return Update::ErrorToast(format!("Update failed: {e}"));
-            }
+            Err(e) => errors.push(e.to_string()),
         }
     }
 
-    Update::DataFilesUpdated { path, files }
+    Update::DataFilesUpdated {
+        path,
+        files,
+        errors,
+    }
 }
 
 fn run_simulation(

@@ -141,8 +141,15 @@ pub enum Update {
     PicksMode(PicksMode),
     AutoPickAssess(u64, String),
     ManualPickAssess(u64, String),
-    SetPick { index: usize, name: Name },
-    DataFilesUpdated { path: PathBuf, files: Vec<String> },
+    SetPick {
+        index: usize,
+        name: Name,
+    },
+    DataFilesUpdated {
+        path: PathBuf,
+        files: Vec<String>,
+        errors: Vec<String>,
+    },
     ErrorToast(String),
     InfoToast(String),
     CloseModal,
