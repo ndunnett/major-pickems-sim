@@ -27,6 +27,9 @@ pub struct State {
     pub report_focus: Id,
     pub modal_open: bool,
     pub last_file_list_load: Option<Instant>,
+    pub report_request_id: u64,
+    pub auto_picks_request_id: u64,
+    pub manual_picks_request_id: u64,
 }
 
 impl State {
@@ -130,14 +133,14 @@ pub enum Update {
     LoadDataFile(PathBuf),
     NewInputData,
     DataSaved(PathBuf),
-    ReportContent(String),
+    ReportContent(u64, String),
     RefreshFull,
     RefreshTeamValues,
     RefreshParameters,
     RefreshReport,
     PicksMode(PicksMode),
-    AutoPickAssess(String),
-    ManualPickAssess(String),
+    AutoPickAssess(u64, String),
+    ManualPickAssess(u64, String),
     SetPick { index: usize, name: Name },
     DataFilesUpdated { path: PathBuf, files: Vec<String> },
     ErrorToast(String),
@@ -160,17 +163,20 @@ pub enum Task {
         path: PathBuf,
     },
     RunSimulation {
+        request_id: u64,
         teams: Box<Teams>,
         sigma: Sigma,
         iterations: Iterations,
         report: ReportType,
     },
     AutoPicks {
+        request_id: u64,
         teams: Box<Teams>,
         sigma: Sigma,
         iterations: Iterations,
     },
     ManualPicks {
+        request_id: u64,
         teams: Box<Teams>,
         sigma: Sigma,
         iterations: Iterations,

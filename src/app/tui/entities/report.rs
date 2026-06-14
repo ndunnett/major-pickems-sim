@@ -68,7 +68,7 @@ impl Entity<Update, Task, State> for ReportPane {
                 self.scrollbar = self.scrollbar.content_length(0);
                 self.len_set = false;
             }
-            Update::ReportContent(content) => {
+            Update::ReportContent(_, content) => {
                 self.content = content;
                 self.scrollbar = self.scrollbar.content_length(0);
                 self.len_set = false;

@@ -139,8 +139,8 @@ impl Entity<Update, Task, State> for PicksPane {
                 self.manual_content.clear();
                 cx.picks = Default::default();
             }
-            Update::AutoPickAssess(content) => self.auto_content = content,
-            Update::ManualPickAssess(content) => self.manual_content = content,
+            Update::AutoPickAssess(_, content) => self.auto_content = content,
+            Update::ManualPickAssess(_, content) => self.manual_content = content,
             Update::PicksMode(mode) => cx.picks_mode = mode,
             _ => {}
         }

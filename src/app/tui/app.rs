@@ -56,33 +56,36 @@ impl Root<Update, Task, State> for App {
         match task {
             Task::UpdateData { path } => Some(Msg::Update(update_data_files(path))),
             Task::RunSimulation {
+                request_id,
                 teams,
                 sigma,
                 iterations,
                 report,
-            } => Some(Msg::Update(Update::ReportContent(run_simulation(
-                teams, sigma, iterations, report,
-            )))),
+            } => Some(Msg::Update(Update::ReportContent(
+                request_id,
+                run_simulation(teams, sigma, iterations, report),
+            ))),
             Task::AutoPicks {
+                request_id,
                 teams,
                 sigma,
                 iterations,
-            } => Some(Msg::Update(Update::AutoPickAssess(run_simulation(
-                teams,
-                sigma,
-                iterations,
-                ReportType::Picks,
-            )))),
+            } => Some(Msg::Update(Update::AutoPickAssess(
+                request_id,
+                run_simulation(teams, sigma, iterations, ReportType::Picks),
+            ))),
             Task::ManualPicks {
+                request_id,
                 teams,
                 sigma,
                 iterations,
                 three_zero,
                 advanced,
                 zero_three,
-            } => Some(Msg::Update(Update::ManualPickAssess(assess_picks(
-                teams, sigma, iterations, three_zero, advanced, zero_three,
-            )))),
+            } => Some(Msg::Update(Update::ManualPickAssess(
+                request_id,
+                assess_picks(teams, sigma, iterations, three_zero, advanced, zero_three),
+            ))),
         }
     }
 }
@@ -188,6 +191,9 @@ impl Entity<Update, Task, State> for App {
                 },
                 cx.tick(),
             ),
+            Update::ReportContent(id, _) if id != cx.report_request_id => {}
+            Update::AutoPickAssess(id, _) if id != cx.auto_picks_request_id => {}
+            Update::ManualPickAssess(id, _) if id != cx.manual_picks_request_id => {}
             Update::ReportContent(..)
             | Update::AutoPickAssess(..)
             | Update::ManualPickAssess(..)
@@ -238,6 +244,10 @@ impl Entity<Update, Task, State> for App {
 }
 
 fn refresh_full(cx: &mut Context) {
+    cx.report_request_id = cx.report_request_id.wrapping_add(1);
+    cx.auto_picks_request_id = cx.auto_picks_request_id.wrapping_add(1);
+    cx.manual_picks_request_id = cx.manual_picks_request_id.wrapping_add(1);
+
     let Some(teams) = cx.teams.clone() else {
         cx.update(Update::ErrorToast("No team data loaded.".to_string()));
         return;
@@ -246,12 +256,14 @@ fn refresh_full(cx: &mut Context) {
     match Teams::try_from(teams) {
         Ok(teams_soa) => {
             cx.task(Task::RunSimulation {
+                request_id: cx.report_request_id,
                 teams: Box::new(teams_soa.clone()),
                 sigma: cx.sigma,
                 iterations: cx.iterations,
                 report: cx.report_type,
             });
             cx.task(Task::AutoPicks {
+                request_id: cx.auto_picks_request_id,
                 teams: Box::new(teams_soa),
                 sigma: cx.sigma,
                 iterations: cx.iterations,
@@ -264,6 +276,10 @@ fn refresh_full(cx: &mut Context) {
 }
 
 fn refresh_partial(cx: &mut Context) {
+    cx.report_request_id = cx.report_request_id.wrapping_add(1);
+    cx.auto_picks_request_id = cx.auto_picks_request_id.wrapping_add(1);
+    cx.manual_picks_request_id = cx.manual_picks_request_id.wrapping_add(1);
+
     let Some(teams) = cx.teams.clone() else {
         cx.update(Update::ErrorToast("No team data loaded.".to_string()));
         return;
@@ -278,12 +294,14 @@ fn refresh_partial(cx: &mut Context) {
     };
 
     cx.task(Task::RunSimulation {
+        request_id: cx.report_request_id,
         teams: Box::new(teams_soa.clone()),
         sigma: cx.sigma,
         iterations: cx.iterations,
         report: cx.report_type,
     });
     cx.task(Task::AutoPicks {
+        request_id: cx.auto_picks_request_id,
         teams: Box::new(teams_soa.clone()),
         sigma: cx.sigma,
         iterations: cx.iterations,
@@ -301,6 +319,7 @@ fn refresh_partial(cx: &mut Context) {
         };
 
         cx.task(Task::ManualPicks {
+            request_id: cx.manual_picks_request_id,
             teams: Box::new(teams_soa),
             sigma: cx.sigma,
             iterations: cx.iterations,
@@ -312,6 +331,8 @@ fn refresh_partial(cx: &mut Context) {
 }
 
 fn refresh_report_only(cx: &mut Context) {
+    cx.report_request_id = cx.report_request_id.wrapping_add(1);
+
     let Some(teams) = cx.teams.clone() else {
         cx.update(Update::ErrorToast("No team data loaded.".to_string()));
         return;
@@ -320,6 +341,7 @@ fn refresh_report_only(cx: &mut Context) {
     match Teams::try_from(teams) {
         Ok(teams_soa) => {
             cx.task(Task::RunSimulation {
+                request_id: cx.report_request_id,
                 teams: Box::new(teams_soa),
                 sigma: cx.sigma,
                 iterations: cx.iterations,
@@ -389,6 +411,8 @@ fn load_data(cx: &mut Context, teams: Map, path: PathBuf) {
 }
 
 fn set_pick(cx: &mut Context, index: usize, name: Name) {
+    cx.manual_picks_request_id = cx.manual_picks_request_id.wrapping_add(1);
+
     for pick in &mut cx.picks {
         _ = pick.take_if(|pick| pick == &name);
     }
@@ -396,7 +420,10 @@ fn set_pick(cx: &mut Context, index: usize, name: Name) {
     cx.picks[index] = Some(name);
 
     if cx.picks.iter().any(Option::is_none) {
-        cx.update(Update::ManualPickAssess(String::new()));
+        cx.update(Update::ManualPickAssess(
+            cx.manual_picks_request_id,
+            String::new(),
+        ));
         return;
     }
 
@@ -424,6 +451,7 @@ fn set_pick(cx: &mut Context, index: usize, name: Name) {
     };
 
     cx.task(Task::ManualPicks {
+        request_id: cx.manual_picks_request_id,
         teams: Box::new(teams_soa),
         sigma: cx.sigma,
         iterations: cx.iterations,
