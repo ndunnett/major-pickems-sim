@@ -79,7 +79,7 @@ impl Report for StrengthReport {
                 result.n += 1;
 
                 // Update rating distribution.
-                let r = ss.rating(index).to_f32();
+                let r = ss.rating(opponent).to_f32();
                 let r_delta1 = r - result.r_mean;
                 result.r_mean += r_delta1 / result.n as f32;
                 let r_delta2 = r - result.r_mean;
