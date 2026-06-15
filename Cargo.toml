@@ -47,6 +47,7 @@ pprof = ["dep:pprof"]
 [lib]
 name = "pickems"
 path = "src/lib.rs"
+bench = false
 
 [[bin]]
 name = "pickems"
@@ -54,7 +55,7 @@ path = "src/main.rs"
 
 [[bench]]
 name = "criterion"
-path = "src/criterion.rs"
+path = "src/criterion/mod.rs"
 harness = false
 
 [profile.release]
