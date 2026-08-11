@@ -13,7 +13,10 @@ cfg_select! {
 
 use std::mem::transmute;
 
-use crate::simulation::seeding::{PackedSeeding, Seeding};
+use crate::{
+    datatypes::Index,
+    simulation::seeding::{PackedSeeding, Seeding},
+};
 
 /// Sort and strip a packed seeding array using SSE2.
 ///
@@ -23,196 +26,170 @@ use crate::simulation::seeding::{PackedSeeding, Seeding};
 /// must gate this with `is_x86_feature_detected!("sse2")` or an equivalent guarantee.
 #[target_feature(enable = "sse2")]
 #[must_use]
-pub fn sort_strip_sse2(mut seeding: PackedSeeding, len: usize) -> Seeding {
-    // Safety: `seeding` is 32-byte aligned, `ptr` and all increments are guaranteed to be aligned on 16-byte boundaries.
-    let ptr = seeding.as_aligned_mut_ptr().cast::<__m128i>();
-    let lo = unsafe { _mm_load_si128(ptr.cast_const()) };
-    let hi = unsafe { _mm_load_si128(ptr.add(1).cast_const()) };
-    let zero = _mm_setzero_si128();
+pub fn sort_strip_sse2(seeding: PackedSeeding, len: usize) -> Seeding {
+    let vectors = load(seeding);
+    let sorted = sort(vectors);
+    let packed = pack(sorted);
+    let stripped = strip(packed);
 
-    // Split and widen 2 vectors of 8 u16 lanes to 4 vectors of 4 u32 lanes; SSE2 compares 32-bit lanes directly.
-    let lo_lo = _mm_unpacklo_epi16(lo, zero);
-    let lo_hi = _mm_unpackhi_epi16(lo, zero);
-    let hi_lo = _mm_unpacklo_epi16(hi, zero);
-    let hi_hi = _mm_unpackhi_epi16(hi, zero);
-
-    // Sort all 16 lanes as 4 vectors of 4.
-    let (lo_lo, lo_hi, hi_lo, hi_hi) = sort_u32x4x4(lo_lo, lo_hi, hi_lo, hi_hi);
-
-    // Keep the low two bytes from every sorted u32 lane and rejoin the four-lane groups.
-    let lo = _mm_unpacklo_epi64(pack(lo_lo), pack(lo_hi));
-    let hi = _mm_unpacklo_epi64(pack(hi_lo), pack(hi_hi));
-
-    // Strip out the active prefixes, write the result back into the original aligned buffer
-    // and convert to `Seeding`.
-    let seed_mask = _mm_set1_epi16(0x1F);
-    let lo = _mm_and_si128(lo, seed_mask);
-    let hi = _mm_and_si128(hi, seed_mask);
-
-    unsafe {
-        _mm_store_si128(ptr, lo);
-        _mm_store_si128(ptr.add(1), hi);
-    }
-
-    unsafe { seeding.into_seeding_unchecked(len) }
+    // `Index` is a transparent newtype of `u16`; only the first `len` entries
+    // are read after `from_indices_unchecked`.
+    let data = unsafe { transmute::<[__m128i; 2], [Index; 16]>(stripped) };
+    unsafe { Seeding::from_indices_unchecked(len, data) }
 }
 
-/// Sorts 4 vectors of 4 u32 lanes.
+/// Loads a [`PackedSeeding`] into four SSE2 vectors.
 #[inline]
 #[target_feature(enable = "sse2")]
-fn sort_u32x4x4(
-    mut lo_lo: __m128i,
-    mut lo_hi: __m128i,
-    mut hi_lo: __m128i,
-    mut hi_hi: __m128i,
-) -> (__m128i, __m128i, __m128i, __m128i) {
-    // Compare and exchange element wise to place smaller values in `lo` and larger values in `hi`.
-    compare_exchange_u32x4x4(&mut lo_lo, &mut lo_hi, &mut hi_lo, &mut hi_hi);
+fn load(mut seeding: PackedSeeding) -> [__m128i; 4] {
+    const SIGN_BIT: __m128i = unsafe { transmute::<[u32; 4], _>([0x8000; _]) };
 
-    // Pair each lane in `lo` with the adjacent lane in `hi` for the next compare stage.
-    hi_lo = _mm_shuffle_epi32::<0b1011_0001>(hi_lo);
-    hi_hi = _mm_shuffle_epi32::<0b1011_0001>(hi_hi);
-    compare_exchange_u32x4x4(&mut lo_lo, &mut lo_hi, &mut hi_lo, &mut hi_hi);
+    // Safety: `seeding` is 32-byte aligned, so both 16-byte loads are aligned.
+    let ptr = seeding.as_aligned_mut_ptr().cast::<__m128i>();
+    let v = unsafe { [_mm_load_si128(ptr), _mm_load_si128(ptr.add(1))] };
 
-    // Split alternating lane pairs across the two vectors so the next comparisons line up.
-    let (mut tmp_lo, mut tmp_hi) = (lo_lo, lo_hi);
-    (lo_lo, lo_hi) = shuffle_u32x4x4::<0b1000_1000>(lo_lo, lo_hi, hi_lo, hi_hi);
-    (hi_lo, hi_hi) = shuffle_u32x4x4::<0b1101_1101>(tmp_lo, tmp_hi, hi_lo, hi_hi);
-    compare_exchange_u32x4x4(&mut lo_lo, &mut lo_hi, &mut hi_lo, &mut hi_hi);
+    // Bias unsigned values into signed order so SSE2 min/max can compare them directly.
+    [
+        _mm_xor_si128(_mm_unpacklo_epi16(v[0], _mm_setzero_si128()), SIGN_BIT),
+        _mm_xor_si128(_mm_unpackhi_epi16(v[0], _mm_setzero_si128()), SIGN_BIT),
+        _mm_xor_si128(_mm_unpacklo_epi16(v[1], _mm_setzero_si128()), SIGN_BIT),
+        _mm_xor_si128(_mm_unpackhi_epi16(v[1], _mm_setzero_si128()), SIGN_BIT),
+    ]
+}
 
-    // Reverse each group of four lanes in `hi`, producing the next set of network partners.
-    hi_lo = _mm_shuffle_epi32::<0b0001_1011>(hi_lo);
-    hi_hi = _mm_shuffle_epi32::<0b0001_1011>(hi_hi);
-    compare_exchange_u32x4x4(&mut lo_lo, &mut lo_hi, &mut hi_lo, &mut hi_hi);
+/// Sorts 4 vectors of 4 u16 values stored in u32 lanes.
+#[inline]
+#[target_feature(enable = "sse2")]
+fn sort(mut v: [__m128i; 4]) -> [__m128i; 4] {
+    // Compare and exchange element wise to place smaller values in `v[0..2]`
+    // and larger values in `v[2..4]`.
+    v = compare_exchange(v);
 
-    // Group the low and high halves of each logical eight-lane vector before comparing them.
-    (tmp_lo, tmp_hi) = (lo_lo, lo_hi);
-    (lo_lo, lo_hi) = shuffle_u32x4x4::<0b0100_0100>(lo_lo, lo_hi, hi_lo, hi_hi);
-    (hi_lo, hi_hi) = shuffle_u32x4x4::<0b1110_1110>(tmp_lo, tmp_hi, hi_lo, hi_hi);
-    compare_exchange_u32x4x4(&mut lo_lo, &mut lo_hi, &mut hi_lo, &mut hi_hi);
+    // Pair each lane in `v[0..2]` with the adjacent lane in `v[2..4]`.
+    v[2] = _mm_shuffle_epi32::<0xB1>(v[2]);
+    v[3] = _mm_shuffle_epi32::<0xB1>(v[3]);
+    v = compare_exchange(v);
 
-    // Interleave lanes across vectors; this starts merging the independently ordered groups.
-    (tmp_lo, tmp_hi) = (lo_lo, lo_hi);
-    (lo_lo, lo_hi) = shuffle_u32x4x4::<0b1101_1000>(lo_lo, lo_hi, hi_lo, hi_hi);
-    (hi_lo, hi_hi) = shuffle_u32x4x4::<0b1000_1101>(tmp_lo, tmp_hi, hi_lo, hi_hi);
-    compare_exchange_u32x4x4(&mut lo_lo, &mut lo_hi, &mut hi_lo, &mut hi_hi);
+    // Split alternating lane pairs across the vectors for the next comparisons.
+    v = double_shuffle::<0x88, 0xDD>(v);
+    v = compare_exchange(v);
 
-    // Reverse the logical second eight-lane vector, swapping halves because SSE2 has no 256-bit lane.
-    tmp_lo = hi_lo;
-    hi_lo = _mm_shuffle_epi32::<0b0001_1011>(hi_hi);
-    hi_hi = _mm_shuffle_epi32::<0b0001_1011>(tmp_lo);
-    compare_exchange_u32x4x4(&mut lo_lo, &mut lo_hi, &mut hi_lo, &mut hi_hi);
+    // Reverse each group of four lanes in `v[2..4]`.
+    v[2] = _mm_shuffle_epi32::<0x1B>(v[2]);
+    v[3] = _mm_shuffle_epi32::<0x1B>(v[3]);
+    v = compare_exchange(v);
 
-    // Continue the merge with the same cross-vector interleave pattern.
-    (tmp_lo, tmp_hi) = (lo_lo, lo_hi);
-    (lo_lo, lo_hi) = shuffle_u32x4x4::<0b1101_1000>(lo_lo, lo_hi, hi_lo, hi_hi);
-    (hi_lo, hi_hi) = shuffle_u32x4x4::<0b1000_1101>(tmp_lo, tmp_hi, hi_lo, hi_hi);
-    compare_exchange_u32x4x4(&mut lo_lo, &mut lo_hi, &mut hi_lo, &mut hi_hi);
+    // Group the halves of each logical eight-lane vector before comparing them.
+    v = double_shuffle::<0x44, 0xEE>(v);
+    v = compare_exchange(v);
 
-    // Repeat the merge step until every lane has met the required network partners.
-    (tmp_lo, tmp_hi) = (lo_lo, lo_hi);
-    (lo_lo, lo_hi) = shuffle_u32x4x4::<0b1101_1000>(lo_lo, lo_hi, hi_lo, hi_hi);
-    (hi_lo, hi_hi) = shuffle_u32x4x4::<0b1000_1101>(tmp_lo, tmp_hi, hi_lo, hi_hi);
-    compare_exchange_u32x4x4(&mut lo_lo, &mut lo_hi, &mut hi_lo, &mut hi_hi);
+    // Interleave lanes across vectors to start merging the ordered groups.
+    v = double_shuffle::<0xD8, 0x8D>(v);
+    v = compare_exchange(v);
 
-    // Put lanes with the same final local rank into matching positions in both vectors.
-    (lo_lo, lo_hi) = (
-        _mm_unpacklo_epi32(lo_lo, lo_hi),
-        _mm_unpackhi_epi32(lo_hi, lo_lo),
-    );
+    // Reverse the logical second eight-lane vector.
+    let tmp = v[2];
+    v[2] = _mm_shuffle_epi32::<0x1B>(v[3]);
+    v[3] = _mm_shuffle_epi32::<0x1B>(tmp);
+    v = compare_exchange(v);
 
-    (hi_lo, hi_hi) = (
-        _mm_unpacklo_epi32(hi_lo, hi_hi),
-        _mm_unpackhi_epi32(hi_hi, hi_lo),
-    );
+    // Continue the merge until every lane has met its network partners.
+    v = double_shuffle::<0xD8, 0x8D>(v);
+    v = compare_exchange(v);
+    v = double_shuffle::<0xD8, 0x8D>(v);
+    v = compare_exchange(v);
+
+    // Put lanes with the same final local rank into matching positions in the vectors.
+    v = [
+        _mm_unpacklo_epi32(v[0], v[1]),
+        _mm_unpackhi_epi32(v[1], v[0]),
+        _mm_unpacklo_epi32(v[2], v[3]),
+        _mm_unpackhi_epi32(v[3], v[2]),
+    ];
 
     // Do the last broad compare between low-ranked and high-ranked candidates.
-    (tmp_lo, tmp_hi) = (lo_lo, lo_hi);
-    (lo_lo, lo_hi) = shuffle_u32x4x4::<0b1000_1000>(lo_lo, lo_hi, hi_lo, hi_hi);
-    (hi_lo, hi_hi) = shuffle_u32x4x4::<0b1101_1101>(tmp_lo, tmp_hi, hi_lo, hi_hi);
-    compare_exchange_u32x4x4(&mut lo_lo, &mut lo_hi, &mut hi_lo, &mut hi_hi);
+    v = double_shuffle::<0x88, 0xDD>(v);
+    v = compare_exchange(v);
 
-    // Swap every odd lane between logical vectors so the outputs are in final sorted order.
-    let odd_lanes = _mm_set_epi32(-1, 0, -1, 0);
-    let b1_lo = _mm_shuffle_epi32::<0b1011_0001>(lo_lo);
-    let b1_hi = _mm_shuffle_epi32::<0b1011_0001>(lo_hi);
-    let b2_lo = _mm_shuffle_epi32::<0b1011_0001>(hi_lo);
-    let b2_hi = _mm_shuffle_epi32::<0b1011_0001>(hi_hi);
+    // Transpose even and odd lanes between logical vectors so the outputs are in final sorted order.
+    v = [
+        _mm_unpacklo_epi32(v[0], v[2]),
+        _mm_unpackhi_epi32(v[0], v[2]),
+        _mm_unpacklo_epi32(v[1], v[3]),
+        _mm_unpackhi_epi32(v[1], v[3]),
+    ];
 
-    lo_lo = blend_u32x4x2(odd_lanes, b2_lo, lo_lo);
-    lo_hi = blend_u32x4x2(odd_lanes, b2_hi, lo_hi);
-    hi_lo = blend_u32x4x2(odd_lanes, hi_lo, b1_lo);
-    hi_hi = blend_u32x4x2(odd_lanes, hi_hi, b1_hi);
-
-    (lo_lo, lo_hi, hi_lo, hi_hi)
+    [
+        _mm_unpacklo_epi64(v[0], v[1]),
+        _mm_unpacklo_epi64(v[2], v[3]),
+        _mm_unpackhi_epi64(v[0], v[1]),
+        _mm_unpackhi_epi64(v[2], v[3]),
+    ]
 }
 
-/// Compares each pair of elements between 4 vectors, placing smaller values in `lo` and larger values in `hi`.
+/// Compares each pair of elements between 4 vectors, placing smaller values in
+/// `v[0..2]` and larger values in `v[2..4]`.
 #[inline]
 #[target_feature(enable = "sse2")]
-fn compare_exchange_u32x4x4(
-    lo_lo: &mut __m128i,
-    lo_hi: &mut __m128i,
-    hi_lo: &mut __m128i,
-    hi_hi: &mut __m128i,
-) {
-    compare_exchange_u32x4x2(lo_lo, hi_lo);
-    compare_exchange_u32x4x2(lo_hi, hi_hi);
+fn compare_exchange(v: [__m128i; 4]) -> [__m128i; 4] {
+    [
+        _mm_min_epi16(v[0], v[2]),
+        _mm_min_epi16(v[1], v[3]),
+        _mm_max_epi16(v[0], v[2]),
+        _mm_max_epi16(v[1], v[3]),
+    ]
 }
 
-/// Compares each pair of elements between 2 vectors, placing smaller values in `lo` and larger values in `hi`.
+/// Shuffles 4 vectors of 4 u32 lanes into 4 vectors.
 #[inline]
 #[target_feature(enable = "sse2")]
-fn compare_exchange_u32x4x2(lo: &mut __m128i, hi: &mut __m128i) {
-    // Input values started as u16, so signed i32 comparison is equivalent to unsigned here.
-    let gt = _mm_cmpgt_epi32(*lo, *hi);
-    let tmp = *lo;
-    *lo = blend_u32x4x2(gt, *hi, *lo);
-    *hi = blend_u32x4x2(gt, tmp, *hi);
+fn double_shuffle<const MASK_0: i32, const MASK_1: i32>(v: [__m128i; 4]) -> [__m128i; 4] {
+    let lo = shuffle::<MASK_0>(v);
+    let hi = shuffle::<MASK_1>(v);
+    [lo[0], lo[1], hi[0], hi[1]]
 }
 
-/// Blends 2 vectors, selecting elements from `a` using `mask`, otherwise selecting from `b`.
+/// Shuffles 4 vectors of 4 u32 lanes into 2 vectors.
 #[inline]
 #[target_feature(enable = "sse2")]
-fn blend_u32x4x2(mask: __m128i, a: __m128i, b: __m128i) -> __m128i {
-    // SSE2 has no blend instruction, so build one with mask-and/or operations.
-    _mm_or_si128(_mm_and_si128(mask, a), _mm_andnot_si128(mask, b))
-}
-
-/// Shuffles 4 vectors of 4 u32 lanes.
-#[inline]
-#[target_feature(enable = "sse2")]
-fn shuffle_u32x4x4<const MASK: i32>(
-    a: __m128i,
-    b: __m128i,
-    c: __m128i,
-    d: __m128i,
-) -> (__m128i, __m128i) {
-    (shuffle_u32x4x2::<MASK>(a, c), shuffle_u32x4x2::<MASK>(b, d))
-}
-
-/// Shuffles 2 vectors of 4 u32 lanes.
-#[inline]
-#[target_feature(enable = "sse2")]
-fn shuffle_u32x4x2<const MASK: i32>(a: __m128i, b: __m128i) -> __m128i {
-    // SSE2 only has the desired 2 vector 4x32-bit shuffle instruction for floating point values.
-    // Shuffle only changes composition of elements within the vector, bit contents of each
-    // element remain unchanged.
+fn shuffle<const MASK: i32>(v: [__m128i; 4]) -> [__m128i; 2] {
+    // SSE2 only provides this shuffle for floating point vectors, but it leaves
+    // the contents of each lane unchanged.
     unsafe {
-        transmute(_mm_shuffle_ps::<MASK>(
-            transmute::<__m128i, __m128>(a),
-            transmute::<__m128i, __m128>(b),
-        ))
+        [
+            transmute::<__m128, __m128i>(_mm_shuffle_ps::<MASK>(
+                transmute::<__m128i, __m128>(v[0]),
+                transmute::<__m128i, __m128>(v[2]),
+            )),
+            transmute::<__m128, __m128i>(_mm_shuffle_ps::<MASK>(
+                transmute::<__m128i, __m128>(v[1]),
+                transmute::<__m128i, __m128>(v[3]),
+            )),
+        ]
     }
 }
 
+/// Packs four vectors of 4 u16 values into two vectors of 8 u16 lanes.
 #[inline]
 #[target_feature(enable = "sse2")]
-fn pack(v: __m128i) -> __m128i {
-    // Pick bytes 0..1 and 4..5 from the low two u32 lanes.
-    let low = _mm_shufflelo_epi16::<0b0000_1000>(v);
-    // Shift the high two u32 lanes down, then apply the same compaction.
-    let high = _mm_shufflelo_epi16::<0b0000_1000>(_mm_srli_si128::<8>(v));
-    // Combine the two compacted pairs into four contiguous u16 values in the low 64 bits.
-    _mm_unpacklo_epi32(low, high)
+fn pack(v: [__m128i; 4]) -> [__m128i; 2] {
+    // Sign extend each biased u16 before packing it back out of its u32 lane.
+    [
+        _mm_packs_epi32(
+            _mm_srai_epi32::<16>(_mm_slli_epi32::<16>(v[0])),
+            _mm_srai_epi32::<16>(_mm_slli_epi32::<16>(v[1])),
+        ),
+        _mm_packs_epi32(
+            _mm_srai_epi32::<16>(_mm_slli_epi32::<16>(v[2])),
+            _mm_srai_epi32::<16>(_mm_slli_epi32::<16>(v[3])),
+        ),
+    ]
+}
+
+/// Strip active prefixes from the packed seed values.
+#[inline]
+#[target_feature(enable = "sse2")]
+fn strip(v: [__m128i; 2]) -> [__m128i; 2] {
+    const MASK: __m128i = unsafe { transmute::<[u16; 8], _>([0x1F; _]) };
+    [_mm_and_si128(v[0], MASK), _mm_and_si128(v[1], MASK)]
 }

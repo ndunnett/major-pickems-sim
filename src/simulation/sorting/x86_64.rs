@@ -4,7 +4,10 @@
 
 use std::{arch::x86_64::*, mem::transmute};
 
-use crate::simulation::seeding::{PackedSeeding, Seeding};
+use crate::{
+    datatypes::Index,
+    simulation::seeding::{PackedSeeding, Seeding},
+};
 
 /// Sort and strip a packed seeding array using AVX2.
 ///
@@ -14,127 +17,152 @@ use crate::simulation::seeding::{PackedSeeding, Seeding};
 /// must gate this with `is_x86_feature_detected!("avx2")` or an equivalent guarantee.
 #[target_feature(enable = "avx2")]
 #[must_use]
-pub fn sort_strip_avx2(mut seeding: PackedSeeding, len: usize) -> Seeding {
-    // Safety: `seeding` is 32-byte aligned, `ptr` is guaranteed to be aligned on a 32-byte boundary.
-    let ptr = seeding.as_aligned_mut_ptr().cast::<__m256i>();
-    let packed = unsafe { _mm256_load_si256(ptr.cast_const()) };
+pub fn sort_strip_avx2(seeding: PackedSeeding, len: usize) -> Seeding {
+    let vectors = load(seeding);
+    let sorted = sort(vectors);
+    let packed = pack(sorted);
+    let stripped = strip(packed);
 
-    // Split and widen 1 vector of 16 u16 lanes to 2 vectors of 8 u32 lanes; AVX2 compares 32-bit lanes directly.
-    let lo = _mm256_cvtepu16_epi32(_mm256_castsi256_si128(packed));
-    let hi = _mm256_cvtepu16_epi32(_mm256_extracti128_si256::<1>(packed));
+    // `Index` is a transparent newtype of `u16`; only the first `len` entries
+    // are read after `from_indices_unchecked`.
+    let data = unsafe { transmute::<__m256i, [Index; 16]>(stripped) };
+    unsafe { Seeding::from_indices_unchecked(len, data) }
+}
 
-    // Sort all 16 lanes as 2 vectors of 8.
-    let (lo, hi) = sort_u32x8x2(lo, hi);
+/// Loads a [`PackedSeeding`] into two AVX2 vectors.
+#[inline]
+#[target_feature(enable = "avx2")]
+fn load(mut seeding: PackedSeeding) -> [__m256i; 2] {
+    // Safety: `seeding` is 32-byte aligned, so both 16-byte loads are aligned.
+    let ptr = seeding.as_aligned_mut_ptr().cast::<__m128i>();
 
-    // Keep the low two bytes of each u32 lane and discard the widening padding bytes.
-    let mask = _mm256_setr_epi8(
-        0, 1, 4, 5, 8, 9, 12, 13, -1, -1, -1, -1, -1, -1, -1, -1, 0, 1, 4, 5, 8, 9, 12, 13, -1, -1,
-        -1, -1, -1, -1, -1, -1,
-    );
-
-    // Pack the sorted u32 lanes back into one 16-lane u16 vector.
-    let packed = _mm256_permute2x128_si256::<0x20>(
-        // After the byte shuffle, each 128-bit half contains four compacted u16 values.
-        // Reorder the 64-bit chunks so the first eight sorted values become contiguous.
-        _mm256_permute4x64_epi64::<0b1101_1000>(_mm256_shuffle_epi8(lo, mask)),
-        _mm256_permute4x64_epi64::<0b1101_1000>(_mm256_shuffle_epi8(hi, mask)),
-    );
-
-    // Strip out the active prefixes, write the result back into the original aligned buffer
-    // and convert to `Seeding`.
-    let stripped = _mm256_and_si256(packed, _mm256_set1_epi16(0x1F));
-    unsafe { _mm256_store_si256(ptr, stripped) };
-    unsafe { seeding.into_seeding_unchecked(len) }
+    unsafe {
+        [
+            _mm256_cvtepu16_epi32(_mm_load_si128(ptr)),
+            _mm256_cvtepu16_epi32(_mm_load_si128(ptr.add(1))),
+        ]
+    }
 }
 
 /// Sorts 2 vectors of 8 u32 lanes.
 #[inline]
 #[target_feature(enable = "avx2")]
-fn sort_u32x8x2(mut lo: __m256i, mut hi: __m256i) -> (__m256i, __m256i) {
-    // Compare and exchange element wise to place smaller values in `lo` and larger values in `hi`.
-    compare_exchange_u32x8x2(&mut lo, &mut hi);
+fn sort(mut v: [__m256i; 2]) -> [__m256i; 2] {
+    const REVERSE: __m256i = unsafe { transmute::<[u32; 8], _>([7, 6, 5, 4, 3, 2, 1, 0]) };
 
-    // Pair each lane in `lo` with the adjacent lane in `hi` for the next compare stage.
-    hi = _mm256_shuffle_epi32::<0b1011_0001>(hi);
-    compare_exchange_u32x8x2(&mut lo, &mut hi);
+    // Compare and exchange element wise to place smaller values in `v[0]`
+    // and larger values in `v[1]`.
+    v = compare_exchange(v);
 
-    // Split alternating lane pairs across the two vectors so the next comparisons line up.
-    let mut tmp = lo;
-    lo = shuffle_u32x8x2::<0b1000_1000>(lo, hi);
-    hi = shuffle_u32x8x2::<0b1101_1101>(tmp, hi);
-    compare_exchange_u32x8x2(&mut lo, &mut hi);
+    // Pair each lane in `v[0]` with the adjacent lane in `v[1]`.
+    v[1] = _mm256_shuffle_epi32::<0xB1>(v[1]);
+    v = compare_exchange(v);
 
-    // Reverse each group of four lanes in `hi`, producing the next set of network partners.
-    hi = _mm256_shuffle_epi32::<0b0001_1011>(hi);
-    compare_exchange_u32x8x2(&mut lo, &mut hi);
+    // Split alternating lane pairs across the vectors for the next comparisons.
+    v = double_shuffle::<0x88, 0xDD>(v);
+    v = compare_exchange(v);
+
+    // Reverse each group of four lanes in `v[1]`.
+    v[1] = _mm256_shuffle_epi32::<0x1B>(v[1]);
+    v = compare_exchange(v);
 
     // Group the low and high halves of each 128-bit lane before comparing them.
-    tmp = lo;
-    lo = shuffle_u32x8x2::<0b0100_0100>(lo, hi);
-    hi = shuffle_u32x8x2::<0b1110_1110>(tmp, hi);
-    compare_exchange_u32x8x2(&mut lo, &mut hi);
+    v = double_shuffle::<0x44, 0xEE>(v);
+    v = compare_exchange(v);
 
-    // Interleave lanes across vectors; this starts merging the independently ordered groups.
-    tmp = lo;
-    lo = shuffle_u32x8x2::<0b1101_1000>(lo, hi);
-    hi = shuffle_u32x8x2::<0b1000_1101>(tmp, hi);
-    compare_exchange_u32x8x2(&mut lo, &mut hi);
+    // Interleave lanes across vectors to start merging the ordered groups.
+    v = double_shuffle::<0xD8, 0x8D>(v);
+    v = compare_exchange(v);
 
-    // Reverse the whole second vector so low values in `lo` compare against high values in `hi`.
-    hi = _mm256_permutevar8x32_epi32(hi, _mm256_setr_epi32(7, 6, 5, 4, 3, 2, 1, 0));
-    compare_exchange_u32x8x2(&mut lo, &mut hi);
+    // Reverse `v[1]` so low values compare against high values.
+    v[1] = _mm256_permutevar8x32_epi32(v[1], REVERSE);
+    v = compare_exchange(v);
 
-    // Continue the merge with the same cross-vector interleave pattern.
-    tmp = lo;
-    lo = shuffle_u32x8x2::<0b1101_1000>(lo, hi);
-    hi = shuffle_u32x8x2::<0b1000_1101>(tmp, hi);
-    compare_exchange_u32x8x2(&mut lo, &mut hi);
-
-    // Repeat the merge step until every lane has met the required network partners.
-    tmp = lo;
-    lo = shuffle_u32x8x2::<0b1101_1000>(lo, hi);
-    hi = shuffle_u32x8x2::<0b1000_1101>(tmp, hi);
-    compare_exchange_u32x8x2(&mut lo, &mut hi);
+    // Continue the merge until every lane has met its network partners.
+    v = double_shuffle::<0xD8, 0x8D>(v);
+    v = compare_exchange(v);
+    v = double_shuffle::<0xD8, 0x8D>(v);
+    v = compare_exchange(v);
 
     // Put lanes with the same final local rank into matching positions in both vectors.
-    lo = _mm256_permutevar8x32_epi32(lo, _mm256_setr_epi32(0, 4, 1, 5, 6, 2, 7, 3));
-    hi = _mm256_permutevar8x32_epi32(hi, _mm256_setr_epi32(0, 4, 1, 5, 6, 2, 7, 3));
+    v = permute(v);
 
     // Do the last broad compare between low-ranked and high-ranked candidates.
-    tmp = lo;
-    lo = shuffle_u32x8x2::<0b1000_1000>(lo, hi);
-    hi = shuffle_u32x8x2::<0b1101_1101>(tmp, hi);
-    compare_exchange_u32x8x2(&mut lo, &mut hi);
+    v = double_shuffle::<0x88, 0xDD>(v);
+    v = compare_exchange(v);
 
-    // Swap every odd lane between vectors so the two outputs are in final sorted order.
-    let b1 = _mm256_shuffle_epi32::<0b1011_0001>(lo);
-    let b2 = _mm256_shuffle_epi32::<0b1011_0001>(hi);
-    lo = _mm256_blend_epi32::<0b1010_1010>(lo, b2);
-    hi = _mm256_blend_epi32::<0b1010_1010>(b1, hi);
-
-    (lo, hi)
+    v
 }
 
-/// Compares each pair of elements between 2 vectors, places smaller values in `lo` and larger values in `hi`.
+/// Compares each pair of elements between 2 vectors, placing smaller values in
+/// `v[0]` and larger values in `v[1]`.
 #[inline]
 #[target_feature(enable = "avx2")]
-fn compare_exchange_u32x8x2(lo: &mut __m256i, hi: &mut __m256i) {
-    let tmp = *lo;
-    *lo = _mm256_min_epu32(*lo, *hi);
-    *hi = _mm256_max_epu32(tmp, *hi);
+fn compare_exchange(v: [__m256i; 2]) -> [__m256i; 2] {
+    [_mm256_min_epu32(v[0], v[1]), _mm256_max_epu32(v[0], v[1])]
 }
 
-/// Shuffles 2 vectors of 8 u32 lanes.
+/// Shuffles 2 vectors of 8 u32 lanes into 2 vectors.
 #[inline]
 #[target_feature(enable = "avx2")]
-fn shuffle_u32x8x2<const MASK: i32>(a: __m256i, b: __m256i) -> __m256i {
-    // AVX2 only has the desired 2 vector 8x32-bit shuffle instruction for floating point values.
-    // Shuffle only changes composition of elements within the vector, bit contents of each
-    // element remain unchanged.
+fn double_shuffle<const MASK_0: i32, const MASK_1: i32>(v: [__m256i; 2]) -> [__m256i; 2] {
+    [shuffle::<MASK_0>(v), shuffle::<MASK_1>(v)]
+}
+
+/// Shuffles 2 vectors of 8 u32 lanes into 1 vector.
+#[inline]
+#[target_feature(enable = "avx2")]
+fn shuffle<const MASK: i32>(v: [__m256i; 2]) -> __m256i {
+    // AVX2 only provides this shuffle for floating point vectors, but it leaves
+    // the contents of each lane unchanged.
     unsafe {
         transmute(_mm256_shuffle_ps::<MASK>(
-            transmute::<__m256i, __m256>(a),
-            transmute::<__m256i, __m256>(b),
+            transmute::<__m256i, __m256>(v[0]),
+            transmute::<__m256i, __m256>(v[1]),
         ))
     }
+}
+
+/// Reorders each vector so lanes with the same final local rank line up before
+/// the last broad compare stage.
+#[inline]
+#[target_feature(enable = "avx2")]
+fn permute(v: [__m256i; 2]) -> [__m256i; 2] {
+    const PERMUTE: __m256i = unsafe { transmute::<[u32; 8], _>([0, 4, 2, 6, 1, 5, 3, 7]) };
+
+    [
+        _mm256_permutevar8x32_epi32(v[0], PERMUTE),
+        _mm256_permutevar8x32_epi32(v[1], PERMUTE),
+    ]
+}
+
+/// Packs and transposes two vectors of 8 u32 lanes into one vector of 16 u16 lanes.
+#[inline]
+#[target_feature(enable = "avx2")]
+fn pack(v: [__m256i; 2]) -> __m256i {
+    const U16_MAX: __m256i = unsafe { transmute::<[u32; 8], _>([u16::MAX as u32; _]) };
+    const PACK: __m256i = unsafe {
+        transmute::<[i8; 32], _>([
+            0, 1, 8, 9, 4, 5, 12, 13, 2, 3, 10, 11, 6, 7, 14, 15, 0, 1, 8, 9, 4, 5, 12, 13, 2, 3,
+            10, 11, 6, 7, 14, 15,
+        ])
+    };
+
+    // `_mm256_packus_epi32` packs within each 128-bit half, so the byte shuffle
+    // fixes the lane-local order into one contiguous sorted `u16` sequence.
+    _mm256_shuffle_epi8(
+        _mm256_packus_epi32(
+            _mm256_and_si256(v[0], U16_MAX),
+            _mm256_and_si256(v[1], U16_MAX),
+        ),
+        PACK,
+    )
+}
+
+/// Strip active prefixes from the packed seed values.
+#[inline]
+#[target_feature(enable = "avx2")]
+fn strip(v: __m256i) -> __m256i {
+    const MASK: __m256i = unsafe { transmute::<[u16; 16], _>([0x1F; _]) };
+    _mm256_and_si256(v, MASK)
 }

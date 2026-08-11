@@ -77,6 +77,11 @@ pub fn scalar_impl(remaining: Set, diffs: &[i8; 16], opponents: &[Set; 16]) -> S
     seeding.sort_strip(remaining.len())
 }
 
+/// Packed sortable seeding keys for all 16 teams.
+///
+/// Active teams contain the full `(diff, buchholz, seed)` key described in the
+/// module docs. Inactive teams contain `u16::MAX`, which sorts after every valid
+/// key and is discarded by the active length.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(align(32), C)]
 pub struct PackedSeeding {
@@ -84,6 +89,7 @@ pub struct PackedSeeding {
 }
 
 impl PackedSeeding {
+    /// Construct an empty packed seeding buffer with all teams inactive.
     #[must_use]
     pub const fn new() -> Self {
         Self {
@@ -91,6 +97,10 @@ impl PackedSeeding {
         }
     }
 
+    /// Sort packed keys and strip them down to initial seed indices.
+    ///
+    /// Only the first `len` entries are meaningful after sorting; the remaining
+    /// sentinel values are left in place but hidden by [`Seeding`].
     #[must_use]
     pub fn sort_strip(mut self, len: usize) -> Seeding {
         self.data.sort_unstable();
@@ -158,6 +168,7 @@ pub struct SortedSeeding {
 }
 
 impl SortedSeeding {
+    /// Convert stripped sorted seed values into a [`Seeding`] with an active length.
     #[must_use]
     pub fn with_len(self, len: usize) -> Seeding {
         // `Index` is a transparent newtype of `u16`; the active prefix has been masked
