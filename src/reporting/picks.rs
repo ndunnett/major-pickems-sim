@@ -185,7 +185,7 @@ impl Report for PicksReport {
                 out.push(format!(
                     "{num:<4}{name:<20}{p:>6.1}%",
                     num = format!("{}.", i + 1),
-                    name = &sim.teams.names[pick.index.to_usize()],
+                    name = sim.teams.names[pick.index.to_usize()],
                     p = pick.probability * 100.0
                 ));
             }
