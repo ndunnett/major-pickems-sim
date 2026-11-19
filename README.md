@@ -39,7 +39,6 @@ pickems simulate --file data/2026_singapore_stage_1.toml --report assess \
   --three-zero "Ninjas in Pyjamas,PARIVISION" \
   --advance "HEROIC,FaZe Clan,Team Liquid,Eternal Fire,100 Thieves,9z Team" \
   --zero-three "Chinggis Warriors,Lynn Vision"
-
 ```
 
 ### Inspect an input file
