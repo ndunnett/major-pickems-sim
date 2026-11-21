@@ -73,60 +73,60 @@ pickems simulate --file data/2026_singapore_stage_1.toml
 RESULTS FROM 1,000,000 TOURNAMENT SIMULATIONS
 
 Most likely to 3-0:
-1.  Ninjas in Pyjamas     21.7%
-2.  PARIVISION            21.0%
-3.  HEROIC                20.4%
-4.  FaZe Clan             19.1%
-5.  Team Liquid           18.5%
-6.  100 Thieves           17.4%
-7.  Eternal Fire          17.2%
-8.  9z Team               15.5%
-9.  M80                   11.5%
-10. DENDELE               10.0%
-11. Imperial               7.0%
-12. Wildcard               6.5%
-13. BC.Game                4.5%
-14. FlyQuest               4.1%
-15. Chinggis Warriors      2.9%
-16. Lynn Vision            2.9%
+1.  PARIVISION            27.0%
+2.  Team Liquid           23.1%
+3.  100 Thieves           22.4%
+4.  HEROIC                20.4%
+5.  Ninjas in Pyjamas     18.6%
+6.  FaZe Clan             15.8%
+7.  Eternal Fire          14.9%
+8.  9z Team               10.9%
+9.  M80                   10.7%
+10. DENDELE                9.0%
+11. Imperial               6.8%
+12. Wildcard               6.0%
+13. FlyQuest               4.8%
+14. BC.Game                4.2%
+15. Lynn Vision            2.8%
+16. Chinggis Warriors      2.6%
 
 Most likely to 3-1 or 3-2:
-1.  PARIVISION            49.3%
-2.  Ninjas in Pyjamas     49.2%
-3.  HEROIC                48.1%
-4.  FaZe Clan             47.5%
-5.  Team Liquid           46.5%
-6.  Eternal Fire          45.2%
-7.  100 Thieves           45.2%
-8.  9z Team               43.4%
-9.  M80                   43.1%
-10. DENDELE               40.3%
-11. Imperial              32.8%
-12. Wildcard              30.7%
-13. BC.Game               24.1%
-14. FlyQuest              21.7%
-15. Chinggis Warriors     16.7%
-16. Lynn Vision           16.3%
+1.  PARIVISION            52.0%
+2.  Team Liquid           50.0%
+3.  100 Thieves           49.5%
+4.  HEROIC                48.9%
+5.  Ninjas in Pyjamas     47.2%
+6.  FaZe Clan             44.8%
+7.  Eternal Fire          44.5%
+8.  M80                   41.5%
+9.  DENDELE               40.5%
+10. 9z Team               36.8%
+11. Imperial              32.9%
+12. Wildcard              29.7%
+13. FlyQuest              25.3%
+14. BC.Game               24.3%
+15. Chinggis Warriors     16.6%
+16. Lynn Vision           15.4%
 
 Most likely to 0-3:
-1.  Lynn Vision           30.0%
-2.  Chinggis Warriors     29.4%
-3.  FlyQuest              23.8%
-4.  BC.Game               21.5%
-5.  Wildcard              16.3%
-6.  Imperial              15.0%
-7.  DENDELE               10.8%
-8.  M80                    9.3%
-9.  9z Team                6.9%
-10. Eternal Fire           6.1%
-11. 100 Thieves            6.0%
-12. Team Liquid            5.5%
-13. FaZe Clan              5.2%
-14. HEROIC                 4.8%
-15. PARIVISION             4.7%
-16. Ninjas in Pyjamas      4.6%
+1.  Chinggis Warriors     30.7%
+2.  Lynn Vision           29.5%
+3.  BC.Game               22.1%
+4.  FlyQuest              20.7%
+5.  Wildcard              16.7%
+6.  Imperial              15.1%
+7.  DENDELE               11.4%
+8.  9z Team                9.6%
+9.  M80                    9.6%
+10. Eternal Fire           6.9%
+11. FaZe Clan              6.5%
+12. Ninjas in Pyjamas      5.6%
+13. HEROIC                 4.7%
+14. 100 Thieves            4.1%
+15. Team Liquid            3.9%
+16. PARIVISION             3.0%
 
-Run time: 0.794 seconds
+Run time: 0.769 seconds
 ```
 
 ```shell
@@ -137,23 +137,23 @@ pickems simulate --file data/2026_singapore_stage_1.toml --report picks
 RESULTS FROM 1,000,000 TOURNAMENT SIMULATIONS
 
 3-0 picks:
-1.  Ninjas in Pyjamas     21.6%
-2.  PARIVISION            21.0%
+1.  PARIVISION            26.9%
+2.  Team Liquid           23.0%
 
 3-1 or 3-2 picks:
-1.  HEROIC                48.2%
-2.  FaZe Clan             47.6%
-3.  Team Liquid           46.4%
-4.  Eternal Fire          45.3%
-5.  100 Thieves           45.2%
-6.  9z Team               43.4%
+1.  100 Thieves           49.4%
+2.  HEROIC                48.9%
+3.  Ninjas in Pyjamas     47.0%
+4.  FaZe Clan             44.9%
+5.  Eternal Fire          44.6%
+6.  M80                   41.6%
 
 0-3 picks:
-1.  Lynn Vision           29.9%
-2.  Chinggis Warriors     29.4%
+1.  Chinggis Warriors     30.6%
+2.  Lynn Vision           29.5%
 
-Simulated stars earned: 3.781 +/- 1.401
-Expected success (>=5 stars): 29.1%
+Simulated stars earned: 3.865 +/- 1.423
+Expected success (>=5 stars): 32.0%
 
-Run time: 1.531 seconds
+Run time: 1.483 seconds
 ```

@@ -1,63 +1,68 @@
+# PGL Major Singapore 2026 - Stage 1
+# Official Stage 1 seeds preserved
+# Ratings: HLTV Valve Ranking, 2026-11-21
+# Source: https://www.hltv.org/valve-ranking/teams/2026/november/21
+
 ["Ninjas in Pyjamas"]
 seed = 1
-rating = 1564
+rating = 1476
 
 ["PARIVISION"]
 seed = 2
-rating = 1560
+rating = 1574
 
 ["HEROIC"]
 seed = 3
-rating = 1548
+rating = 1502
 
 ["FaZe Clan"]
 seed = 4
-rating = 1539
+rating = 1450
 
 ["Team Liquid"]
 seed = 5
-rating = 1528
+rating = 1529
 
 ["Eternal Fire"]
 seed = 6
-rating = 1513
+rating = 1447
 
 ["100 Thieves"]
 seed = 7
-rating = 1511
+rating = 1518
 
 ["9z Team"]
 seed = 8
-rating = 1490
+rating = 1373
 
 ["M80"]
 seed = 9
-rating = 1489
+rating = 1420
 
 ["DENDELE"]
 seed = 10
-rating = 1466
+rating = 1415
 
 ["Imperial"]
 seed = 11
-rating = 1406
+rating = 1354
 
 ["Wildcard"]
 seed = 12
-rating = 1391
+rating = 1327
 
 ["BC.Game"]
 seed = 13
-rating = 1337
+rating = 1290
 
 ["FlyQuest"]
 seed = 14
-rating = 1318
+rating = 1296
 
 ["Chinggis Warriors"]
 seed = 15
-rating = 1272
+rating = 1223
 
 ["Lynn Vision"]
 seed = 16
-rating = 1267
+rating = 1200
