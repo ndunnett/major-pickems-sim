@@ -23,28 +23,28 @@ pickems tui
 ### Run a basic simulation
 
 ```shell
-pickems simulate --file data/2026_cologne_stage_2.toml
+pickems simulate --file data/2026_singapore_stage_1.toml
 ```
 
 ### Run the picks report
 
 ```shell
-pickems simulate --file data/2026_cologne_stage_2.toml --report picks
+pickems simulate --file data/2026_singapore_stage_1.toml --report picks
 ```
 
 ### Assess a set of picks
 
 ```shell
-pickems simulate --file data/2026_cologne_stage_2.toml --report assess \
-  --three-zero "Spirit,Legacy" \
-  --advance "GamerLegion,Astralis,FUT,G2,9z,B8" \
-  --zero-three "FlyQuest,M80"
+pickems simulate --file data/2026_singapore_stage_1.toml --report assess \
+  --three-zero "Ninjas in Pyjamas,PARIVISION" \
+  --advance "HEROIC,FaZe Clan,Team Liquid,Eternal Fire,100 Thieves,9z Team" \
+  --zero-three "Chinggis Warriors,Lynn Vision"
 ```
 
 ### Inspect an input file
 
 ```shell
-pickems inspect --file data/2026_cologne_stage_2.toml
+pickems inspect --file data/2026_singapore_stage_1.toml
 ```
 
 ### Update local data files from this repository
@@ -63,97 +63,97 @@ seed = {integer: initial seed for tournament stage}
 rating = {integer: current global ranking points}
 ```
 
-## Latest Output: IEM Cologne 2026 - Stage 2
+## Latest Output: PGL Singapore 2026 - Stage 1
 
 ```shell
-pickems simulate --file data/2026_cologne_stage_2.toml
+pickems simulate --file data/2026_singapore_stage_1.toml
 ```
 
 ```text
 RESULTS FROM 1,000,000 TOURNAMENT SIMULATIONS
 
 Most likely to 3-0:
-1.  Spirit                49.8%
-2.  Legacy                31.9%
-3.  FUT                   20.4%
-4.  G2                    17.6%
-5.  Astralis              16.4%
-6.  9z                    14.8%
-7.  GamerLegion           13.3%
-8.  paiN                   8.2%
-9.  B8                     7.1%
-10. Monte                  6.6%
-11. BetBoom                4.1%
-12. MIBR                   3.7%
-13. BIG                    2.4%
-14. TYLOO                  2.0%
-15. M80                    1.7%
-16. FlyQuest               0.2%
+1.  PARIVISION            27.0%
+2.  Team Liquid           23.1%
+3.  100 Thieves           22.4%
+4.  HEROIC                20.4%
+5.  Ninjas in Pyjamas     18.6%
+6.  FaZe Clan             15.8%
+7.  Eternal Fire          14.9%
+8.  9z Team               10.9%
+9.  M80                   10.7%
+10. DENDELE                9.0%
+11. Imperial               6.8%
+12. Wildcard               6.0%
+13. FlyQuest               4.8%
+14. BC.Game                4.2%
+15. Lynn Vision            2.8%
+16. Chinggis Warriors      2.6%
 
 Most likely to 3-1 or 3-2:
-1.  GamerLegion           56.8%
-2.  Astralis              56.3%
-3.  Legacy                56.0%
-4.  FUT                   51.9%
-5.  G2                    51.4%
-6.  9z                    49.0%
-7.  Spirit                46.1%
-8.  B8                    40.7%
-9.  paiN                  37.4%
-10. BetBoom               35.3%
-11. Monte                 33.1%
-12. MIBR                  32.4%
-13. BIG                   18.9%
-14. TYLOO                 16.9%
-15. M80                   15.8%
-16. FlyQuest               2.1%
+1.  PARIVISION            52.0%
+2.  Team Liquid           50.0%
+3.  100 Thieves           49.5%
+4.  HEROIC                48.9%
+5.  Ninjas in Pyjamas     47.2%
+6.  FaZe Clan             44.8%
+7.  Eternal Fire          44.5%
+8.  M80                   41.5%
+9.  DENDELE               40.5%
+10. 9z Team               36.8%
+11. Imperial              32.9%
+12. Wildcard              29.7%
+13. FlyQuest              25.3%
+14. BC.Game               24.3%
+15. Chinggis Warriors     16.6%
+16. Lynn Vision           15.4%
 
 Most likely to 0-3:
-1.  FlyQuest              59.6%
-2.  M80                   25.1%
-3.  TYLOO                 24.0%
-4.  BIG                   22.1%
-5.  MIBR                  14.7%
-6.  BetBoom               12.5%
-7.  Monte                  9.5%
-8.  B8                     8.0%
-9.  paiN                   7.5%
-10. GamerLegion            3.8%
-11. 9z                     3.2%
-12. Astralis               3.1%
-13. G2                     2.9%
-14. FUT                    2.5%
-15. Legacy                 1.0%
-16. Spirit                 0.3%
+1.  Chinggis Warriors     30.7%
+2.  Lynn Vision           29.5%
+3.  BC.Game               22.1%
+4.  FlyQuest              20.7%
+5.  Wildcard              16.7%
+6.  Imperial              15.1%
+7.  DENDELE               11.4%
+8.  9z Team                9.6%
+9.  M80                    9.6%
+10. Eternal Fire           6.9%
+11. FaZe Clan              6.5%
+12. Ninjas in Pyjamas      5.6%
+13. HEROIC                 4.7%
+14. 100 Thieves            4.1%
+15. Team Liquid            3.9%
+16. PARIVISION             3.0%
 
-Run time: 0.021 seconds
+Run time: 0.769 seconds
 ```
 
 ```shell
-pickems simulate --file data/2026_cologne_stage_2.toml --report picks
+pickems simulate --file data/2026_singapore_stage_1.toml --report picks
 ```
 
 ```text
 RESULTS FROM 1,000,000 TOURNAMENT SIMULATIONS
 
 3-0 picks:
-1.  Spirit                49.8%
-2.  Legacy                31.8%
+1.  PARIVISION            26.9%
+2.  Team Liquid           23.0%
 
 3-1 or 3-2 picks:
-1.  GamerLegion           56.7%
-2.  Astralis              56.3%
-3.  FUT                   51.9%
-4.  G2                    51.3%
-5.  9z                    49.2%
-6.  B8                    40.8%
+1.  100 Thieves           49.4%
+2.  HEROIC                48.9%
+3.  Ninjas in Pyjamas     47.0%
+4.  FaZe Clan             44.9%
+5.  Eternal Fire          44.6%
+6.  M80                   41.6%
 
 0-3 picks:
-1.  FlyQuest              59.6%
-2.  M80                   25.1%
+1.  Chinggis Warriors     30.6%
+2.  Lynn Vision           29.5%
 
-Simulated stars earned: 4.725 +/- 1.499
-Expected success (>=5 stars): 55.9%
+Simulated stars earned: 3.865 +/- 1.423
+Expected success (>=5 stars): 32.0%
 
-Run time: 0.041 seconds
+Run time: 1.483 seconds
 ```
