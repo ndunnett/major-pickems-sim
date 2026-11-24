@@ -13,7 +13,7 @@ pub use picks::PicksReport;
 pub use strength::StrengthReport;
 
 /// Interface for aggregating completed tournament iterations into displayable output.
-pub trait Report: Copy + Send + Sum + Sync {
+pub trait Report: Clone + Send + Sum + Sync {
     /// Update this report with one completed Swiss-system tournament.
     fn update(&mut self, ss: &SwissSystem);
     /// Format the aggregated report for the command-line interface.
@@ -21,7 +21,7 @@ pub trait Report: Copy + Send + Sum + Sync {
 }
 
 /// Report that composes the main report types into one output.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct ReportAll {
     pub basic: BasicReport,
     pub strength: StrengthReport,

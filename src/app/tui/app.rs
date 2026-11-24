@@ -404,10 +404,10 @@ fn run_simulation(
     let sim = Simulation::new(*teams, sigma, iterations);
 
     match report {
-        ReportType::Basic => sim.run(BasicReport::default()).format(&sim),
-        ReportType::Strength => sim.run(StrengthReport::default()).format(&sim),
-        ReportType::Picks => sim.run(PicksReport::default()).format(&sim),
-        ReportType::All => sim.run(ReportAll::default()).format(&sim),
+        ReportType::Basic => sim.run(&BasicReport::default()).format(&sim),
+        ReportType::Strength => sim.run(&StrengthReport::default()).format(&sim),
+        ReportType::Picks => sim.run(&PicksReport::default()).format(&sim),
+        ReportType::All => sim.run(&ReportAll::default()).format(&sim),
     }
 }
 
@@ -420,7 +420,7 @@ fn assess_picks(
     zero_three: Set,
 ) -> String {
     let sim = Simulation::new(*teams, sigma, iterations);
-    sim.run(AssessReport::new(three_zero, advanced, zero_three))
+    sim.run(&AssessReport::new(three_zero, advanced, zero_three))
         .format(&sim)
 }
 

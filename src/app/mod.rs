@@ -15,7 +15,7 @@ fn run_and_format(
     teams: Teams,
     sigma: Sigma,
     iterations: Iterations,
-    report: impl Report,
+    report: &impl Report,
 ) -> String {
     let sim = Simulation::new(teams, sigma, iterations);
     let report = sim.run(report);
@@ -33,10 +33,10 @@ pub fn run() -> anyhow::Result<()> {
             let n = simulate.iterations;
 
             let formatted_report = match simulate.report {
-                ReportSelection::All => run_and_format(teams, s, n, ReportAll::default()),
-                ReportSelection::Basic => run_and_format(teams, s, n, BasicReport::default()),
-                ReportSelection::Strength => run_and_format(teams, s, n, StrengthReport::default()),
-                ReportSelection::Picks => run_and_format(teams, s, n, PicksReport::default()),
+                ReportSelection::All => run_and_format(teams, s, n, &ReportAll::default()),
+                ReportSelection::Basic => run_and_format(teams, s, n, &BasicReport::default()),
+                ReportSelection::Strength => run_and_format(teams, s, n, &StrengthReport::default()),
+                ReportSelection::Picks => run_and_format(teams, s, n, &PicksReport::default()),
                 ReportSelection::Assess => {
                     let Some(tz) = simulate.three_zero else {
                         anyhow::bail!("the \"assess\" report requires the --three-zero argument");
@@ -51,7 +51,7 @@ pub fn run() -> anyhow::Result<()> {
                     };
 
                     let report = AssessReport::try_from_args(&teams, &tz, &adv, &zt)?;
-                    run_and_format(teams, s, n, report)
+                    run_and_format(teams, s, n, &report)
                 }
             };
 

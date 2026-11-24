@@ -25,7 +25,7 @@ pub fn bench(c: &mut Criterion) {
     group.throughput(Throughput::Elements(PARALLEL_ITERATIONS));
     group.bench_function("parallel", |b| {
         let sim = Simulation::dummy(Iterations::new(PARALLEL_ITERATIONS));
-        b.iter(|| black_box(black_box(&sim).run(NullReport)));
+        b.iter(|| black_box(black_box(&sim).run(&NullReport)));
     });
 
     group.finish();

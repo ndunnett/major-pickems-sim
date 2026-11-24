@@ -64,7 +64,7 @@ impl Simulation {
     }
 
     /// Run a tournament simulation to completion and return a report.
-    pub fn run<R: Report>(&self, fresh_report: R) -> R {
+    pub fn run<R: Report>(&self, fresh_report: &R) -> R {
         const MIN_ITERS_PER_THREAD: u64 = 15_000;
         let threads = std::thread::available_parallelism().map_or(1, NonZero::get) as u64;
         let iterations = self.iterations.to_u64();
@@ -79,11 +79,11 @@ impl Simulation {
             let handles = (0..worker_count)
                 .map(|worker| {
                     let worker_iterations = dividend + u64::from(worker < remainder);
+                    let mut report = fresh_report.clone();
 
                     scope.spawn(move || {
                         let mut ss = fresh_ss;
                         let mut rng = rng::random();
-                        let mut report = fresh_report;
 
                         for _ in 0..worker_iterations {
                             ss.reset();
