@@ -5,7 +5,6 @@ version = "0.4.0-prerelease"
 edition = "2024"
 readme = "README.md"
 license = "MIT"
-homepage = "https://github.com/ndunnett/major-pickems-sim"
 repository = "https://github.com/ndunnett/major-pickems-sim"
 
 [lints.clippy]
