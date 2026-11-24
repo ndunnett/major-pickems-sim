@@ -1,59 +1,35 @@
-FROM ubuntu:resolute
-ARG USERNAME=dev
-ARG REPO=/ws
+# syntax=docker/dockerfile:1
 
-# install rust dependencies, zsh, sudo and git for convenience
-ARG DEBIAN_FRONTEND=noninteractive
-RUN set -eux; apt update; apt install -y \
-        ca-certificates libc6-dev pkg-config libssl-dev \
-        linux-tools-common linux-tools-generic \
-        graphviz clang zsh sudo git wget; \
-    apt autoremove -y; apt clean; rm -rf /var/lib/apt/lists/*
+ARG IMAGE_VARIANT=trixie
+ARG RUST_VERSION=1.100
+ARG GO_VERSION=1.27
 
-# delete default user on new ubuntu images
-RUN set -eux; \
-    if id ubuntu >/dev/null 2>&1; then \
-        grep ubuntu /etc/passwd && \
-        touch /var/mail/ubuntu && \
-        chown ubuntu /var/mail/ubuntu && \
-        userdel -r ubuntu \
-    ; fi
 
-# create non-root sudo user
-RUN set -eux; \
-    useradd --create-home --user-group --no-log-init "$USERNAME"; \
-    touch "/etc/sudoers.d/$USERNAME"; \
-    echo "$USERNAME ALL=(root) NOPASSWD:ALL" > "/etc/sudoers.d/$USERNAME"; \
-    chmod 0440 "/etc/sudoers.d/$USERNAME"
+FROM golang:${GO_VERSION} AS pprof
+RUN mkdir -p /opt/go && \
+    GOPATH=/opt/go go install github.com/google/pprof@latest
 
-# create workspace dir and fix ownership
-RUN set -eux; \
-    mkdir -p "$REPO"; \
-    chown -R "$USERNAME:$USERNAME" "$REPO" "/home/$USERNAME"
-WORKDIR ${REPO}
 
-# change user
-USER ${USERNAME}
+FROM rust:${RUST_VERSION}-${IMAGE_VARIANT} AS rust_img
 
-# install rust
-ENV CARGO_HOME="/home/$USERNAME/.cargo"
-RUN set -eux; wget -qO - https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
 
-# install go
-COPY --from=golang:1.26 --chown="$USERNAME:$USERNAME" /usr/local/go/ /usr/local/go/
-
-# add to path
-ENV PATH="/home/$USERNAME/.local/bin:$CARGO_HOME/bin:/home/$USERNAME/go/bin:/usr/local/go/bin:$PATH"
-
-# install pprof
-RUN set -eux; go install github.com/google/pprof@latest
-
-# install cargo-binstall
-RUN set -eux; cargo install --locked cargo-binstall
-
-# install various tools through binstall
-RUN set -eux; cargo binstall --locked \
+FROM rust_img AS binstall
+ARG BINSTALL_URL=https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh
+RUN curl -L --proto '=https' --tlsv1.2 -sSf ${BINSTALL_URL} | bash && \
+    mkdir -p /opt/binstall && cargo binstall --locked -y --no-track --root /opt/binstall \
     just just-lsp cargo-nextest cargo-show-asm
 
-# replace entrypoint
-CMD sleep infinity
+
+FROM rust_img AS final
+ARG DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install --no-install-recommends -y \
+    graphviz && \
+    rm -rf /var/lib/apt/lists/*
+ARG USERNAME=dev
+RUN useradd --create-home --user-group --no-log-init "$USERNAME"
+WORKDIR /home/${USERNAME}
+USER ${USERNAME}
+RUN rustup component add clippy rustfmt rust-src rust-docs
+COPY --from=pprof --chown="$USERNAME:$USERNAME" /opt/go/bin/ /usr/local/bin/
+COPY --from=binstall --chown="$USERNAME:$USERNAME" /opt/binstall/bin/ /usr/local/bin/
+CMD ["sleep", "infinity"]
