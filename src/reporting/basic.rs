@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::{
-    datatypes::Index,
+    datatypes::{Index, Set},
     reporting::Report,
     simulation::{Simulation, SwissSystem},
 };
@@ -36,6 +36,25 @@ pub struct BasicReport {
 }
 
 impl BasicReport {
+    /// Count outcomes and return the 3-0, advancing and 0-3 team sets for this tournament.
+    pub(super) fn record(&mut self, ss: &SwissSystem) -> [Set; 3] {
+        let mut sets = [Set::new(); 3];
+
+        for (index, stats) in Index::iter_all().zip(&mut self.stats) {
+            let (pool, count) = match (ss.wins(index), ss.losses(index)) {
+                (3, 0) => (0, &mut stats.three_zero),
+                (3, _) => (1, &mut stats.advancing),
+                (0, 3) => (2, &mut stats.zero_three),
+                _ => continue,
+            };
+
+            *count += 1;
+            sets[pool].insert(index);
+        }
+
+        sets
+    }
+
     /// Convert raw counts into probabilities for each terminal outcome.
     pub(super) fn calculate_probabilities(&self, sim: &Simulation) -> [[f32; 16]; 3] {
         let n = sim.iterations.to_f32();
@@ -77,16 +96,7 @@ impl Sum for BasicReport {
 
 impl Report for BasicReport {
     fn update(&mut self, ss: &SwissSystem) {
-        for (seed, result) in self.stats.iter_mut().enumerate() {
-            // SAFETY: `seed` is always in range 0..16
-            let index = unsafe { Index::from_usize(seed) };
-            let wins = ss.wins(index);
-            let losses = ss.losses(index);
-
-            result.three_zero += u64::from(wins == 3 && losses == 0);
-            result.advancing += u64::from(wins == 3 && losses != 0);
-            result.zero_three += u64::from(wins == 0 && losses == 3);
-        }
+        self.record(ss);
     }
 
     fn format(&self, sim: &Simulation) -> String {

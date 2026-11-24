@@ -1,71 +1,130 @@
-use std::{
-    collections::{BinaryHeap, HashSet},
-    iter::Sum,
-    ops::Add,
-};
+use std::{iter::Sum, ops::Add};
 
 use crate::{
-    datatypes::Index,
+    datatypes::{Index, Set},
     reporting::{AssessReport, BasicReport, Report},
     simulation::{Simulation, SwissSystem},
 };
 
-/// Candidate team for one pick category.
-///
-/// Equality and hashing intentionally use only the team index so a candidate can
-/// move between probability-ranked pools without becoming a distinct set entry.
+#[repr(usize)]
+enum Pool {
+    ThreeZero,
+    Advance,
+    ZeroThree,
+}
+
 #[derive(Debug, Clone, Copy)]
-struct Candidate {
-    index: Index,
-    probability: f32,
+struct Probabilities {
+    data: [[f32; 16]; 3],
 }
 
-impl std::hash::Hash for Candidate {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.index.hash(state);
+impl Probabilities {
+    fn from_basic(sim: &Simulation, basic: &BasicReport) -> Self {
+        Self {
+            data: basic.calculate_probabilities(sim),
+        }
     }
-}
 
-impl Eq for Candidate {}
-
-impl PartialEq for Candidate {
-    fn eq(&self, other: &Self) -> bool {
-        self.index == other.index
+    const fn tz(&self, index: Index) -> f32 {
+        self.data[Pool::ThreeZero as usize][index.to_usize()]
     }
-}
 
-impl Ord for Candidate {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.probability.total_cmp(&other.probability)
+    const fn adv(&self, index: Index) -> f32 {
+        self.data[Pool::Advance as usize][index.to_usize()]
     }
-}
 
-impl PartialOrd for Candidate {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
+    const fn zt(&self, index: Index) -> f32 {
+        self.data[Pool::ZeroThree as usize][index.to_usize()]
     }
-}
 
-/// Build a max-heap for a pick category so the highest probability candidate is
-/// always popped first.
-fn candidates(
-    probabilities: [f32; 16],
-    exclude: &[&HashSet<Candidate>],
-) -> impl Iterator<Item = Candidate> {
-    probabilities
-        .into_iter()
-        .enumerate()
-        .map(|(i, probability)| Candidate {
-            index: unsafe { Index::from_usize(i) },
-            probability,
-        })
-        .filter(|candidate| exclude.iter().all(|set| !set.contains(candidate)))
+    fn naive_picks<const N: usize>(&self, pool: Pool, exclude: &[Set]) -> Set {
+        let mut candidates = Index::iter_all()
+            .filter(|&index| exclude.iter().all(|set| !set.contains(index)))
+            .collect::<Vec<_>>();
+        let probs = &self.data[pool as usize];
+        candidates.sort_unstable_by(|&a, &b| probs[b.to_usize()].total_cmp(&probs[a.to_usize()]));
+        candidates.into_iter().take(N).collect::<Set>()
+    }
+
+    fn optimal_picks(&self) -> (Set, Set, Set) {
+        let mut best_score = 0.0;
+        let mut best_picks = None;
+
+        // Iterate all combinations of 3-0 picks with naive advance picks.
+        for a in Index::iter_all() {
+            for b in Index::iter_all().skip(a.to_usize() + 1) {
+                let tz_picks = Set::from_iter([a, b]);
+                let adv_picks = self.naive_picks::<6>(Pool::Advance, &[tz_picks]);
+                let score = tz_picks.iter().map(|i| self.tz(i)).sum::<f32>()
+                    + adv_picks.iter().map(|i| self.adv(i)).sum::<f32>();
+
+                if score > best_score {
+                    best_score = score;
+                    best_picks = Some((tz_picks, adv_picks));
+                }
+            }
+        }
+
+        let Some((tz_picks, adv_picks)) = best_picks else {
+            unreachable!("best_picks will always be Some after iterating all combinations");
+        };
+
+        // Choose naive 0-3 picks.
+        let zt_picks = self.naive_picks::<2>(Pool::ZeroThree, &[adv_picks, tz_picks]);
+        (tz_picks, adv_picks, zt_picks)
+    }
 }
 
 /// Report for selecting pick recommendations from basic outcome probabilities.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct PicksReport {
     pub basic: BasicReport,
+    outcomes: Vec<[Set; 3]>,
+}
+
+impl PicksReport {
+    fn assess(&self, tz_picks: Set, adv_picks: Set, zt_picks: Set) -> AssessReport {
+        // Bin tournaments by stars earned (0-10).
+        let mut histogram = [0; 11];
+
+        // Each team picked for the category it actually finished in earns one star.
+        for &[tz_outcome, adv_outcome, zt_outcome] in &self.outcomes {
+            let stars = tz_outcome.intersection(tz_picks).len()
+                + adv_outcome.intersection(adv_picks).len()
+                + zt_outcome.intersection(zt_picks).len();
+            histogram[stars] += 1;
+        }
+
+        // Weight each score by its frequency to recover total stars, then divide
+        // by the number of tournaments to get mean stars per tournament.
+        let mean = histogram
+            .iter()
+            .enumerate()
+            .map(|(stars, &count)| stars as f32 * count as f32)
+            .sum::<f32>()
+            / self.outcomes.len() as f32;
+
+        // `AssessReport` stores the sum of squared deviations. Each tournament in
+        // bin `k` contributes `(k - mean)^2`.
+        let ds = histogram
+            .iter()
+            .enumerate()
+            .map(|(stars, &count)| (stars as f32 - mean).powi(2) * count as f32)
+            .sum::<f32>();
+
+        // Success count is the sum of the right hand side of the histogram (>= 5 stars).
+        let success = histogram[5..].iter().sum();
+
+        AssessReport {
+            n: self.outcomes.len() as u64,
+            mean,
+            ds,
+            success,
+            three_zero_picks: tz_picks,
+            advancing_picks: adv_picks,
+            zero_three_picks: zt_picks,
+        }
+    }
 }
 
 impl Add for PicksReport {
@@ -73,6 +132,7 @@ impl Add for PicksReport {
 
     fn add(mut self, rhs: Self) -> Self::Output {
         self.basic = self.basic + rhs.basic;
+        self.outcomes.extend(rhs.outcomes);
         self
     }
 }
@@ -83,115 +143,42 @@ impl Sum for PicksReport {
     }
 }
 
+fn fmt_picks(picks: Set, val: impl Fn(Index) -> f32) -> Vec<(Index, f32)> {
+    let mut picks = picks
+        .into_iter()
+        .map(|index| (index, val(index) * 100.0))
+        .collect::<Vec<_>>();
+    picks.sort_by(|(_, a), (_, b)| b.total_cmp(a));
+    picks
+}
+
 impl Report for PicksReport {
     fn update(&mut self, ss: &SwissSystem) {
-        self.basic.update(ss);
+        self.outcomes.push(self.basic.record(ss));
     }
 
     fn format(&self, sim: &Simulation) -> String {
-        let [tz, adv, zt] = self.basic.calculate_probabilities(sim);
-
-        // Start with the best advancement picks.
-        let mut adv_candidates = candidates(adv, &[]).collect::<Vec<_>>();
-        adv_candidates.sort_unstable_by(|a, b| b.cmp(a));
-        let mut adv_picks = adv_candidates.into_iter().take(6).collect::<HashSet<_>>();
-
-        // Optimise 3-0 picks by swapping previous advancement picks to maximise win probability.
-        let mut tz_picks = HashSet::new();
-        let mut tz_candidates = BinaryHeap::new();
-        let mut swap_candidates = BinaryHeap::new();
-
-        // Populate the pool of swap candidates with 3-0 candidates that are also
-        // picked for advancement.
-        for candidate in candidates(tz, &[]) {
-            if adv_picks.contains(&candidate) {
-                swap_candidates.push(candidate);
-            } else {
-                tz_candidates.push(candidate);
-            }
-        }
-
-        // Populate the pool of advancement candidates with unpicked candidates.
-        let mut adv_candidates = candidates(adv, &[&adv_picks]).collect::<BinaryHeap<_>>();
-
-        while tz_picks.len() < 2 {
-            let next_tz = tz_candidates.pop();
-            let next_swap_tz = swap_candidates.pop();
-            let next_swap_adv = next_swap_tz.and_then(|next| adv_picks.get(&next));
-            let mut next_adv = adv_candidates.pop();
-
-            // Ensure that the next advancement pick hasn't already been picked for 3-0.
-            while next_adv.is_some_and(|next| tz_picks.contains(&next)) {
-                next_adv = adv_candidates.pop();
-            }
-
-            match (next_tz, next_swap_tz, next_swap_adv, next_adv) {
-                // There are teams in all relevant candidate pools.
-                (Some(next_tz), Some(next_swap_tz), Some(next_swap_adv), Some(next_adv)) => {
-                    // Compare the lost advancement probability against the
-                    // gained 3-0 probability from making the swap.
-                    let cost = next_adv.probability - next_swap_adv.probability;
-                    let reward = next_swap_tz.probability - next_tz.probability;
-
-                    // Repopulate candidate pools with candidates that remain
-                    // unselected so the next loop considers them again.
-                    if reward > cost {
-                        tz_picks.insert(next_swap_tz);
-                        adv_picks.remove(&next_swap_tz);
-                        adv_picks.insert(next_adv);
-                        tz_candidates.push(next_tz);
-                    } else {
-                        tz_picks.insert(next_tz);
-                        adv_candidates.push(next_adv);
-                        swap_candidates.push(next_swap_tz);
-                    }
-                }
-                // No viable swaps left, fill picks straight from the 3-0 pool.
-                (Some(next_tz), None, ..) => _ = tz_picks.insert(next_tz),
-                // The current state no longer makes any sense, either the 3-0 pool is empty
-                // or the advancement picks don't contain the next swap candidate.
-                state => unreachable!("invalid state for picking 3-0 teams:\n\n{state:#?}"),
-            }
-        }
-
-        // Choose 0-3 picks.
-        let mut zt_candidates = candidates(zt, &[&tz_picks, &adv_picks]).collect::<Vec<_>>();
-        zt_candidates.sort_unstable_by(|a, b| b.cmp(a));
-        let zt_picks = zt_candidates.into_iter().take(2).collect::<HashSet<_>>();
-
-        // The picks at this point are potentially still suboptimal, in future I want to further optimise picks
-        // using A* or similar to explore more combinations.
-
-        // Assess picks through a second simulation pass using the chosen teams.
-        let assessment = sim.run(AssessReport::new(
-            tz_picks.iter().map(|c| c.index),
-            adv_picks.iter().map(|c| c.index),
-            zt_picks.iter().map(|c| c.index),
-        ));
-
-        // Format results into a string.
+        let probs = Probabilities::from_basic(sim, &self.basic);
+        let (tz, adv, zt) = probs.optimal_picks();
         let mut out = Vec::with_capacity(15);
 
         for (title, picks) in [
-            ("\n3-0 picks:", tz_picks),
-            ("\n3-1 or 3-2 picks:", adv_picks),
-            ("\n0-3 picks:", zt_picks),
+            ("\n3-0 picks:", fmt_picks(tz, |i| probs.tz(i))),
+            ("\n3-1 or 3-2 picks:", fmt_picks(adv, |i| probs.adv(i))),
+            ("\n0-3 picks:", fmt_picks(zt, |i| probs.zt(i))),
         ] {
             out.push(String::from(title));
-            let mut picks = picks.into_iter().collect::<Vec<_>>();
-            picks.sort_by(|a, b| b.probability.total_cmp(&a.probability));
 
-            for (i, pick) in picks.into_iter().enumerate() {
+            for (i, (index, probability)) in picks.into_iter().enumerate() {
                 out.push(format!(
-                    "{num:<4}{name:<20}{p:>6.1}%",
+                    "{num:<4}{name:<20}{probability:>6.1}%",
                     num = format!("{}.", i + 1),
-                    name = sim.teams.names[pick.index.to_usize()],
-                    p = pick.probability * 100.0
+                    name = sim.teams.names[index.to_usize()],
                 ));
             }
         }
 
-        out.push(assessment.format(sim));
+        out.push(self.assess(tz, adv, zt).format(sim));
         out.join("\n")
     }
 }
