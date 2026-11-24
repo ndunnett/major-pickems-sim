@@ -59,6 +59,7 @@ size:
 
     for line in """{{ quote(`cargo build --quiet --release --message-format=json`) }}""".splitlines():
         if line.startswith('{"reason":"compiler-artifact') and '"crate_types":["bin"],"name":"pickems"' in line:
+            line = line.replace("\\", "\\\\")
             path = Path(json.loads(line).get("executable"))
             size = path.stat().st_size / (1000 * 1000)
             print(f"{size:.3f}".rstrip("0").rstrip(".") + " MB")
