@@ -51,6 +51,16 @@ impl Set {
         (self.data & index.bit_select()) != 0
     }
 
+    /// Return the team indices present in both sets.
+    #[cfg_attr(feature = "pprof", inline(never))]
+    #[cfg_attr(not(feature = "pprof"), inline)]
+    #[must_use]
+    pub const fn intersection(self, other: Self) -> Self {
+        Self {
+            data: self.data & other.data,
+        }
+    }
+
     /// Test whether the set is empty.
     #[cfg_attr(feature = "pprof", inline(never))]
     #[cfg_attr(not(feature = "pprof"), inline)]
