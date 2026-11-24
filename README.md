@@ -6,7 +6,7 @@ Each team's [regional standings](https://github.com/ValveSoftware/counter-strike
 
 ## Installation
 
-Download the binary from the latest [release](https://github.com/ndunnett/major-pickems-sim/releases), or install from source using cargo:
+Download the binary from the latest [release](https://github.com/ndunnett/major-pickems-sim/releases), or install the latest release from source using cargo:
 
 ```shell
 cargo install major-pickems-sim
@@ -157,3 +157,37 @@ Expected success (>=5 stars): 32.0%
 
 Run time: 1.483 seconds
 ```
+
+## Development
+
+Clone the repository and use the [devcontainer](.devcontainer/), it has everything ready to go. Otherwise, ensure the following is installed:
+
+- [Rust](https://rustup.rs/) >=1.95
+- [OpenSSL development headers](https://docs.rs/openssl/0.10.82/openssl/) and [pkg-config](https://wiki.freedesktop.org/Software/pkg-config/) (Linux only)
+- [just](https://just.systems/man/en/installation.html) >=1.56
+- [Python](https://www.python.org/downloads/) >=3.6
+- [cargo-nextest](https://nexte.st/) >=0.9.58
+- [pprof](https://github.com/google/pprof) and [Graphviz](https://graphviz.org/download/) (for profiling)
+
+### Tasks
+
+Project tasks are set up as [just recipes](https://just.systems/man/en/introduction.html), run `just` at the repository root to list them all.
+
+#### Development recipes
+
+- `just test <filter>`: runs cargo-nextest with the given filter, runs all tests if no filter is given
+- `just check`: runs Clippy with warnings promoted to errors
+- `just fmt`: runs rustfmt on all files
+- `just tcf <filter>`: runs `just test <filter>`, `just check`, and `just fmt`
+
+#### Measurement recipes
+
+- `just bench <args>`: runs criterion with the given arguments (see [criterion-rs command-line options](https://criterion-rs.github.io/book/user_guide/command_line_options.html))
+- `just profile`: runs the profiler then starts the pprof server pointing to the profile data
+- `just size`: builds the project in release mode and prints the size of the final binary
+
+#### Quick run recipes (all run in release mode unless given `--dev` as a flag)
+
+- `just data-update`: runs the update command
+- `just sim`: runs a simulation on the most recently modified data file
+- `just tui`: starts the TUI
