@@ -1,24 +1,32 @@
-use std::{fs::File, io::Write, time::Instant};
+use std::time::Instant;
 
 use pprof::protos::Message;
 
 use pickems::{datatypes::Iterations, reporting::NullReport, simulation::Simulation};
 
+const BATCHES: u64 = 500;
+const ITERATIONS: u64 = 1_000_000;
+
 pub fn run() {
+    let sim = Simulation::dummy(Iterations::new(ITERATIONS));
     let now = Instant::now();
-    let guard = pprof::ProfilerGuard::new(1000).unwrap();
-    _ = Simulation::dummy(Iterations::new(1_000_000)).bench_test(NullReport);
+
+    let report = {
+        let guard = pprof::ProfilerGuard::new(10000).unwrap();
+
+        for _ in 0..BATCHES {
+            sim.bench_test(NullReport);
+        }
+
+        guard.report().build().expect("could not build CPU profile")
+    };
 
     println!(
-        "Run time: {} seconds",
-        now.elapsed().as_millis() as f32 / 1000.0
+        "{:.0}M tournaments in {:.3}s",
+        BATCHES as f32 * ITERATIONS as f32 / 1_000_000.0,
+        now.elapsed().as_secs_f64()
     );
 
-    if let Ok(report) = guard.report().build() {
-        let mut content = Vec::new();
-        let profile = report.pprof().unwrap();
-        profile.encode(&mut content).unwrap();
-        let mut file = File::create("target/profile.pb").unwrap();
-        file.write_all(&content).unwrap();
-    }
+    let profile = report.pprof().unwrap().encode_to_vec();
+    std::fs::write("target/profile.pb", profile).unwrap();
 }
