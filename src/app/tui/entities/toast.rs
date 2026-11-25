@@ -103,12 +103,14 @@ impl Entity<Update, Task, State> for Toast {
     }
 
     fn on_tick(&mut self, cx: &mut Context) {
-        if let Some(current) = &self.current
-            && cx.tick().saturating_duration_since(current.shown_at) > self.timeout
-        {
+        if self.next_deadline().is_some_and(|at| at <= *cx.tick()) {
             self.current = self.queue.pop_front().map(|t| t.visible(cx.tick()));
             cx.redraw();
         }
+    }
+
+    fn next_deadline(&self) -> Option<Instant> {
+        self.current.as_ref().map(|t| t.shown_at + self.timeout)
     }
 
     fn render(&mut self, _cx: &Context, frame: &mut Frame, area: Rect) {

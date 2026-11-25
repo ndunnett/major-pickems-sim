@@ -1,13 +1,9 @@
 use std::{
     fmt::Debug,
-    io::Write,
+    io::{self, Write},
     ops::{Deref, DerefMut},
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-        mpsc,
-    },
-    time::Duration,
+    sync::mpsc,
+    time::Instant,
 };
 
 use ratatui::{
@@ -15,7 +11,7 @@ use ratatui::{
     backend::CrosstermBackend,
     crossterm::{
         cursor,
-        event::{Event, poll as poll_event, read as read_event},
+        event::{Event, read as read_event},
         execute, terminal,
     },
     layout::Rect,
@@ -23,14 +19,15 @@ use ratatui::{
 
 use super::Msg;
 
-const POLL_TIME: Duration = Duration::from_millis(100);
+pub enum Wake<U, T> {
+    Input(io::Result<Event>),
+    Message(Msg<U, T>),
+}
 
 pub struct Engine<U, T, W: Write> {
     terminal: TerminalBackend<W>,
-    event_receiver: mpsc::Receiver<Event>,
+    receiver: mpsc::Receiver<Wake<U, T>>,
     task_sender: mpsc::Sender<T>,
-    msg_receiver: mpsc::Receiver<Msg<U, T>>,
-    shutdown_signal: Arc<AtomicBool>,
 }
 
 impl<U, T, W> Engine<U, T, W>
@@ -44,53 +41,27 @@ where
         F: Fn(T) -> Option<Msg<U, T>> + Send + Sync + 'static,
     {
         let terminal = TerminalBackend::new(writer)?;
-        let shutdown_signal = Arc::new(AtomicBool::new(false));
-        let event_shutdown = shutdown_signal.clone();
-        let (event_sender, event_receiver) = mpsc::channel();
+        let (sender, receiver) = mpsc::channel();
+        let input_sender = sender.clone();
 
         std::thread::spawn(move || {
             loop {
-                let Ok(event_available) = poll_event(POLL_TIME) else {
-                    return;
-                };
+                let input = read_event();
+                let failed = input.is_err();
 
-                if event_available {
-                    let Ok(event) = read_event() else {
-                        return;
-                    };
-
-                    if event_sender.send(event).is_err() {
-                        return;
-                    }
-                }
-
-                if event_shutdown.load(Ordering::Relaxed) {
+                if input_sender.send(Wake::Input(input)).is_err() || failed {
                     return;
                 }
             }
         });
 
-        let task_shutdown = shutdown_signal.clone();
         let (task_sender, task_receiver) = mpsc::channel();
-        let (msg_sender, msg_receiver) = mpsc::channel();
 
         std::thread::spawn(move || {
-            loop {
-                match task_receiver.recv_timeout(POLL_TIME) {
-                    Ok(task) => {
-                        if let Some(msg) = task_handler(task)
-                            && msg_sender.send(msg).is_err()
-                        {
-                            return;
-                        }
-                    }
-                    Err(e) => match e {
-                        mpsc::RecvTimeoutError::Timeout => {}
-                        mpsc::RecvTimeoutError::Disconnected => return,
-                    },
-                }
-
-                if task_shutdown.load(Ordering::Relaxed) {
+            while let Ok(task) = task_receiver.recv() {
+                if let Some(msg) = task_handler(task)
+                    && sender.send(Wake::Message(msg)).is_err()
+                {
                     return;
                 }
             }
@@ -98,10 +69,8 @@ where
 
         Ok(Self {
             terminal,
-            event_receiver,
+            receiver,
             task_sender,
-            msg_receiver,
-            shutdown_signal,
         })
     }
 
@@ -123,26 +92,18 @@ where
         Ok(self.task_sender.send(t)?)
     }
 
-    pub fn receive_event(&self) -> anyhow::Result<Option<Event>> {
-        match self.event_receiver.try_recv() {
-            Ok(event) => Ok(Some(event)),
-            Err(mpsc::TryRecvError::Empty) => Ok(None),
-            Err(e) => Err(e)?,
-        }
-    }
+    pub fn wait(&self, deadline: Option<Instant>) -> anyhow::Result<Option<Wake<U, T>>> {
+        let Some(deadline) = deadline else {
+            return Ok(Some(self.receiver.recv()?));
+        };
 
-    pub fn receive_msg(&self) -> anyhow::Result<Option<Msg<U, T>>> {
-        match self.msg_receiver.try_recv() {
+        let timeout = deadline.saturating_duration_since(Instant::now());
+
+        match self.receiver.recv_timeout(timeout) {
             Ok(msg) => Ok(Some(msg)),
-            Err(mpsc::TryRecvError::Empty) => Ok(None),
+            Err(mpsc::RecvTimeoutError::Timeout) => Ok(None),
             Err(e) => Err(e)?,
         }
-    }
-}
-
-impl<U, T, W: Write> Drop for Engine<U, T, W> {
-    fn drop(&mut self) {
-        self.shutdown_signal.store(true, Ordering::Relaxed);
     }
 }
 
@@ -150,10 +111,8 @@ impl<U: Debug, T: Debug, W: Write + Debug> Debug for Engine<U, T, W> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Engine")
             .field("terminal", &self.terminal)
-            .field("event_receiver", &self.event_receiver)
+            .field("receiver", &self.receiver)
             .field("task_sender", &self.task_sender)
-            .field("msg_receiver", &self.msg_receiver)
-            .field("shutdown_signal", &self.shutdown_signal)
             .finish()
     }
 }

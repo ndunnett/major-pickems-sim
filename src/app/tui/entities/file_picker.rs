@@ -21,7 +21,7 @@ pub struct FilePicker {
     scratch: Vec<PathBuf>,
     display_path: PathBuf,
     error: Option<String>,
-    last_attempt: Option<Instant>,
+    next_refresh: Instant,
 }
 
 impl FilePicker {
@@ -35,7 +35,7 @@ impl FilePicker {
             scratch: Vec::new(),
             display_path: PathBuf::new(),
             error: None,
-            last_attempt: None,
+            next_refresh: Instant::now(),
         }
     }
 
@@ -57,17 +57,19 @@ impl FilePicker {
     }
 
     fn refresh(&mut self, path: &Path, now: Instant) -> bool {
-        self.last_attempt = Some(now);
         let display_path = path.canonicalize().unwrap_or_else(|_| path.to_owned());
         let path_changed = display_path != self.display_path;
         self.display_path = display_path;
 
         match Self::list(&self.display_path, &mut self.scratch) {
             Ok(()) => {
+                self.next_refresh = now + Self::REFRESH_INTERVAL;
                 let recovered = self.error.take().is_some();
+
                 if self.scratch == self.items {
                     return path_changed || recovered;
                 }
+
                 let old_index = self.state.selected().unwrap_or_default();
                 let selection = self
                     .items
@@ -84,6 +86,7 @@ impl FilePicker {
                 true
             }
             Err(error) => {
+                self.next_refresh = now + Self::RETRY_DELAY;
                 let message = format!("Failed to list {}: {error}", self.display_path.display());
                 let changed = self.error.as_ref() != Some(&message);
                 self.items.clear();
@@ -92,18 +95,6 @@ impl FilePicker {
                 path_changed || changed
             }
         }
-    }
-
-    fn refresh_if_due(&mut self, path: &Path, now: Instant) -> bool {
-        let interval = if self.error.is_some() {
-            Self::RETRY_DELAY
-        } else {
-            Self::REFRESH_INTERVAL
-        };
-
-        self.last_attempt
-            .is_none_or(|last| now.duration_since(last) >= interval)
-            && self.refresh(path, now)
     }
 }
 
@@ -133,9 +124,13 @@ impl Entity<Update, Task, State> for FilePicker {
     }
 
     fn on_tick(&mut self, cx: &mut Context) {
-        if self.refresh_if_due(&cx.path, *cx.tick()) {
+        if *cx.tick() >= self.next_refresh && self.refresh(&cx.path, *cx.tick()) {
             cx.redraw();
         }
+    }
+
+    fn next_deadline(&self) -> Option<Instant> {
+        Some(self.next_refresh)
     }
 
     fn update(&mut self, cx: &mut Context, msg: Update) {

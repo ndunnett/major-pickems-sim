@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use ratatui::{
     Frame,
     crossterm::event::{Event, KeyCode, KeyModifiers},
@@ -46,6 +48,10 @@ impl Entity<Update, Task, State> for OpenScreen {
 
     fn on_tick(&mut self, cx: &mut Context) {
         self.file_picker.on_tick(cx);
+    }
+
+    fn next_deadline(&self) -> Option<Instant> {
+        self.file_picker.next_deadline()
     }
 
     fn update(&mut self, cx: &mut Context, msg: Update) {

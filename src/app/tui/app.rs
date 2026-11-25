@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, time::Instant};
 
 use ratatui::{
     Frame,
@@ -50,8 +50,6 @@ impl App {
 }
 
 impl Root<Update, Task, State> for App {
-    const MAX_FPS: u64 = 120;
-
     fn handle_task(task: Task) -> Option<Msg> {
         match task {
             Task::UpdateData { path } => Some(Msg::Update(update_data_files(path))),
@@ -139,6 +137,15 @@ impl Entity<Update, Task, State> for App {
             Screen::Open => self.open.on_tick(cx),
             Screen::Report => self.report.on_tick(cx),
         }
+    }
+
+    fn next_deadline(&self) -> Option<Instant> {
+        let screen = match self.active {
+            Screen::Open => self.open.next_deadline(),
+            Screen::Report => self.report.next_deadline(),
+        };
+
+        screen.into_iter().chain(self.toast.next_deadline()).min()
     }
 
     fn update(&mut self, cx: &mut Context, msg: Update) {

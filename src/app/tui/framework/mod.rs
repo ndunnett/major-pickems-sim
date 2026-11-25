@@ -7,7 +7,7 @@ mod message;
 mod root;
 
 pub use context::Context;
-pub use engine::Engine;
+pub use engine::{Engine, Wake};
 pub use entity::Entity;
 pub use message::Msg;
 pub use root::Root;

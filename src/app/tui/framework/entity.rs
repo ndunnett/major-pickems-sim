@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use ratatui::{
     Frame,
     crossterm::event::{Event, KeyCode, KeyModifiers, MouseEvent},
@@ -87,6 +89,12 @@ pub trait Entity<U, T, S> {
     #[allow(unused_variables)]
     #[inline]
     fn on_tick(&mut self, cx: &mut Context<U, T, S>) {}
+
+    #[allow(unused_variables)]
+    #[inline]
+    fn next_deadline(&self) -> Option<Instant> {
+        None
+    }
 
     #[allow(unused_variables)]
     #[inline]
