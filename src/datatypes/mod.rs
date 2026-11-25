@@ -1,5 +1,6 @@
 mod iterations;
 mod name;
+mod pool;
 mod rating;
 mod seed;
 mod set;
@@ -8,6 +9,7 @@ mod teams;
 
 pub use iterations::Iterations;
 pub use name::Name;
+pub use pool::Pool;
 pub use rating::Rating;
 pub use seed::{Index, Seed};
 pub use set::Set;

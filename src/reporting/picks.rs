@@ -1,17 +1,10 @@
 use std::{iter::Sum, ops::Add};
 
 use crate::{
-    datatypes::{Index, Set},
+    datatypes::{Index, Pool, Set},
     reporting::{AssessReport, BasicReport, Report},
     simulation::{Simulation, SwissSystem},
 };
-
-#[repr(usize)]
-enum Pool {
-    ThreeZero,
-    Advance,
-    ZeroThree,
-}
 
 #[derive(Debug, Clone, Copy)]
 struct Probabilities {
@@ -79,7 +72,7 @@ impl Probabilities {
 #[derive(Debug, Clone, Default)]
 pub struct PicksReport {
     pub basic: BasicReport,
-    outcomes: Vec<[Set; 3]>,
+    pub outcomes: Vec<[Set; 3]>,
 }
 
 impl PicksReport {

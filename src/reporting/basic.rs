@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::{
-    datatypes::{Index, Set},
+    datatypes::{Index, Pool, Set},
     reporting::Report,
     simulation::{Simulation, SwissSystem},
 };
@@ -38,41 +38,40 @@ pub struct BasicReport {
 impl BasicReport {
     /// Count outcomes and return the 3-0, advancing and 0-3 team sets for this tournament.
     pub(super) fn record(&mut self, ss: &SwissSystem) -> [Set; 3] {
-        let mut sets = [Set::new(); 3];
+        let mut masks = [Set::new(); 3];
 
         for (index, stats) in Index::iter_all().zip(&mut self.stats) {
-            let (pool, count) = match (ss.wins(index), ss.losses(index)) {
-                (3, 0) => (0, &mut stats.three_zero),
-                (3, _) => (1, &mut stats.advancing),
-                (0, 3) => (2, &mut stats.zero_three),
-                _ => continue,
-            };
+            let (wins, losses) = (ss.wins(index), ss.losses(index));
+            let three_zero = wins == 3 && losses == 0;
+            let advancing = wins == 3 && losses != 0;
+            let zero_three = wins == 0 && losses == 3;
+            stats.three_zero += u64::from(three_zero);
+            stats.advancing += u64::from(advancing);
+            stats.zero_three += u64::from(zero_three);
 
-            *count += 1;
-            sets[pool].insert(index);
+            for (mask, outcome) in masks.iter_mut().zip([three_zero, advancing, zero_three]) {
+                if outcome {
+                    mask.insert(index);
+                }
+            }
         }
 
-        sets
+        masks
     }
 
     /// Convert raw counts into probabilities for each terminal outcome.
     pub(super) fn calculate_probabilities(&self, sim: &Simulation) -> [[f32; 16]; 3] {
         let n = sim.iterations.to_f32();
-        let [mut three_zero, mut advancing, mut zero_three] = [[0.0; 16]; 3];
+        let mut probs = [[0.0; 16]; 3];
 
         for seed in 0..16 {
-            three_zero[seed] += self.stats[seed].three_zero as f32;
-            advancing[seed] += self.stats[seed].advancing as f32;
-            zero_three[seed] += self.stats[seed].zero_three as f32;
+            let stats = self.stats[seed];
+            probs[Pool::ThreeZero as usize][seed] = stats.three_zero as f32 / n;
+            probs[Pool::Advance as usize][seed] = stats.advancing as f32 / n;
+            probs[Pool::ZeroThree as usize][seed] = stats.zero_three as f32 / n;
         }
 
-        for seed in 0..16 {
-            three_zero[seed] /= n;
-            advancing[seed] /= n;
-            zero_three[seed] /= n;
-        }
-
-        [three_zero, advancing, zero_three]
+        probs
     }
 }
 
