@@ -67,6 +67,9 @@ opt-level = 3
 panic = "abort"
 strip = true
 
+[profile.release.package."*"]
+opt-level = "s"
+
 [profile.pprof]
 inherits = "release"
 strip = false
