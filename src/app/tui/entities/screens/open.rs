@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use ratatui::{
     Frame,
     crossterm::event::{Event, KeyCode, KeyModifiers},
@@ -47,12 +45,7 @@ impl Entity<Update, Task, State> for OpenScreen {
     }
 
     fn on_tick(&mut self, cx: &mut Context) {
-        if cx
-            .last_file_list_load
-            .is_none_or(|time| cx.tick().saturating_duration_since(time) > Duration::from_secs(1))
-        {
-            cx.update(Update::LoadFileList(cx.path.clone()));
-        }
+        self.file_picker.on_tick(cx);
     }
 
     fn update(&mut self, cx: &mut Context, msg: Update) {

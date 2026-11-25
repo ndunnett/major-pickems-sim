@@ -1,4 +1,4 @@
-use std::{io::stdout, path::PathBuf, time::Instant};
+use std::{io::stdout, path::PathBuf};
 
 use ratatui::backend::CrosstermBackend;
 
@@ -26,7 +26,6 @@ pub struct State {
     pub report_type: ReportType,
     pub report_focus: Id,
     pub modal_open: bool,
-    pub last_file_list_load: Option<Instant>,
     pub report_request_id: u64,
     pub auto_picks_request_id: u64,
     pub manual_picks_request_id: u64,
@@ -129,7 +128,7 @@ impl AsRef<str> for PicksMode {
 pub enum Update {
     ChangeScreen(Screen),
     ChangePath(PathBuf),
-    LoadFileList(PathBuf),
+    LoadFileList,
     LoadDataFile(PathBuf),
     NewInputData,
     DataSaved(PathBuf),

@@ -1,11 +1,15 @@
-use std::path::{Path, PathBuf};
+use std::{
+    fs, io,
+    path::{Path, PathBuf},
+    time::{Duration, Instant},
+};
 
 use ratatui::{
     Frame,
     crossterm::event::{KeyCode, KeyModifiers},
     layout::Rect,
     style::Style,
-    widgets::{Block, BorderType, List, ListState},
+    widgets::{Block, BorderType, List, ListState, Paragraph, Wrap},
 };
 
 use crate::app::tui::{Context, Msg, State, Task, Update, binds, framework::Entity};
@@ -14,39 +18,92 @@ use crate::app::tui::{Context, Msg, State, Task, Update, binds, framework::Entit
 pub struct FilePicker {
     state: ListState,
     items: Vec<PathBuf>,
+    scratch: Vec<PathBuf>,
+    display_path: PathBuf,
+    error: Option<String>,
+    last_attempt: Option<Instant>,
 }
 
 impl FilePicker {
+    const REFRESH_INTERVAL: Duration = Duration::from_secs(1);
+    const RETRY_DELAY: Duration = Duration::from_secs(5);
+
     pub fn new() -> Self {
         Self {
             state: ListState::default(),
             items: Vec::with_capacity(8),
+            scratch: Vec::new(),
+            display_path: PathBuf::new(),
+            error: None,
+            last_attempt: None,
         }
     }
 
-    fn file_list_iter(path: &Path) -> anyhow::Result<impl Iterator<Item = PathBuf>> {
-        let path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    fn list(path: &Path, items: &mut Vec<PathBuf>) -> io::Result<()> {
+        items.clear();
 
-        if !path.exists() {
-            anyhow::bail!("path doesn't exist: {}", path.to_string_lossy());
+        for entry in fs::read_dir(path)? {
+            let file = entry?.path();
+            if file
+                .extension()
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("toml"))
+            {
+                items.push(file);
+            }
         }
 
-        if !path.is_dir() {
-            anyhow::bail!(
-                "path exists and is not a directory: {}",
-                path.to_string_lossy()
-            );
-        }
+        items.sort_unstable_by(|a, b| b.cmp(a));
+        Ok(())
+    }
 
-        Ok(std::fs::read_dir(path)?
-            .filter_map(Result::ok)
-            .filter_map(|entry| {
-                entry
-                    .path()
-                    .extension()
-                    .is_some_and(|ext| ext.eq_ignore_ascii_case("toml"))
-                    .then(|| entry.path())
-            }))
+    fn refresh(&mut self, path: &Path, now: Instant) -> bool {
+        self.last_attempt = Some(now);
+        let display_path = path.canonicalize().unwrap_or_else(|_| path.to_owned());
+        let path_changed = display_path != self.display_path;
+        self.display_path = display_path;
+
+        match Self::list(&self.display_path, &mut self.scratch) {
+            Ok(()) => {
+                let recovered = self.error.take().is_some();
+                if self.scratch == self.items {
+                    return path_changed || recovered;
+                }
+                let old_index = self.state.selected().unwrap_or_default();
+                let selection = self
+                    .items
+                    .get(old_index)
+                    .and_then(|selected| self.scratch.iter().position(|item| item == selected))
+                    .or_else(|| {
+                        self.scratch
+                            .len()
+                            .checked_sub(1)
+                            .map(|last| old_index.min(last))
+                    });
+                self.state.select(selection);
+                std::mem::swap(&mut self.items, &mut self.scratch);
+                true
+            }
+            Err(error) => {
+                let message = format!("Failed to list {}: {error}", self.display_path.display());
+                let changed = self.error.as_ref() != Some(&message);
+                self.items.clear();
+                self.state.select(None);
+                self.error = Some(message);
+                path_changed || changed
+            }
+        }
+    }
+
+    fn refresh_if_due(&mut self, path: &Path, now: Instant) -> bool {
+        let interval = if self.error.is_some() {
+            Self::RETRY_DELAY
+        } else {
+            Self::REFRESH_INTERVAL
+        };
+
+        self.last_attempt
+            .is_none_or(|last| now.duration_since(last) >= interval)
+            && self.refresh(path, now)
     }
 }
 
@@ -75,50 +132,44 @@ impl Entity<Update, Task, State> for FilePicker {
         }
     }
 
-    fn update(&mut self, cx: &mut Context, msg: Update) {
-        if let Update::LoadFileList(path) = msg {
-            match Self::file_list_iter(&path) {
-                Ok(iter) => {
-                    self.items.clear();
-                    self.items.extend(iter);
-                    self.items.sort_by(|a, b| b.cmp(a));
-
-                    self.state.select(
-                        self.items
-                            .len()
-                            .checked_sub(1)
-                            .map(|last| self.state.selected().unwrap_or_default().min(last)),
-                    );
-
-                    cx.last_file_list_load = Some(*cx.tick());
-                }
-                Err(e) => {
-                    cx.update(Update::ErrorToast(format!(
-                        "Failed to list {}: {e}",
-                        path.display()
-                    )));
-                }
-            }
+    fn on_tick(&mut self, cx: &mut Context) {
+        if self.refresh_if_due(&cx.path, *cx.tick()) {
+            cx.redraw();
         }
     }
 
-    fn render(&mut self, cx: &Context, frame: &mut Frame, area: Rect) {
+    fn update(&mut self, cx: &mut Context, msg: Update) {
+        if matches!(msg, Update::LoadFileList) {
+            self.refresh(&cx.path, *cx.tick());
+        }
+    }
+
+    fn render(&mut self, _cx: &Context, frame: &mut Frame, area: Rect) {
+        let block = Block::bordered()
+            .border_type(BorderType::Rounded)
+            .title_style(Style::new().bold())
+            .title(self.display_path.to_string_lossy());
+
+        if let Some(error) = &self.error {
+            frame.render_widget(
+                Paragraph::new(error.as_str())
+                    .style(Style::new().red())
+                    .wrap(Wrap::default())
+                    .block(block),
+                area,
+            );
+            return;
+        }
+
         let items = self
             .items
             .iter()
             .filter_map(|path| path.file_name())
             .map(|path| path.to_string_lossy());
 
-        let path = cx.path.canonicalize().unwrap_or_else(|_| cx.path.clone());
-
         frame.render_stateful_widget(
             List::new(items)
-                .block(
-                    Block::bordered()
-                        .border_type(BorderType::Rounded)
-                        .title_style(Style::new().bold())
-                        .title(path.to_string_lossy()),
-                )
+                .block(block)
                 .highlight_style(Style::new().reversed())
                 .highlight_symbol(">")
                 .repeat_highlight_symbol(true),

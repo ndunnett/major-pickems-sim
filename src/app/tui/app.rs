@@ -122,7 +122,7 @@ impl Entity<Update, Task, State> for App {
     }
 
     fn on_load(&mut self, cx: &mut Context) {
-        cx.update(Update::LoadFileList(cx.path.clone()));
+        cx.update(Update::LoadFileList);
         cx.task(Task::UpdateData {
             path: cx.path.clone(),
         });
@@ -143,10 +143,15 @@ impl Entity<Update, Task, State> for App {
 
     fn update(&mut self, cx: &mut Context, msg: Update) {
         match msg {
-            Update::ChangeScreen(screen) => self.active = screen,
+            Update::ChangeScreen(screen) => {
+                self.active = screen;
+                if matches!(screen, Screen::Open) {
+                    cx.update(Update::LoadFileList);
+                }
+            }
             Update::ChangePath(path) => {
                 cx.path = path;
-                cx.update(Update::LoadFileList(cx.path.clone()));
+                cx.update(Update::LoadFileList);
                 cx.update(Update::ChangeScreen(Screen::Open));
             }
             Update::LoadDataFile(path) => match Map::parse_toml(path.clone()) {
@@ -163,7 +168,7 @@ impl Entity<Update, Task, State> for App {
             }
             Update::DataSaved(path) => {
                 cx.opened = Some(path);
-                cx.update(Update::LoadFileList(cx.path.clone()));
+                cx.update(Update::LoadFileList);
             }
             Update::DataFilesUpdated {
                 path,
@@ -171,8 +176,8 @@ impl Entity<Update, Task, State> for App {
                 kept_local,
                 errors,
             } => {
-                if !files.is_empty() {
-                    cx.update(Update::LoadFileList(path));
+                if path == cx.path && !files.is_empty() {
+                    cx.update(Update::LoadFileList);
                 }
 
                 if let Some(toast) = update_summary(&files, &kept_local, &errors) {
@@ -215,7 +220,7 @@ impl Entity<Update, Task, State> for App {
                 self.report.update(cx, Update::RefreshReport);
                 refresh_report_only(cx);
             }
-            Update::LoadFileList(..) => self.open.update(cx, msg),
+            Update::LoadFileList => self.open.update(cx, msg),
             Update::CloseModal => {
                 self.input_modal = None;
                 cx.modal_open = false;
