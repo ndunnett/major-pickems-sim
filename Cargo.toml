@@ -17,6 +17,9 @@ cast_precision_loss = "allow"
 cast_possible_truncation = "allow"
 cast_lossless = "allow"
 
+[lints.cargo]
+unused_dependencies = "allow"
+
 [dependencies]
 anyhow = "1.0"
 argh = { version = "0.1", default-features = false, features = ["help"] }
