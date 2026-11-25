@@ -39,17 +39,6 @@ where
                 cx.queue_message(msg);
             }
 
-            while let Some(event) = engine.receive_event()? {
-                if let Event::Resize(w, h) = event {
-                    engine.resize(Rect::new(0, 0, w, h))?;
-                    cx.should_redraw = true;
-                }
-
-                if let Some(msg) = self.dispatch_event(&mut cx, &event) {
-                    cx.queue_message(msg);
-                }
-            }
-
             while let Some(msg) = cx.pop_message() {
                 match msg {
                     Msg::Quit => cx.should_exit = true,
@@ -61,6 +50,17 @@ where
                     Msg::SpawnTask(task) => {
                         engine.send_task(task)?;
                     }
+                }
+            }
+
+            if let Some(event) = engine.receive_event()? {
+                if let Event::Resize(w, h) = event {
+                    engine.resize(Rect::new(0, 0, w, h))?;
+                    cx.should_redraw = true;
+                }
+
+                if let Some(msg) = self.dispatch_event(&mut cx, &event) {
+                    cx.queue_message(msg);
                 }
             }
         }
