@@ -148,6 +148,7 @@ pub enum Update {
     DataFilesUpdated {
         path: PathBuf,
         files: Vec<String>,
+        kept_local: Vec<String>,
         errors: Vec<String>,
     },
     ErrorToast(String),

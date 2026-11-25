@@ -35,7 +35,9 @@ pub fn run() -> anyhow::Result<()> {
             let formatted_report = match simulate.report {
                 ReportSelection::All => run_and_format(teams, s, n, &ReportAll::default()),
                 ReportSelection::Basic => run_and_format(teams, s, n, &BasicReport::default()),
-                ReportSelection::Strength => run_and_format(teams, s, n, &StrengthReport::default()),
+                ReportSelection::Strength => {
+                    run_and_format(teams, s, n, &StrengthReport::default())
+                }
                 ReportSelection::Picks => run_and_format(teams, s, n, &PicksReport::default()),
                 ReportSelection::Assess => {
                     let Some(tz) = simulate.three_zero else {
@@ -75,14 +77,19 @@ pub fn run() -> anyhow::Result<()> {
             Ok(())
         }
         Command::Update(update) => {
-            let mut updated = false;
+            let mut up_to_date = true;
 
-            for name in update::data_updater(&update.path)? {
-                println!("Downloaded {}", name?);
-                updated = true;
+            for result in update::data_updater(&update.path)? {
+                match result? {
+                    update::FileUpdate::Downloaded(name) => println!("Downloaded {name}"),
+                    update::FileUpdate::KeptLocal(name) => println!(
+                        "Local file {name} does not match the upstream repository, file not updated."
+                    ),
+                }
+                up_to_date = false;
             }
 
-            if !updated {
+            if up_to_date {
                 println!("No updates available.");
             }
 

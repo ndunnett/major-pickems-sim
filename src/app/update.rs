@@ -1,7 +1,7 @@
 use std::{
     ffi::OsString,
     fs::{File, OpenOptions},
-    io::Write as _,
+    io::{ErrorKind, Write as _},
     path::{Path, PathBuf},
 };
 
@@ -56,11 +56,11 @@ impl TempFile {
         Ok(())
     }
 
-    /// Closes and renames the temporary file to `destination`.
-    fn persist(mut self, destination: &Path) -> anyhow::Result<()> {
+    /// Publishes the complete file only if `destination` is still absent.
+    fn persist_noclobber(mut self, destination: &Path) -> std::io::Result<()> {
         drop(self.file.take());
-        std::fs::rename(&self.path, destination)?;
-        Ok(())
+        // Drop removes the temporary name after the link is created.
+        std::fs::hard_link(&self.path, destination)
     }
 }
 
@@ -145,17 +145,15 @@ struct RemoteRecord {
     sha: Sha1Hash,
 }
 
-/// Checks whether a local file exists and matches the expected Git blob hash.
-fn check_local_file(path: &Path, expected_sha: &Sha1Hash) -> anyhow::Result<bool> {
-    match Sha1Hash::digest_file(path) {
-        Ok(actual_sha) => Ok(expected_sha == &actual_sha),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(false),
-        Err(e) => Err(e.into()),
-    }
+pub enum FileUpdate {
+    Downloaded(String),
+    KeptLocal(String),
 }
 
-/// Builds a lazy iterator that downloads missing or changed data files.
-pub fn data_updater(path: &Path) -> anyhow::Result<impl Iterator<Item = anyhow::Result<String>>> {
+/// Downloads missing data files and reports conflicts without overwriting them.
+pub fn data_updater(
+    path: &Path,
+) -> anyhow::Result<impl Iterator<Item = anyhow::Result<FileUpdate>>> {
     if !path.exists() {
         std::fs::create_dir_all(path)?;
     }
@@ -168,35 +166,48 @@ pub fn data_updater(path: &Path) -> anyhow::Result<impl Iterator<Item = anyhow::
         .json::<Vec<RemoteRecord>>()?
         .into_iter()
         .filter_map(move |remote| {
-            let file_path = path.join(&remote.name);
-
-            match check_local_file(&file_path, &remote.sha) {
-                Ok(true) => None,
-                Ok(false) => Some(
-                    download_file(&file_path, &remote.download_url, &remote.sha)
-                        .with_context(|| format!("failed to download '{}'", remote.name))
-                        .map(|()| remote.name),
-                ),
-                Err(error) => Some(Err(error)),
-            }
+            update_file(path, &remote.name, &remote.sha, || {
+                Ok(get(&remote.download_url)?.into_bytes())
+            })
+            .with_context(|| format!("failed to update '{}'", remote.name))
+            .transpose()
         }))
 }
 
-/// Downloads, verifies, and atomically replaces one local data file.
-fn download_file(path: &Path, url: &str, expected_sha: &Sha1Hash) -> anyhow::Result<()> {
-    let response = get(url)?;
+fn update_file(
+    directory: &Path,
+    name: &str,
+    expected_sha: &Sha1Hash,
+    download: impl FnOnce() -> anyhow::Result<Vec<u8>>,
+) -> anyhow::Result<Option<FileUpdate>> {
+    let path = directory.join(name);
+    match path.symlink_metadata() {
+        Ok(meta) => {
+            if meta.is_file() && Sha1Hash::digest_file(&path)? == *expected_sha {
+                return Ok(None);
+            }
+            return Ok(Some(FileUpdate::KeptLocal(name.to_owned())));
+        }
+        Err(e) if e.kind() == ErrorKind::NotFound => {}
+        Err(e) => return Err(e.into()),
+    }
 
-    // Validate the complete response before creating or replacing a local file.
+    let bytes = download()?;
     anyhow::ensure!(
-        &Sha1Hash::digest_bytes(response.as_bytes()) == expected_sha,
+        &Sha1Hash::digest_bytes(&bytes) == expected_sha,
         "downloaded content did not match the expected SHA"
     );
 
-    // Write to a temporary file first to avoid losing local data during errors.
-    let mut file = TempFile::new(path)?;
-    file.write_and_sync(response.as_bytes())?;
-    file.persist(path)?;
-    Ok(())
+    let mut file = TempFile::new(&path)?;
+    file.write_and_sync(&bytes)?;
+    // A user may have saved to this name while the download was in flight.
+    match file.persist_noclobber(&path) {
+        Ok(()) => Ok(Some(FileUpdate::Downloaded(name.to_owned()))),
+        Err(e) if e.kind() == ErrorKind::AlreadyExists => {
+            Ok(Some(FileUpdate::KeptLocal(name.to_owned())))
+        }
+        Err(e) => Err(e.into()),
+    }
 }
 
 /// Sends a GET request with the application's user agent and validates its status.
@@ -215,4 +226,65 @@ fn get(url: &str) -> anyhow::Result<minreq::Response> {
     }
 
     Ok(response)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    struct TestDir(PathBuf);
+
+    impl TestDir {
+        fn new() -> std::io::Result<Self> {
+            let path = std::env::temp_dir().join(format!("pickems-{:x}", rand::random::<u64>()));
+            fs::create_dir(&path)?;
+            Ok(Self(path))
+        }
+    }
+
+    impl Drop for TestDir {
+        fn drop(&mut self) {
+            _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn update_keeps_edits_and_installs_missing_files() -> anyhow::Result<()> {
+        let dir = TestDir::new()?;
+        let official = b"official ratings";
+        let sha = Sha1Hash::digest_bytes(official);
+        fs::write(dir.0.join("edited.toml"), b"local ratings")?;
+
+        let kept = update_file(&dir.0, "edited.toml", &sha, || {
+            panic!("unexpected download")
+        })?;
+        assert!(matches!(kept, Some(FileUpdate::KeptLocal(name)) if name == "edited.toml"));
+        assert_eq!(fs::read(dir.0.join("edited.toml"))?, b"local ratings");
+
+        let added = update_file(&dir.0, "missing.toml", &sha, || Ok(official.to_vec()))?;
+        assert!(matches!(added, Some(FileUpdate::Downloaded(name)) if name == "missing.toml"));
+        assert_eq!(fs::read(dir.0.join("missing.toml"))?, official);
+        assert!(
+            update_file(&dir.0, "missing.toml", &sha, || panic!(
+                "unexpected download"
+            ))?
+            .is_none()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn save_during_download_is_preserved() -> anyhow::Result<()> {
+        let dir = TestDir::new()?;
+        let path = dir.0.join("ratings.toml");
+        let sha = Sha1Hash::digest_bytes(b"official");
+        let result = update_file(&dir.0, "ratings.toml", &sha, || {
+            fs::write(&path, b"user edits")?;
+            Ok(b"official".to_vec())
+        })?;
+        assert!(matches!(result, Some(FileUpdate::KeptLocal(_))));
+        assert_eq!(fs::read(path)?, b"user edits");
+        Ok(())
+    }
 }

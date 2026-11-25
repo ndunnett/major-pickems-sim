@@ -18,7 +18,7 @@ use crate::app::{
         entities::{InputModal, OpenScreen, ReportScreen, Toast, ToastKind, ToastMessage},
         framework::{Entity, Root},
     },
-    update::data_updater,
+    update::{FileUpdate, data_updater},
 };
 
 type Context = crate::app::tui::framework::Context<Update, Task, State>;
@@ -168,27 +168,15 @@ impl Entity<Update, Task, State> for App {
             Update::DataFilesUpdated {
                 path,
                 files,
+                kept_local,
                 errors,
             } => {
                 if !files.is_empty() {
                     cx.update(Update::LoadFileList(path));
                 }
 
-                match (files.is_empty(), errors.is_empty()) {
-                    (false, true) => cx.update(Update::InfoToast(format!(
-                        "Downloaded data files:\n- {}",
-                        files.join("\n- ")
-                    ))),
-                    (true, false) => cx.update(Update::ErrorToast(format!(
-                        "Failed data file updates:\n- {}",
-                        errors.join("\n- ")
-                    ))),
-                    (false, false) => cx.update(Update::ErrorToast(format!(
-                        "Downloaded data files:\n- {}\n\nFailed data file updates:\n- {}",
-                        files.join("\n- "),
-                        errors.join("\n- ")
-                    ))),
-                    (true, true) => {}
+                if let Some(toast) = update_summary(&files, &kept_local, &errors) {
+                    cx.update(toast);
                 }
             }
             Update::SetPick { index, name } => set_pick(cx, index, name),
@@ -369,9 +357,34 @@ fn refresh_report_only(cx: &mut Context) {
     }
 }
 
-/// Runs the data updater and collects both successful and failed file results.
+fn update_summary(files: &[String], kept_local: &[String], errors: &[String]) -> Option<Update> {
+    let mut sections = Vec::new();
+
+    if !kept_local.is_empty() {
+        sections.push(format!(
+            "Local file mismatch, files not updated:\n- {}",
+            kept_local.join("\n- ")
+        ));
+    }
+
+    if !files.is_empty() {
+        sections.push(format!("Downloaded data files:\n- {}", files.join("\n- ")));
+    }
+
+    if !errors.is_empty() {
+        sections.push(format!(
+            "Failed data file updates:\n- {}",
+            errors.join("\n- ")
+        ));
+        return Some(Update::ErrorToast(sections.join("\n\n")));
+    }
+
+    (!sections.is_empty()).then(|| Update::InfoToast(sections.join("\n\n")))
+}
+
 fn update_data_files(path: PathBuf) -> Update {
     let mut files = Vec::new();
+    let mut kept_local = Vec::new();
     let mut errors = Vec::new();
 
     let iter = match data_updater(&path) {
@@ -383,7 +396,8 @@ fn update_data_files(path: PathBuf) -> Update {
     // be updated and the UI can report the complete outcome in one message.
     for result in iter {
         match result {
-            Ok(file) => files.push(file),
+            Ok(FileUpdate::Downloaded(name)) => files.push(name),
+            Ok(FileUpdate::KeptLocal(name)) => kept_local.push(name),
             Err(e) => errors.push(e.to_string()),
         }
     }
@@ -391,6 +405,7 @@ fn update_data_files(path: PathBuf) -> Update {
     Update::DataFilesUpdated {
         path,
         files,
+        kept_local,
         errors,
     }
 }
