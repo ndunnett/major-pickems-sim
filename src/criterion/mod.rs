@@ -4,6 +4,7 @@ use criterion::{Criterion, criterion_group, criterion_main};
 
 mod full_simulation;
 mod probabilities;
+mod reports;
 mod round_simulation;
 mod seeding;
 mod sorting;
@@ -26,6 +27,7 @@ criterion_group!(
         seeding::bench,
         round_simulation::bench,
         full_simulation::bench,
+        reports::bench,
 );
 
 criterion_main!(benches);
