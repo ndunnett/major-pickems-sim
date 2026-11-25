@@ -167,7 +167,7 @@ Clone the repository and use the [devcontainer](.devcontainer/), it has everythi
 - [just](https://just.systems/man/en/installation.html) >=1.56
 - [Python](https://www.python.org/downloads/) >=3.6
 - [cargo-nextest](https://nexte.st/) >=0.9.58
-- [pprof](https://github.com/google/pprof) and [Graphviz](https://graphviz.org/download/) (for profiling)
+- [Samply](https://github.com/mstange/samply) (for profiling)
 
 ### Tasks
 
@@ -183,7 +183,7 @@ Project tasks are set up as [just recipes](https://just.systems/man/en/introduct
 #### Measurement recipes
 
 - `just bench <args>`: runs criterion with the given arguments (see [criterion-rs command-line options](https://criterion-rs.github.io/book/user_guide/command_line_options.html))
-- `just profile`: runs the profiler then starts the pprof server pointing to the profile data
+- `just profile`: runs the profiler on a simulation benchmark with Samply and serves the profile viewer
 - `just size`: builds the project in release mode and prints the size of the final binary
 
 #### Quick run recipes (all run in release mode unless given `--dev` as a flag)

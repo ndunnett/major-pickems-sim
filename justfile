@@ -31,16 +31,12 @@ alias f := fmt
 [group("development")]
 @tcf *filter: (test filter) check fmt
 
-# Generate profile data for pprof
-[env("RUSTFLAGS", "-C link-arg=-Wl,--no-rosegment -C force-frame-pointers=yes -C symbol-mangling-version=v0 -C llvm-args=--inline-threshold=0")]
-[private]
-@_generate-profile-data:
-    cargo run --profile=pprof --features=pprof
-
-# Run pprof to profile the simulation hot path
+# Run Samply to profile the simulation hot path
 [group("measurement")]
-@profile: _generate-profile-data
-    pprof -http=localhost:8080 target/profile.pb
+@profile:
+    cargo bench --bench criterion --profile profiling \
+        --config "target.'cfg(all())'.runner = 'samply record --no-open --port 3000 -o target/profile.json.gz'" \
+        -- --exact full_simulation/single_thread --profile-time 10
 alias p := profile
 
 # Run criterion to benchmark the simulation hot path

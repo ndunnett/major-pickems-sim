@@ -10,24 +10,21 @@ pub struct Set {
 
 impl Set {
     /// Construct a new empty set.
-    #[cfg_attr(feature = "pprof", inline(never))]
-    #[cfg_attr(not(feature = "pprof"), inline)]
+    #[inline]
     #[must_use]
     pub const fn new() -> Self {
         Self { data: 0 }
     }
 
     /// Construct a set containing all 16 valid indices.
-    #[cfg_attr(feature = "pprof", inline(never))]
-    #[cfg_attr(not(feature = "pprof"), inline)]
+    #[inline]
     #[must_use]
     pub const fn full() -> Self {
         Self { data: u16::MAX }
     }
 
     /// Insert an index into the set, returning whether the set changed.
-    #[cfg_attr(feature = "pprof", inline(never))]
-    #[cfg_attr(not(feature = "pprof"), inline)]
+    #[inline]
     pub const fn insert(&mut self, index: Index) -> bool {
         let old = self.data;
         self.data |= index.bit_select();
@@ -35,8 +32,7 @@ impl Set {
     }
 
     /// Remove an index from the set, returning whether the set changed.
-    #[cfg_attr(feature = "pprof", inline(never))]
-    #[cfg_attr(not(feature = "pprof"), inline)]
+    #[inline]
     pub const fn remove(&mut self, index: Index) -> bool {
         let old = self.data;
         self.data &= !index.bit_select();
@@ -44,16 +40,14 @@ impl Set {
     }
 
     /// Test whether the set contains an index.
-    #[cfg_attr(feature = "pprof", inline(never))]
-    #[cfg_attr(not(feature = "pprof"), inline)]
+    #[inline]
     #[must_use]
     pub const fn contains(self, index: Index) -> bool {
         (self.data & index.bit_select()) != 0
     }
 
     /// Return the team indices present in both sets.
-    #[cfg_attr(feature = "pprof", inline(never))]
-    #[cfg_attr(not(feature = "pprof"), inline)]
+    #[inline]
     #[must_use]
     pub const fn intersection(self, other: Self) -> Self {
         Self {
@@ -62,40 +56,35 @@ impl Set {
     }
 
     /// Test whether the set is empty.
-    #[cfg_attr(feature = "pprof", inline(never))]
-    #[cfg_attr(not(feature = "pprof"), inline)]
+    #[inline]
     #[must_use]
     pub const fn is_empty(self) -> bool {
         self.data == 0
     }
 
     /// Returns the number of elements contained in the set.
-    #[cfg_attr(feature = "pprof", inline(never))]
-    #[cfg_attr(not(feature = "pprof"), inline)]
+    #[inline]
     #[must_use]
     pub const fn len(self) -> usize {
         self.data.count_ones() as usize
     }
 
     /// Return an iterator of contained indices in ascending order.
-    #[cfg_attr(feature = "pprof", inline(never))]
-    #[cfg_attr(not(feature = "pprof"), inline)]
+    #[inline]
     #[must_use]
     pub const fn iter(self) -> SetIter {
         SetIter { set: self }
     }
 
     /// Return the raw backing bitset.
-    #[cfg_attr(feature = "pprof", inline(never))]
-    #[cfg_attr(not(feature = "pprof"), inline)]
+    #[inline]
     #[must_use]
     pub const fn to_bits(self) -> u16 {
         self.data
     }
 
     /// Return the raw backing bitset.
-    #[cfg_attr(feature = "pprof", inline(never))]
-    #[cfg_attr(not(feature = "pprof"), inline)]
+    #[inline]
     #[must_use]
     pub const fn inverted(self) -> Self {
         Self { data: !(self.data) }
@@ -115,15 +104,13 @@ impl std::fmt::Debug for Set {
 }
 
 impl From<u16> for Set {
-    #[cfg_attr(feature = "pprof", inline(never))]
-    #[cfg_attr(not(feature = "pprof"), inline)]
+    #[inline]
     fn from(data: u16) -> Self {
         Self { data }
     }
 }
 
 impl FromIterator<Index> for Set {
-    #[cfg_attr(feature = "pprof", inline(never))]
     fn from_iter<I: IntoIterator<Item = Index>>(indices: I) -> Self {
         let mut set = Self::new();
 
@@ -139,8 +126,7 @@ impl IntoIterator for Set {
     type Item = Index;
     type IntoIter = SetIter;
 
-    #[cfg_attr(feature = "pprof", inline(never))]
-    #[cfg_attr(not(feature = "pprof"), inline)]
+    #[inline]
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
     }
@@ -154,7 +140,6 @@ pub struct SetIter {
 impl Iterator for SetIter {
     type Item = Index;
 
-    #[cfg_attr(feature = "pprof", inline(never))]
     fn next(&mut self) -> Option<Self::Item> {
         if self.set.is_empty() {
             None

@@ -21,7 +21,6 @@ pub struct SwissSystem {
 
 impl SwissSystem {
     #[must_use]
-    #[cfg_attr(feature = "pprof", inline(never))]
     /// Create a fresh tournament state and precompute matchup probabilities.
     pub fn new(ratings: [Rating; 16], sigma: Sigma) -> Self {
         let [probabilities_bo1, probabilities_bo3] = calculate_probabilities(ratings, sigma);
@@ -124,8 +123,7 @@ impl SwissSystem {
     }
 
     /// Reset Swiss System state to restart tournament.
-    #[cfg_attr(feature = "pprof", inline(never))]
-    #[cfg_attr(not(feature = "pprof"), inline)]
+    #[inline]
     pub const fn reset(&mut self) {
         self.wins = [0; 16];
         self.losses = [0; 16];
@@ -136,7 +134,6 @@ impl SwissSystem {
     }
 
     /// Simulate one independent match and update records, opponents, and status.
-    #[cfg_attr(feature = "pprof", inline(never))]
     fn simulate_match<R: rand::Rng>(&mut self, rng: &mut R, seed_a: Index, seed_b: Index) {
         let r = rng.random();
         let a = seed_a.to_usize();
@@ -181,8 +178,7 @@ impl SwissSystem {
     }
 
     /// Simulate one tournament round.
-    #[cfg_attr(feature = "pprof", inline(never))]
-    #[cfg_attr(not(feature = "pprof"), inline)]
+    #[inline]
     pub fn simulate_round<R: rand::Rng>(&mut self, rng: &mut R) {
         for (a, b) in Matchups::new(self) {
             self.simulate_match(rng, a, b);
@@ -192,8 +188,7 @@ impl SwissSystem {
     }
 
     /// Simulate all five Swiss rounds.
-    #[cfg_attr(feature = "pprof", inline(never))]
-    #[cfg_attr(not(feature = "pprof"), inline)]
+    #[inline]
     pub fn simulate_tournament<R: rand::Rng>(&mut self, rng: &mut R) {
         while self.rounds_complete < 5 {
             self.simulate_round(rng);

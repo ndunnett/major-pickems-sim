@@ -97,7 +97,6 @@ impl Matchups {
         (11, 12),
     ];
 
-    #[cfg_attr(feature = "pprof", inline(never))]
     #[must_use]
     pub fn new(ss: &SwissSystem) -> Self {
         let mut matchups = Self {
@@ -181,8 +180,7 @@ impl Matchups {
     /// Apply a matchup priority table to a record group.
     ///
     /// The first priority row with no rematches is pushed into the round buffer.
-    #[cfg_attr(feature = "pprof", inline(never))]
-    #[cfg_attr(not(feature = "pprof"), inline)]
+    #[inline]
     fn apply_priority(&mut self, ss: &SwissSystem, group: &[Index]) {
         let priority = Self::PRIORITY_TABLES[group.len()];
         let mut opponent_bits = [0; 8];

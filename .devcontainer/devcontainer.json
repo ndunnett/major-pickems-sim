@@ -4,6 +4,8 @@
   },
   "workspaceMount": "source=${localWorkspaceFolder},target=/ws,type=bind,consistency=cached",
   "workspaceFolder": "/ws",
+  "capAdd": ["PERFMON"],
+  "runArgs": ["--ulimit", "memlock=268435456:268435456"],
   "customizations": {
     "vscode": {
       "extensions": [
