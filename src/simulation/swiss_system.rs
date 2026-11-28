@@ -122,6 +122,13 @@ impl SwissSystem {
         self.rounds_complete
     }
 
+    /// Return a byte array of the win count for the first 8 seeds.
+    #[must_use]
+    #[inline]
+    pub fn first_8_wins(&self) -> [u8; 8] {
+        *self.wins[..8].as_array().unwrap_or(&[0; 8])
+    }
+
     /// Reset Swiss System state to restart tournament.
     #[inline]
     pub const fn reset(&mut self) {

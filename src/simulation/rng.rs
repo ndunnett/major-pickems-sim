@@ -52,6 +52,30 @@ impl rand::TryRng for HalfRng {
     }
 }
 
+/// Scripts up to eight match outcomes, reading the lowest bit first.
+/// A set bit rolls zero so the first team wins; a clear bit favors the second team.
+#[cfg(test)]
+pub struct ScriptedMatchRng(pub u8);
+
+#[cfg(test)]
+impl rand::TryRng for ScriptedMatchRng {
+    type Error = std::convert::Infallible;
+
+    fn try_next_u32(&mut self) -> Result<u32, Self::Error> {
+        Ok(self.try_next_u64()? as u32)
+    }
+
+    fn try_next_u64(&mut self) -> Result<u64, Self::Error> {
+        let roll = if self.0 & 1 == 1 { 0 } else { u64::MAX };
+        self.0 >>= 1;
+        Ok(roll)
+    }
+
+    fn try_fill_bytes(&mut self, dst: &mut [u8]) -> Result<(), Self::Error> {
+        rand::rand_core::utils::fill_bytes_via_next_word(dst, || self.try_next_u32())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
